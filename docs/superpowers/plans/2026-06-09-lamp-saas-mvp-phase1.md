@@ -6,7 +6,7 @@
 
 **Architecture:** Next.js 14 App Router 全栈一体化。前后端同仓库，后端用 Route Handlers，数据库用 PostgreSQL + Prisma，对象存储用阿里云 OSS（或兼容的 Cloudflare R2），AI 生成走可替换的 `IGenerationProvider` 抽象，异步任务用 Next.js 自带的 Route Handler + 后台轮询/Webhook 推进。视觉直接用现有草图 002（首页）和 001（工作台）。
 
-**Tech Stack:** Next.js 14 (App Router) + TypeScript + Tailwind CSS + Prisma + PostgreSQL + NextAuth (邮箱/手机验证码) + OSS/R2 + Vitest + Playwright。
+**Tech Stack:** Next.js 14 (App Router) + TypeScript + Tailwind CSS + Prisma + PostgreSQL (Supabase 免费层) + NextAuth (邮箱/手机验证码) + 阿里云 OSS / Cloudflare R2 + Vitest + Playwright + **Nano Banana via yunwu.ai**（图像生成 Provider 默认实现）。
 
 ---
 
@@ -122,13 +122,18 @@ lamp-saas-mvp/
   ```
 - [ ] **Step 2**：写 `.env.example`：
   ```env
-  DATABASE_URL=postgresql://lamp:lamp@localhost:5432/lamp
+  DATABASE_URL=postgresql://lamp:***@localhost:5432/lamp
+  # 也可使用 Supabase 免费层连接串：
+  # DATABASE_URL=postgresql://postgres.<project-ref>:***@aws-0-<region>.pooler.supabase.com:6543/postgres
   NEXTAUTH_SECRET=replace-me
   OSS_REGION=oss-cn-shanghai
   OSS_BUCKET=lamp-mvp
   OSS_ACCESS_KEY_ID=
   OSS_ACCESS_KEY_SECRET=
-  REPLICATE_API_TOKEN=
+  # Nano Banana 图像生成（走 yunwu.ai 网关）
+  YUNWU_API_KEY=
+  NANO_BANANA_MODEL=gemini-3.1-flash-image-preview
+  NANO_BANANA_ENDPOINT=https://yunwu.ai/v1beta/models/{model}:generateContent
   ADMIN_EMAILS=you@example.com
   ```
 - [ ] **Step 3**：写 `.github/workflows/ci.yml`，跑 `pnpm install && pnpm -C apps/web typecheck && pnpm -C apps/web test && pnpm -C apps/web build`
@@ -243,7 +248,7 @@ test("seed has 6 MVP templates", async () => {
 ### Task 8: 生成任务（事务 + Provider + 进度）
 
 **Files:**
-- Create: `lib/credits.ts`、`lib/providers/types.ts`、`lib/providers/mock.ts`、`lib/providers/replicate.ts`、`app/api/generation/jobs/route.ts`、`app/api/generation/jobs/[id]/route.ts`、`components/workspace/ProgressOverlay.tsx`
+- Create: `lib/credits.ts`、`lib/providers/types.ts`、`lib/providers/mock.ts`、`lib/providers/nano-banana.ts`、`app/api/generation/jobs/route.ts`、`app/api/generation/jobs/[id]/route.ts`、`components/workspace/ProgressOverlay.tsx`
 
 - [ ] **Step 1**：`IGenerationProvider`：
   ```ts
@@ -334,6 +339,191 @@ test("seed has 6 MVP templates", async () => {
 - [ ] **Step 3**：种子 6 个模板。
 - [ ] **Step 4**：邀请 10 个种子卖家用户灰度，开启日志。
 - [ ] **Step 5**：commit + tag `v0.1.0-mvp`
+
+---
+
+### Task 14: Nano Banana Provider 实现（默认 AI Provider）
+
+**Files:**
+- Create: `apps/web/lib/providers/nano-banana.ts`
+- Create: `apps/web/tests/unit/nano-banana.test.ts`
+
+**接入参数（已从 `04-视频/veo3.1` 项目验证可用）：**
+
+```text
+endpoint:  POST https://yunwu.ai/v1beta/models/{model}:generateContent
+model:     gemini-3.1-flash-image-preview
+auth:      Authorization: Bearer ${YUNWU_API_KEY}
+content:   Content-Type: application/json
+body:      Gemini contents/parts 风格
+output:    candidates[].content.parts[].inline_data.data (base64 PNG)
+比例:      generationConfig.imageConfig.aspectRatio = "1:1" | "4:5" | "16:9"
+```
+
+- [ ] **Step 1**：写 `lib/providers/nano-banana.ts`：
+
+```ts
+import type { IGenerationProvider, GenInput, GenStatus } from "./types";
+
+const ENDPOINT_TPL =
+  process.env.NANO_BANANA_ENDPOINT ||
+  "https://yunwu.ai/v1beta/models/{model}:generateContent";
+const MODEL = process.env.NANO_BANANA_MODEL || "gemini-3.1-flash-image-preview";
+const API_KEY = process.env.YUNWU_API_KEY!;
+
+const ASPECT_MAP: Record<string, string> = {
+  "1_1": "1:1",
+  "4_5": "4:5",
+  "16_9": "16:9",
+};
+
+async function fetchAsBase64(url: string): Promise<{ mime: string; b64: string }> {
+  const r = await fetch(url);
+  const buf = Buffer.from(await r.arrayBuffer());
+  const mime = r.headers.get("content-type") || "image/jpeg";
+  return { mime, b64: buf.toString("base64") };
+}
+
+export const nanoBananaProvider: IGenerationProvider = {
+  async submit(input: GenInput) {
+    const ref = await fetchAsBase64(input.referenceImageUrl);
+    const body = {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: input.prompt },
+            { inline_data: { mime_type: ref.mime, data: ref.b64 } },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseModalities: ["TEXT", "IMAGE"],
+        imageConfig: { aspectRatio: ASPECT_MAP[input.aspectRatio] || "1:1" },
+      },
+    };
+
+    const url = ENDPOINT_TPL.replace("{model}", MODEL);
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`nano-banana ${res.status}: ${text}`);
+    }
+    const data = await res.json();
+
+    // Nano Banana 是同步返回；我们把响应里抽到的 base64 临时存进 providerJobId 的载荷中，
+    // 让上层在 poll 阶段直接读出来。也可以选择立即写 OSS 后只返回 URL 列表。
+    const images = (data.candidates ?? [])
+      .flatMap((c: any) => c.content?.parts ?? [])
+      .map((p: any) => p.inline_data ?? p.inlineData)
+      .filter(Boolean)
+      .map((d: any) => ({ mime: d.mime_type ?? d.mimeType ?? "image/png", b64: d.data }));
+
+    return {
+      providerJobId: `nano-${Date.now()}`,
+      _inlineImages: images, // 内部字段，仅供本 provider 的 poll 使用
+    } as any;
+  },
+
+  async poll(providerJobId: string, ctx?: any) {
+    // Nano Banana 同步返回，这里直接把 submit 时拿到的 4 张图标记为 completed。
+    // 真实实现里 submit() 会把 _inlineImages 顺手写到任务行的 metadata 字段，poll 从 DB 读。
+    const inline = ctx?._inlineImages ?? [];
+    return {
+      status: inline.length ? "completed" : "failed",
+      stage_hint: inline.length ? "finalizing" : undefined,
+      images: inline.map((x: any) => ({ b64: x.b64, mime: x.mime })),
+    } as GenStatus;
+  },
+};
+```
+
+- [ ] **Step 2**：在 `lib/providers/types.ts` 里定义：
+
+```ts
+export type AspectRatio = "1_1" | "4_5" | "16_9";
+export type PlatformStyle = "domestic_ecommerce" | "brand_site";
+
+export interface GenInput {
+  prompt: string;             // 模板 prompt + 平台风格规则 + 负向约束 拼好的最终文本
+  referenceImageUrl: string;  // 用户上传的灯具图（OSS public URL）
+  aspectRatio: AspectRatio;
+  platformStyle: PlatformStyle;
+  outputCount: number;        // MVP 固定 4
+}
+
+export type Stage = "analyzing" | "matching" | "generating" | "lighting" | "finalizing";
+
+export interface GenStatus {
+  status: "generating" | "completed" | "failed";
+  stage_hint?: Stage;
+  images?: Array<{ b64?: string; url?: string; mime?: string }>;
+  failure_reason?: string;
+}
+
+export interface IGenerationProvider {
+  submit(input: GenInput): Promise<{ providerJobId: string }>;
+  poll(providerJobId: string, ctx?: any): Promise<GenStatus>;
+}
+```
+
+- [ ] **Step 3**：在 Job 业务层包一层「拿到 base64 → 写进 OSS → 生成 4 条 OutputImage」：
+
+```ts
+// lib/credits.ts 或 services/generation.ts
+import { putObject } from "@/lib/storage";
+
+export async function persistOutputs(jobId: string, images: { b64: string; mime: string }[]) {
+  const urls: string[] = [];
+  for (let i = 0; i < images.length; i++) {
+    const buf = Buffer.from(images[i].b64, "base64");
+    const ext = images[i].mime.includes("png") ? "png" : "jpg";
+    const key = `outputs/${jobId}/${i + 1}.${ext}`;
+    const url = await putObject(key, buf, images[i].mime);
+    await prisma.outputImage.create({
+      data: { job_id: jobId, image_url: url, thumbnail_url: url },
+    });
+    urls.push(url);
+  }
+  return urls;
+}
+```
+
+- [ ] **Step 4**：MVP 第一版 Nano Banana 单次返回 1 张图，要拿到 4 张就并发 4 次：
+
+```ts
+const calls = Array.from({ length: 4 }, () => nanoBananaProvider.submit(input));
+const results = await Promise.allSettled(calls);
+const ok = results.filter(r => r.status === "fulfilled");
+if (ok.length === 0) throw new Error("all 4 generations failed");
+// 把每次 submit 返回的 _inlineImages 都拍平
+```
+
+- [ ] **Step 5**：写 `tests/unit/nano-banana.test.ts`，用 `vi.spyOn(global, "fetch")` mock 一次返回，断言：
+  - 请求 URL 是 `https://yunwu.ai/v1beta/models/gemini-3.1-flash-image-preview:generateContent`
+  - 头部带 `Authorization: Bearer ${YUNWU_API_KEY}`
+  - body.contents[0].parts 里同时有 text 和 inline_data
+  - body.generationConfig.imageConfig.aspectRatio === "4:5"（当输入是 `"4_5"` 时）
+
+- [ ] **Step 6**：把 PRD v3 第 7 节灯具质量标准（主体一致性、安装合理、光影、电商可用性）拼到模板的 `prompt_template`，并在每次 submit 前 append 强约束：
+  - “保留原灯具结构、灯罩数量、灯臂、电线、材质”
+  - “吊灯必须有合理吊线/吊杆；壁灯必须贴墙；台灯必须落桌面；落地灯必须站立”
+  - “不要彩灯、霓虹、舞台灯、变形家具、水印文字”
+
+- [ ] **Step 7**：commit `feat(provider): nano banana via yunwu.ai`
+
+**联调清单：**
+
+- 用 `test-assets/lamps/pendant/white/01.jpg` + 餐厅长桌吊灯模板跑一次真请求
+- 检查响应里 base64 能解码出 PNG，写 OSS 后浏览器能打开
+- 失败 1 次（断网/key 错）确认整条链路：扣 4 → 失败 → 退 4 → UI 显示原因
 
 ---
 

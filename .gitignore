@@ -1,0 +1,30 @@
+# env
+.env
+.env.local
+.env.*.local
+
+# next
+apps/web/.next/
+apps/web/out/
+apps/web/build/
+
+# node
+node_modules/
+apps/web/node_modules/
+
+# os
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# test artifacts
+coverage/
+playwright-report/
+test-results/
+
+# misc
+*.log
+*.tsbuildinfo

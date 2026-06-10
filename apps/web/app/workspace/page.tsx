@@ -6,17 +6,12 @@ import { LoginModal } from "@/components/auth/LoginModal";
 import { LeadCaptureModal } from "@/components/credits/LeadCaptureModal";
 import { LangToggle } from "@/components/i18n/LangToggle";
 import { useLang } from "@/components/i18n/LangProvider";
+import {
+  SceneSelector,
+  type Scene,
+  type Template,
+} from "@/components/workspace/SceneSelector";
 import { BRAND } from "@/lib/brand";
-
-type Template = {
-  id: string;
-  name: string;
-  category: string;
-  lamp_type: string;
-  scene_space: string;
-  preview_image_url: string;
-  sort_order: number;
-};
 
 type PlatformStyle = "domestic_ecommerce" | "brand_site";
 type AspectRatio = "1_1" | "4_5" | "16_9";
@@ -310,6 +305,17 @@ function Main({
     useState<PlatformStyle>("domestic_ecommerce");
   const [aspect, setAspect] = useState<AspectRatio>("4_5");
 
+  // Scene selection (3 modes)
+  const [sceneKind, setSceneKind] = useState<"recommended" | "template" | "custom">(
+    "recommended",
+  );
+  const [uploadedAssetId, setUploadedAssetId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<Scene[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+  const [recommendedSceneIdx, setRecommendedSceneIdx] = useState<number>(0);
+  const [customPrompt, setCustomPrompt] = useState<string>("");
+
   // Pipeline state
   const [phase, setPhase] = useState<
     "idle" | "uploading" | "prechecking" | "submitting" | "polling" | "completed" | "failed"
@@ -355,6 +361,9 @@ function Main({
 
   const onPick = (f: File | null) => {
     setFileError(null);
+    setUploadedAssetId(null);
+    setSuggestions([]);
+    setSuggestError(null);
     setOutputs([]);
     setErrMsg(null);
     setPhase("idle");
@@ -398,62 +407,81 @@ function Main({
     setOutputs([]);
 
     try {
-      // 1) Upload
-      setPhase("uploading");
-      const fd = new FormData();
-      fd.append("file", file);
-      const upRes = await fetch("/api/uploads", { method: "POST", body: fd });
-      if (!upRes.ok) {
-        if (upRes.status === 401) {
-          onRequireLogin();
-          setPhase("idle");
-          return;
+      // 1) Upload (only if not already uploaded for this file)
+      let assetId = uploadedAssetId;
+      if (!assetId) {
+        setPhase("uploading");
+        const fd = new FormData();
+        fd.append("file", file);
+        const upRes = await fetch("/api/uploads", { method: "POST", body: fd });
+        if (!upRes.ok) {
+          if (upRes.status === 401) {
+            onRequireLogin();
+            setPhase("idle");
+            return;
+          }
+          throw new Error(t("ws_err_upload_failed"));
         }
-        throw new Error(t("ws_err_upload_failed"));
+        const data = (await upRes.json()) as { id: string };
+        assetId = data.id;
+        setUploadedAssetId(assetId);
       }
-      const { id: assetId } = (await upRes.json()) as { id: string };
 
-      // 2) Precheck
-      setPhase("prechecking");
-      const pcRes = await fetch("/api/generation/precheck", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          uploaded_asset_id: assetId,
-          template_id: templateId,
-        }),
-      });
-      const pc = await pcRes.json();
-      if (pcRes.ok && pc.match === false) {
-        // Show modal, wait for user decision
-        await new Promise<void>((resolve, reject) => {
-          setMismatch({
-            detected: pc.detected_lamp_type,
-            template_lamp_type: pc.template_lamp_type,
-            onContinue: () => {
-              setMismatch(null);
-              resolve();
-            },
-          });
-          // store reject for cancel via mismatch.onCancel — handled inline below
-          (window as unknown as { __cancelMismatch?: () => void }).__cancelMismatch = () => {
-            setMismatch(null);
-            reject(new Error("user_cancelled_template"));
-          };
+      // 2) Precheck — only when user picks an explicit template (recommended/custom 不需要)
+      if (sceneKind === "template" && templateId) {
+        setPhase("prechecking");
+        const pcRes = await fetch("/api/generation/precheck", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            uploaded_asset_id: assetId,
+            template_id: templateId,
+          }),
         });
+        const pc = await pcRes.json();
+        if (pcRes.ok && pc.match === false) {
+          await new Promise<void>((resolve, reject) => {
+            setMismatch({
+              detected: pc.detected_lamp_type,
+              template_lamp_type: pc.template_lamp_type,
+              onContinue: () => {
+                setMismatch(null);
+                resolve();
+              },
+            });
+            (window as unknown as { __cancelMismatch?: () => void }).__cancelMismatch = () => {
+              setMismatch(null);
+              reject(new Error("user_cancelled_template"));
+            };
+          });
+        }
       }
 
-      // 3) Submit job
+      // 3) Build submit body based on sceneKind
+      const submitBody: Record<string, unknown> = {
+        uploaded_asset_id: assetId,
+        scene_kind: sceneKind,
+        platform_style: platformStyle,
+        aspect_ratio: aspect,
+      };
+      if (sceneKind === "template") {
+        if (!templateId) throw new Error(t("ws_err_pick_template"));
+        submitBody.template_id = templateId;
+      } else if (sceneKind === "recommended") {
+        const scene = suggestions[recommendedSceneIdx];
+        if (!scene) throw new Error(t("ws_err_pick_scene"));
+        submitBody.recommended_prompt_en = scene.prompt_en;
+      } else if (sceneKind === "custom") {
+        if (!customPrompt.trim()) throw new Error(t("ws_err_need_prompt"));
+        submitBody.custom_prompt = customPrompt.trim();
+      }
+
+      // 4) Submit job
       setPhase("submitting");
       const subRes = await fetch("/api/generation/jobs", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          uploaded_asset_id: assetId,
-          template_id: templateId,
-          platform_style: platformStyle,
-          aspect_ratio: aspect,
-        }),
+        body: JSON.stringify(submitBody),
       });
       const sub = await subRes.json();
       if (!subRes.ok) {
@@ -521,17 +549,26 @@ function Main({
             />
           </Step>
 
-          <Step n={2} label={t("ws_step_template")}>
-            {templatesError && (
-              <p className="text-[13px] text-red-600">
-                {t("ws_err_template")}
-                {templatesError}
-              </p>
-            )}
-            <TemplateGrid
+          <Step n={2} label={t("ws_step_scene")}>
+            <SceneSelector
+              file={file}
+              uploadedAssetId={uploadedAssetId}
               templates={templates}
-              selectedId={templateId}
-              onSelect={setTemplateId}
+              templateId={templateId}
+              setTemplateId={setTemplateId}
+              templatesError={templatesError}
+              sceneKind={sceneKind}
+              setSceneKind={setSceneKind}
+              recommendedSceneIdx={recommendedSceneIdx}
+              setRecommendedSceneIdx={setRecommendedSceneIdx}
+              suggestions={suggestions}
+              setSuggestions={setSuggestions}
+              suggesting={suggesting}
+              setSuggesting={setSuggesting}
+              suggestError={suggestError}
+              setSuggestError={setSuggestError}
+              customPrompt={customPrompt}
+              setCustomPrompt={setCustomPrompt}
             />
           </Step>
 
@@ -787,85 +824,6 @@ function UploadZone({
       <p className="mt-2 text-[11px] leading-relaxed text-[#9b876b]">
         {t("ws_upload_warn")}
       </p>
-    </div>
-  );
-}
-
-function TemplateGrid({
-  templates,
-  selectedId,
-  onSelect,
-}: {
-  templates: Template[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-}) {
-  const { t, lang } = useLang();
-  if (templates.length === 0) {
-    return <div className="text-[13px] text-[#888]">{t("ws_err_loading")}</div>;
-  }
-  const sceneLabelMap: Record<string, { zh: string; en: string }> = {
-    dining: { zh: "餐厅", en: "Dining" },
-    living: { zh: "客厅", en: "Living" },
-    bedroom: { zh: "卧室", en: "Bedroom" },
-    hotel: { zh: "酒店", en: "Hotel" },
-    study: { zh: "书房", en: "Study" },
-  };
-  const lampTypeMap: Record<string, { zh: string; en: string }> = {
-    吊灯: { zh: "吊灯", en: "Pendant" },
-    壁灯: { zh: "壁灯", en: "Sconce" },
-    台灯: { zh: "台灯", en: "Table" },
-    落地灯: { zh: "落地灯", en: "Floor" },
-    吸顶灯: { zh: "吸顶灯", en: "Ceiling" },
-  };
-  return (
-    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-      {templates.map((tpl) => {
-        const selected = tpl.id === selectedId;
-        const lampLabel = lampTypeMap[tpl.lamp_type]?.[lang] ?? tpl.lamp_type;
-        const sceneLabel = sceneLabelMap[tpl.scene_space]?.[lang] ?? tpl.scene_space;
-        return (
-          <button
-            key={tpl.id}
-            onClick={() => onSelect(tpl.id)}
-            className={`rounded-2xl border bg-white p-3 text-left transition-all ${
-              selected
-                ? "border-[#171717] shadow-[0_0_0_3px_rgba(23,23,23,.06)]"
-                : "border-[#e7e1d7] hover:border-[#171717]"
-            }`}
-          >
-            <div
-              className="mb-2 h-14 rounded-[10px] sm:h-16"
-              style={{
-                background: "linear-gradient(135deg, #e9dfd0, #7f684d)",
-                position: "relative",
-                overflow: "hidden",
-              }}
-            >
-              <span
-                aria-hidden
-                className="absolute"
-                style={{
-                  left: "40%",
-                  top: "16%",
-                  width: 28,
-                  height: 38,
-                  borderRadius: "50% 50% 45% 45%",
-                  background:
-                    "radial-gradient(circle, #fff8cc, #e9a742 55%, #5e3715)",
-                  boxShadow: "0 0 35px 9px rgba(244,185,72,.55)",
-                }}
-              />
-            </div>
-            <div className="text-[13px] font-semibold text-[#171717] sm:text-[14px]">
-              {tpl.name}
-            </div>
-            <div className="text-[11px] text-[#888] sm:text-[12px]">
-              {lampLabel} · {sceneLabel}
-            </div>
-          </button>
-        );
-      })}
     </div>
   );
 }

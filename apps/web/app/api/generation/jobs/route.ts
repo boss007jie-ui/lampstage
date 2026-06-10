@@ -26,7 +26,10 @@ export async function POST(req: NextRequest) {
   }
   let body: {
     uploaded_asset_id?: unknown;
+    scene_kind?: unknown;
     template_id?: unknown;
+    recommended_prompt_en?: unknown;
+    custom_prompt?: unknown;
     platform_style?: unknown;
     aspect_ratio?: unknown;
   };
@@ -37,8 +40,20 @@ export async function POST(req: NextRequest) {
   }
   const assetId =
     typeof body.uploaded_asset_id === "string" ? body.uploaded_asset_id : "";
+  const sceneKind =
+    body.scene_kind === "recommended"
+      ? "recommended"
+      : body.scene_kind === "custom"
+        ? "custom"
+        : "template"; // default to template (back-compat)
   const templateId =
-    typeof body.template_id === "string" ? body.template_id : "";
+    typeof body.template_id === "string" ? body.template_id : undefined;
+  const recommendedPromptEn =
+    typeof body.recommended_prompt_en === "string"
+      ? body.recommended_prompt_en
+      : undefined;
+  const customPrompt =
+    typeof body.custom_prompt === "string" ? body.custom_prompt : undefined;
   const platformStyle =
     typeof body.platform_style === "string"
       ? (body.platform_style as PlatformStyle)
@@ -47,7 +62,7 @@ export async function POST(req: NextRequest) {
     typeof body.aspect_ratio === "string"
       ? (body.aspect_ratio as AspectRatio)
       : "4_5";
-  if (!assetId || !templateId) {
+  if (!assetId) {
     return NextResponse.json({ error: "missing_fields" }, { status: 400 });
   }
   if (!VALID_PLATFORM.has(platformStyle)) {
@@ -60,7 +75,10 @@ export async function POST(req: NextRequest) {
   const result = await createAndRunGenerationJob({
     userId: user.id,
     uploadedAssetId: assetId,
+    sceneKind,
     templateId,
+    recommendedPromptEn,
+    customPrompt,
     platformStyle,
     aspectRatio,
   });

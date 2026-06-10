@@ -78,19 +78,31 @@ ${STRICT_QUALITY}`;
 
 /**
  * 创建生成任务并立即开始执行（不等待完成）。
- * 调用方应该在事务外调用，因为内部要起异步生成。
  *
- * 返回 jobId 让前端轮询。
+ * 三路 prompt 来源：
+ *   - sceneKind="template" + templateId（旧的快捷模板）
+ *   - sceneKind="recommended" + recommendedPromptEn（系统推荐方案的英文 prompt）
+ *   - sceneKind="custom" + customPrompt（用户自由描述，中/英文都可）
  */
 export async function createAndRunGenerationJob(args: {
   userId: string;
   uploadedAssetId: string;
-  templateId: string;
+  sceneKind: "template" | "recommended" | "custom";
+  templateId?: string;
+  recommendedPromptEn?: string;
+  customPrompt?: string;
   platformStyle: PlatformStyle;
   aspectRatio: AspectRatio;
 }): Promise<
   | { ok: true; jobId: string; creditBalance: number }
-  | { ok: false; reason: "insufficient_credits" | "asset_not_found" | "template_not_found" }
+  | {
+      ok: false;
+      reason:
+        | "insufficient_credits"
+        | "asset_not_found"
+        | "template_not_found"
+        | "missing_prompt";
+    }
 > {
   // Step A: 验证资源 + 扣额度 + 创建 job（一个事务）
   let result;
@@ -102,18 +114,42 @@ export async function createAndRunGenerationJob(args: {
       if (!asset || asset.user_id !== args.userId) {
         return { kind: "asset_missing" as const };
       }
-      const tpl = await tx.template.findUnique({
-        where: { id: args.templateId },
-      });
-      if (!tpl || !tpl.is_active) {
-        return { kind: "template_missing" as const };
+
+      // 三路 prompt 拼接
+      let finalPrompt = "";
+      let templateId: string | null = null;
+
+      if (args.sceneKind === "template") {
+        if (!args.templateId) {
+          return { kind: "missing_prompt" as const };
+        }
+        const tpl = await tx.template.findUnique({
+          where: { id: args.templateId },
+        });
+        if (!tpl || !tpl.is_active) {
+          return { kind: "template_missing" as const };
+        }
+        templateId = tpl.id;
+        finalPrompt = tpl.prompt_template;
+      } else if (args.sceneKind === "recommended") {
+        if (!args.recommendedPromptEn?.trim()) {
+          return { kind: "missing_prompt" as const };
+        }
+        finalPrompt = args.recommendedPromptEn.trim();
+      } else if (args.sceneKind === "custom") {
+        if (!args.customPrompt?.trim()) {
+          return { kind: "missing_prompt" as const };
+        }
+        finalPrompt = expandCustomPrompt(args.customPrompt.trim());
       }
 
       const job = await tx.generationJob.create({
         data: {
           user_id: args.userId,
           uploaded_asset_id: asset.id,
-          template_id: tpl.id,
+          template_id: templateId,
+          scene_kind: args.sceneKind,
+          prompt_text: finalPrompt,
           platform_style: args.platformStyle,
           aspect_ratio:
             args.aspectRatio === "1_1"
@@ -135,7 +171,13 @@ export async function createAndRunGenerationJob(args: {
         job.id,
       );
 
-      return { kind: "ok" as const, job, asset, tpl, balanceAfter };
+      return {
+        kind: "ok" as const,
+        job,
+        asset,
+        finalPrompt,
+        balanceAfter,
+      };
     });
   } catch (e) {
     if (e instanceof InsufficientCreditsError) {
@@ -150,25 +192,32 @@ export async function createAndRunGenerationJob(args: {
   if (result.kind === "template_missing") {
     return { ok: false, reason: "template_not_found" };
   }
+  if (result.kind === "missing_prompt") {
+    return { ok: false, reason: "missing_prompt" };
+  }
 
   // Step B: 启动后台生成（不 await，让 API 立即返回）
   void runGenerationPipeline({
     jobId: result.job.id,
     userId: args.userId,
     referenceImageUrl: result.asset.image_url,
-    prompt: buildPrompt(
-      result.tpl.prompt_template,
-      args.platformStyle,
-      args.aspectRatio,
-    ),
+    prompt: buildPrompt(result.finalPrompt, args.platformStyle, args.aspectRatio),
     aspectRatio: args.aspectRatio,
   }).catch((err) => {
-    // 兜底：理论上 runGenerationPipeline 自己会处理失败，
-    // 但万一抛到这里，至少把任务标 failed。
     console.error("[gen] uncaught error", err);
   });
 
   return { ok: true, jobId: result.job.id, creditBalance: result.balanceAfter };
+}
+
+/**
+ * 把用户的自由描述变成更完整的 prompt。
+ * 用户可能只写一句"温馨客厅"，我们补上空间细节、灯光描述、电商风格、负向约束。
+ */
+function expandCustomPrompt(userText: string): string {
+  return `Interior photo of a residential room described as: ${userText}.
+Real interior photography style with the user-uploaded lamp as the visual hero.
+Compose the scene around the lamp with appropriate furniture, materials, daylight or ambient bulbs, depth of field.`;
 }
 
 async function setStage(

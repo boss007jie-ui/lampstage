@@ -362,6 +362,60 @@ const D = {
   },
   quota_btn_topup: { zh: "去额度页查看套餐", en: "View plans" },
   quota_btn_close: { zh: "稍后再说", en: "Maybe later" },
+
+  // Scene selector tabs
+  ws_step_scene: { zh: "选择场景方案", en: "Pick a scene" },
+  ws_tab_recommended: { zh: "✨ 智能推荐", en: "✨ Smart picks" },
+  ws_tab_template: { zh: "📂 快捷模板", en: "📂 Templates" },
+  ws_tab_custom: { zh: "✍️ 自由描述", en: "✍️ Describe" },
+
+  ws_recommend_need_upload: {
+    zh: "先上传一张灯具图，系统会针对它推荐 4 个最合适的场景。",
+    en: "Upload a lamp first — we'll suggest 4 scenes tailored to it.",
+  },
+  ws_recommend_uploading: {
+    zh: "正在准备上传…",
+    en: "Preparing upload…",
+  },
+  ws_recommend_thinking: {
+    zh: "AI 正在分析这盏灯，给出场景建议",
+    en: "AI is analyzing your lamp and crafting scene suggestions",
+  },
+  ws_recommend_thinking_hint: {
+    zh: "通常 15–25 秒",
+    en: "Usually 15–25 seconds",
+  },
+  ws_recommend_error: {
+    zh: "推荐失败",
+    en: "Suggestions failed",
+  },
+  ws_recommend_retry: { zh: "重试", en: "Retry" },
+  ws_recommend_empty: {
+    zh: "暂无推荐结果",
+    en: "No suggestions yet",
+  },
+
+  ws_custom_placeholder: {
+    zh: "用一两句话描述你想要的场景。例如：温馨北欧客厅，浅色沙发，落地窗，傍晚柔光。",
+    en: "Describe the scene in 1–2 sentences. e.g. Cozy Nordic living room, light sofa, large window, soft evening light.",
+  },
+  ws_custom_tags_hint: {
+    zh: "点击下方标签快速插入风格关键词：",
+    en: "Tap a tag to insert it:",
+  },
+
+  ws_err_pick_scene: {
+    zh: "请先选择一个推荐场景",
+    en: "Pick a recommended scene first.",
+  },
+  ws_err_pick_template: {
+    zh: "请先选择一个模板",
+    en: "Pick a template first.",
+  },
+  ws_err_need_prompt: {
+    zh: "请先描述你想要的场景",
+    en: "Describe the scene first.",
+  },
 } satisfies Record<string, Dict>;
 
 export type DictKey = keyof typeof D;

@@ -35,6 +35,12 @@ enum AspectRatio {
   ratio_16_9
 }
 
+enum SceneKind {
+  recommended
+  template
+  custom
+}
+
 enum JobStatus {
   created
   uploading
@@ -119,8 +125,10 @@ model GenerationJob {
   id                String        @id @default(cuid())
   user_id           String
   uploaded_asset_id String
-  template_id       String
-  platform_style   PlatformStyle
+  template_id       String?
+  scene_kind        SceneKind     @default(template)
+  prompt_text       String?
+  platform_style    PlatformStyle
   aspect_ratio      AspectRatio
   credit_cost       Int           @default(4)
   status            JobStatus     @default(created)
@@ -133,7 +141,7 @@ model GenerationJob {
 
   user           User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
   uploaded_asset UploadedAsset @relation(fields: [uploaded_asset_id], references: [id])
-  template       Template      @relation(fields: [template_id], references: [id])
+  template       Template?     @relation(fields: [template_id], references: [id])
 
   outputs    OutputImage[]
   credit_txs CreditTransaction[]

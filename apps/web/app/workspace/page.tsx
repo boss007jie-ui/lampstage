@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LoginModal } from "@/components/auth/LoginModal";
+import { LeadCaptureModal } from "@/components/credits/LeadCaptureModal";
 import { LangToggle } from "@/components/i18n/LangToggle";
 import { useLang } from "@/components/i18n/LangProvider";
 import { BRAND } from "@/lib/brand";
@@ -316,6 +317,7 @@ function Main({
   const [stageHint, setStageHint] = useState<string | null>(null);
   const [outputs, setOutputs] = useState<{ id: string; image_url: string }[]>([]);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [quotaExhaustedOpen, setQuotaExhaustedOpen] = useState(false);
   const [mismatch, setMismatch] = useState<{
     detected: string;
     template_lamp_type: string;
@@ -456,8 +458,8 @@ function Main({
       const sub = await subRes.json();
       if (!subRes.ok) {
         if (sub.error === "insufficient_credits") {
-          setErrMsg(t("ws_err_insufficient"));
-          setPhase("failed");
+          setQuotaExhaustedOpen(true);
+          setPhase("idle");
           return;
         }
         throw new Error(sub.error || t("ws_err_generic"));
@@ -599,6 +601,10 @@ function Main({
           }}
         />
       )}
+      <QuotaExhaustedDialog
+        open={quotaExhaustedOpen}
+        onClose={() => setQuotaExhaustedOpen(false)}
+      />
     </main>
   );
 }
@@ -1090,5 +1096,65 @@ function Spinner() {
         strokeLinecap="round"
       />
     </svg>
+  );
+}
+
+function QuotaExhaustedDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useLang();
+  const [leadOpen, setLeadOpen] = useState(false);
+  if (!open) return null;
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40 grid place-items-end bg-black/50 sm:place-items-center"
+        onClick={onClose}
+      >
+        <div
+          className="w-full rounded-t-2xl bg-white p-5 shadow-2xl sm:m-4 sm:max-w-md sm:rounded-2xl sm:p-6"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2 className="text-[20px] font-semibold tracking-tight">
+            {t("quota_title")}
+          </h2>
+          <p className="mt-2 text-[13px] leading-relaxed text-[#64748d]">
+            {t("quota_subtitle")}
+          </p>
+          <div className="mt-5 flex flex-col gap-2">
+            <button
+              onClick={() => setLeadOpen(true)}
+              className="w-full rounded-md bg-[#533afd] px-4 py-2.5 font-medium text-white"
+            >
+              {t("plan_btn_contact")}
+            </button>
+            <Link
+              href="/credits"
+              className="w-full rounded-md border border-[#d6d9fc] px-4 py-2.5 text-center text-[14px] text-[#533afd]"
+            >
+              {t("quota_btn_topup")}
+            </Link>
+            <button
+              onClick={onClose}
+              className="w-full px-4 py-2 text-[13px] text-[#94a3b8]"
+            >
+              {t("quota_btn_close")}
+            </button>
+          </div>
+        </div>
+      </div>
+      <LeadCaptureModal
+        open={leadOpen}
+        source="workspace_quota_modal"
+        onClose={() => {
+          setLeadOpen(false);
+          onClose();
+        }}
+      />
+    </>
   );
 }

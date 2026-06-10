@@ -282,6 +282,86 @@ const D = {
   // Lang toggle
   lang_toggle_to_en: { zh: "EN", en: "EN" },
   lang_toggle_to_zh: { zh: "中", en: "中" },
+
+  // Credits page
+  credits_title: { zh: "额度与套餐", en: "Credits & plans" },
+  credits_balance_label: { zh: "当前剩余额度", en: "Credits remaining" },
+  credits_balance_unit: { zh: "次", en: "credits" },
+  credits_history_title: { zh: "交易记录", en: "History" },
+  credits_history_empty: { zh: "暂无交易记录", en: "No transactions yet" },
+  credits_tx_grant: { zh: "新用户赠送", en: "New-user grant" },
+  credits_tx_consume: { zh: "生成消耗", en: "Generation" },
+  credits_tx_refund: { zh: "失败退款", en: "Refund" },
+  credits_tx_manual: { zh: "运营调整", en: "Manual adjustment" },
+
+  plans_title: { zh: "联系开通额度包", en: "Contact us for credit packs" },
+  plans_subtitle: {
+    zh: "MVP 阶段尚未开通在线支付，添加微信或联系客服可立即开通额度。",
+    en: "Online payments are coming soon. Reach out and we'll top up your credits within minutes.",
+  },
+  plan_free_name: { zh: "免费体验", en: "Free trial" },
+  plan_free_quota: { zh: "20 次", en: "20 credits" },
+  plan_free_desc: {
+    zh: "新用户首次登录即送，无需联系。",
+    en: "Auto-granted on signup. No contact required.",
+  },
+  plan_basic_name: { zh: "基础包", en: "Basic" },
+  plan_basic_quota: { zh: "100 次", en: "100 credits" },
+  plan_basic_desc: {
+    zh: "适合个人卖家少量上新。",
+    en: "For individual sellers shipping a few SKUs.",
+  },
+  plan_business_name: { zh: "商业包", en: "Business" },
+  plan_business_quota: { zh: "500 次", en: "500 credits" },
+  plan_business_desc: {
+    zh: "适合店群和小型代运营团队。",
+    en: "For multi-store sellers and small agency teams.",
+  },
+  plan_factory_name: { zh: "工厂定制", en: "Factory custom" },
+  plan_factory_quota: { zh: "联系定制", en: "Custom quote" },
+  plan_factory_desc: {
+    zh: "工厂或代运营批量出图，支持定制 SKU 流水线。",
+    en: "Factory-scale batch generation with custom SKU pipelines.",
+  },
+  plan_btn_contact: { zh: "添加微信开通", en: "Contact via WeChat" },
+  plan_btn_active: { zh: "已激活", en: "Active" },
+
+  // Lead capture modal
+  lead_title: { zh: "联系开通额度", en: "Contact to top up" },
+  lead_subtitle: {
+    zh: "留下你的微信或手机号，运营会在 24 小时内主动联系你。",
+    en: "Leave your WeChat or phone — we'll reach out within 24 hours.",
+  },
+  lead_label_name: { zh: "称呼（可选）", en: "Name (optional)" },
+  lead_label_wechat: { zh: "微信号", en: "WeChat" },
+  lead_label_phone: { zh: "手机号", en: "Phone" },
+  lead_label_message: { zh: "需求描述（可选）", en: "Message (optional)" },
+  lead_placeholder_message: {
+    zh: "例如：我有 50 个灯具 SKU 想批量出图。",
+    en: "E.g. I have 50 lamp SKUs and need batch generation.",
+  },
+  lead_btn_submit: { zh: "提交", en: "Submit" },
+  lead_btn_submitting: { zh: "提交中…", en: "Submitting…" },
+  lead_err_need_contact: {
+    zh: "请至少填写微信号或手机号",
+    en: "Please enter WeChat or phone.",
+  },
+  lead_err_generic: { zh: "提交失败：", en: "Submit failed: " },
+  lead_success_title: { zh: "已收到，运营会主动联系你", en: "Got it. We'll reach out shortly." },
+  lead_success_body: {
+    zh: "你也可以直接添加微信：lampstage（占位，运营请替换）",
+    en: "You can also add our WeChat: lampstage (placeholder).",
+  },
+  lead_success_close: { zh: "好的", en: "OK" },
+
+  // Quota exhausted modal (workspace -> 409)
+  quota_title: { zh: "免费额度已用完", en: "Free credits used up" },
+  quota_subtitle: {
+    zh: "继续生成需要开通额度包。基础包 100 次，商业包 500 次，工厂卖家可定制批量出图。",
+    en: "To keep generating, top up. Basic 100 / Business 500 / Factory custom batch.",
+  },
+  quota_btn_topup: { zh: "去额度页查看套餐", en: "View plans" },
+  quota_btn_close: { zh: "稍后再说", en: "Maybe later" },
 } satisfies Record<string, Dict>;
 
 export type DictKey = keyof typeof D;

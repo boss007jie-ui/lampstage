@@ -404,6 +404,9 @@ const D = {
     en: "Tap a tag to insert it:",
   },
 
+  ws_recommend_thumb_hover: { zh: "悬停预览", en: "Hover to preview" },
+  ws_recommend_thumb_loading: { zh: "渲染中…", en: "Rendering…" },
+
   ws_err_pick_scene: {
     zh: "请先选择一个推荐场景",
     en: "Pick a recommended scene first.",

@@ -11,6 +11,7 @@ apps/web/build/
 # user-generated runtime data (本地 MVP 写到 public/，不进 git)
 apps/web/public/uploads/
 apps/web/public/generated/
+apps/web/public/suggest-thumbs/
 
 # node
 node_modules/

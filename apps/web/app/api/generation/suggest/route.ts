@@ -3,12 +3,8 @@
  *
  * body: { uploaded_asset_id }
  *
- * 用 GPT-5-mini 看上传的灯具图，返回 4 个针对性场景方案。
- *
- * 缓存：把 4 个方案存进 UploadedAsset 的某个 metadata 字段。
- * 这里 schema 没有专门字段，简单做法是塞到 quality_warning 旁边的 JSON——
- * 但更稳的是：UploadedAsset 加个 scene_suggestions Json 字段。
- * 当前不加迁移，直接在内存返回，每次重新调（21s 一次成本可接受）。
+ * 用 GPT-5-mini 看上传的灯具图，返回 4 个针对性场景方案（仅文字）。
+ * 缩略图按需生成 — 见 /api/generation/suggest/thumb。
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";

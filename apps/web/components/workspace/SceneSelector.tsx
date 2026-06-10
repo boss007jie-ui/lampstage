@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLang } from "@/components/i18n/LangProvider";
 
 export type Scene = {
@@ -247,38 +247,155 @@ function RecommendedScenes({
 
   return (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      {suggestions.map((s, i) => {
-        const on = i === selectedIdx;
-        return (
-          <button
-            key={`${s.title}-${i}`}
-            onClick={() => onSelect(i)}
-            className={`rounded-2xl border bg-white p-3 text-left transition-all ${
-              on
-                ? "border-[#171717] shadow-[0_0_0_3px_rgba(23,23,23,.06)]"
-                : "border-[#e7e1d7] hover:border-[#171717]"
-            }`}
-          >
-            <div className="text-[14px] font-semibold text-[#171717]">
-              {s.title}
-            </div>
-            <div className="mt-1 text-[12px] text-[#666]">{s.pitch}</div>
-            {s.best_for.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {s.best_for.slice(0, 3).map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full bg-[#faf7ed] px-2 py-0.5 text-[11px] text-[#876c3a]"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </button>
-        );
-      })}
+      {suggestions.map((s, i) => (
+        <RecommendedSceneCard
+          key={`${s.title}-${i}`}
+          scene={s}
+          assetId={uploadedAssetId!}
+          idx={i}
+          selected={i === selectedIdx}
+          onSelect={() => onSelect(i)}
+        />
+      ))}
     </div>
+  );
+}
+
+/** 单卡：hover 0.5s 后按需触发缩略图生成；点击立即触发 + 选中。 */
+function RecommendedSceneCard({
+  scene,
+  assetId,
+  idx,
+  selected,
+  onSelect,
+}: {
+  scene: Scene;
+  assetId: string;
+  idx: number;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const { t } = useLang();
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+  const [thumbLoading, setThumbLoading] = useState(false);
+  const [thumbError, setThumbError] = useState(false);
+  const hoverTimer = useRef<number | null>(null);
+
+  // 切换灯具图（assetId 变化）时重置
+  useEffect(() => {
+    setThumbUrl(null);
+    setThumbLoading(false);
+    setThumbError(false);
+  }, [assetId]);
+
+  const requestThumb = async () => {
+    if (thumbUrl || thumbLoading) return;
+    setThumbLoading(true);
+    setThumbError(false);
+    try {
+      const r = await fetch("/api/generation/suggest/thumb", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          uploaded_asset_id: assetId,
+          idx,
+          prompt_en: scene.prompt_en,
+        }),
+      });
+      if (!r.ok) {
+        setThumbError(true);
+        return;
+      }
+      const data = (await r.json()) as { thumb_url: string };
+      // 加 cache-buster 防止偶尔的 304 缓存
+      setThumbUrl(data.thumb_url + "?t=" + Date.now());
+    } catch {
+      setThumbError(true);
+    } finally {
+      setThumbLoading(false);
+    }
+  };
+
+  const onMouseEnter = () => {
+    if (thumbUrl || thumbLoading) return;
+    hoverTimer.current = window.setTimeout(() => {
+      void requestThumb();
+    }, 500);
+  };
+  const onMouseLeave = () => {
+    if (hoverTimer.current) {
+      window.clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
+  };
+
+  const handleClick = () => {
+    onSelect();
+    // 点击就立即触发（不等 hover delay）
+    if (!thumbUrl && !thumbLoading) {
+      void requestThumb();
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className={`overflow-hidden rounded-2xl border bg-white text-left transition-all ${
+        selected
+          ? "border-[#171717] shadow-[0_0_0_3px_rgba(23,23,23,.06)]"
+          : "border-[#e7e1d7] hover:border-[#171717]"
+      }`}
+    >
+      <div className="relative h-32 w-full overflow-hidden bg-gradient-to-br from-[#f6efe1] to-[#cbb38d] sm:h-36">
+        {thumbUrl && !thumbError && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={thumbUrl}
+            alt={scene.title}
+            className="h-full w-full object-cover transition-opacity duration-500"
+            style={{ opacity: thumbUrl ? 1 : 0 }}
+            loading="lazy"
+            onError={() => setThumbError(true)}
+          />
+        )}
+        {!thumbUrl && (
+          <div className="absolute inset-0 grid place-items-center">
+            {thumbLoading ? (
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#171717] border-t-transparent" />
+                <span className="text-[11px] text-[#876c3a]">{t("ws_recommend_thumb_loading")}</span>
+              </div>
+            ) : (
+              <span className="text-[11px] text-[#876c3a] opacity-70">
+                {t("ws_recommend_thumb_hover")}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="p-3">
+        <div className="text-[14px] font-semibold text-[#171717]">
+          {scene.title}
+        </div>
+        <div className="mt-1 line-clamp-2 text-[12px] text-[#666]">
+          {scene.pitch}
+        </div>
+        {scene.best_for.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {scene.best_for.slice(0, 3).map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-[#faf7ed] px-2 py-0.5 text-[11px] text-[#876c3a]"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </button>
   );
 }
 

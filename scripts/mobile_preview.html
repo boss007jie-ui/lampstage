@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Mobile preview · 390 / 768 / 1024</title>
+<style>
+  html,body{margin:0;padding:0;background:#222;font:13px/1.4 system-ui;color:#ddd}
+  .row{display:flex;gap:18px;padding:16px;align-items:flex-start;flex-wrap:wrap}
+  .card{background:#000;border-radius:14px;overflow:hidden;flex:none;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+  .card .label{padding:6px 10px;background:#111;color:#fff;font-weight:600}
+  .card iframe{display:block;border:0;background:#fff}
+  .url{padding:6px 10px;color:#888;font-family:monospace;font-size:11px}
+  h1{margin:14px 16px 0;color:#fff;font-weight:500;font-size:18px}
+</style>
+</head>
+<body>
+<h1>响应式预览（左→右：iPhone 14 / iPad mini / Desktop）</h1>
+<div class="row">
+  <div class="card">
+    <div class="label">📱 iPhone 14 · 390 × 844</div>
+    <iframe src="http://localhost:3000/" width="390" height="844"></iframe>
+    <div class="url">/</div>
+  </div>
+  <div class="card">
+    <div class="label">📱 iPhone 14 · workspace</div>
+    <iframe src="http://localhost:3000/workspace" width="390" height="844"></iframe>
+    <div class="url">/workspace</div>
+  </div>
+  <div class="card">
+    <div class="label">📲 iPad mini · 768 × 700</div>
+    <iframe src="http://localhost:3000/" width="768" height="700"></iframe>
+    <div class="url">/</div>
+  </div>
+</div>
+</body>
+</html>

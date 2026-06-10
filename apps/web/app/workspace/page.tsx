@@ -29,6 +29,7 @@ export default function WorkspacePage() {
   const [signedIn, setSignedIn] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [welcome, setWelcome] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const refreshMe = async () => {
     try {
@@ -52,9 +53,28 @@ export default function WorkspacePage() {
   }, []);
 
   return (
-    <div className="grid min-h-screen grid-cols-1 bg-[#f7f7f5] md:grid-cols-[248px_1fr]">
-      <Sidebar credit={credit} signedIn={signedIn} />
-      <Main signedIn={signedIn} onRequireLogin={() => setLoginOpen(true)} />
+    <div className="min-h-screen bg-[#f7f7f5]">
+      {/* 手机顶部条 */}
+      <MobileTopBar
+        credit={credit}
+        signedIn={signedIn}
+        onMenu={() => setDrawerOpen(true)}
+      />
+
+      {/* 桌面 sidebar + 主内容；手机抽屉覆盖在最上层 */}
+      <div className="md:grid md:min-h-screen md:grid-cols-[248px_1fr]">
+        <DesktopSidebar credit={credit} signedIn={signedIn} />
+        <Main signedIn={signedIn} onRequireLogin={() => setLoginOpen(true)} />
+      </div>
+
+      {drawerOpen && (
+        <MobileDrawer
+          credit={credit}
+          signedIn={signedIn}
+          onClose={() => setDrawerOpen(false)}
+        />
+      )}
+
       <LoginModal
         open={loginOpen}
         onClose={() => setLoginOpen(false)}
@@ -80,34 +100,77 @@ export default function WorkspacePage() {
   );
 }
 
-function Sidebar({
+function BrandLogo() {
+  const { lang } = useLang();
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        aria-hidden
+        className="inline-block h-7 w-7 rounded-[8px]"
+        style={{
+          background:
+            "radial-gradient(circle at 30% 20%, #fff1bc, #c88736 42%, #16110b 85%)",
+          boxShadow: "0 8px 22px rgba(174,110,35,.25)",
+        }}
+      />
+      <div className="text-[15px] font-semibold tracking-tight text-[#171717]">
+        {lang === "zh" ? `${BRAND.en} · ${BRAND.cn}` : BRAND.en}
+      </div>
+    </div>
+  );
+}
+
+/** 手机端顶部条：紧凑、sticky，包含 logo + 额度 + 汉堡 */
+function MobileTopBar({
+  credit,
+  signedIn,
+  onMenu,
+}: {
+  credit: number | null;
+  signedIn: boolean;
+  onMenu: () => void;
+}) {
+  return (
+    <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-[#e8e5df] bg-white/95 px-4 py-3 backdrop-blur md:hidden">
+      <Link href="/">
+        <BrandLogo />
+      </Link>
+      <div className="flex items-center gap-2">
+        <span className="rounded-full border border-[#eadfcb] bg-[#faf7ed] px-2.5 py-1 text-[12px]">
+          <span className="font-mono font-semibold text-[#171717]">
+            {credit ?? (signedIn ? "—" : "20")}
+          </span>
+        </span>
+        <button
+          type="button"
+          onClick={onMenu}
+          aria-label="menu"
+          className="grid h-9 w-9 place-items-center rounded-md border border-[#e5edf5] text-[#273951]"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+      </div>
+    </header>
+  );
+}
+
+/** 桌面 sidebar：md 以上显示，手机端隐藏 */
+function DesktopSidebar({
   credit,
   signedIn,
 }: {
   credit: number | null;
   signedIn: boolean;
 }) {
-  const { t, lang } = useLang();
+  const { t } = useLang();
   return (
-    <aside className="border-b border-[#e8e5df] bg-white p-5 md:sticky md:top-0 md:h-screen md:border-b-0 md:border-r">
+    <aside className="hidden border-r border-[#e8e5df] bg-white p-5 md:sticky md:top-0 md:block md:h-screen">
       <Link href="/" className="mb-7 flex items-center gap-2">
-        <span
-          aria-hidden
-          className="inline-block h-8 w-8 rounded-[10px]"
-          style={{
-            background:
-              "radial-gradient(circle at 30% 20%, #fff1bc, #c88736 42%, #16110b 85%)",
-            boxShadow: "0 10px 30px rgba(174,110,35,.25)",
-          }}
-        />
-        <div>
-          <div className="text-[17px] font-semibold tracking-tight text-[#171717]">
-            {lang === "zh" ? `${BRAND.en} · ${BRAND.cn}` : BRAND.en}
-          </div>
-          <div className="text-[12px] text-[#888]">
-            {lang === "zh" ? "灯具电商图工作台" : "Lamp scene-photo studio"}
-          </div>
-        </div>
+        <BrandLogo />
       </Link>
       <nav className="text-[14px]">
         <NavItem href="/workspace" label={t("nav_generate")} active />
@@ -117,13 +180,17 @@ function Sidebar({
       </nav>
       <div className="mt-7 rounded-2xl border border-[#eadfcb] bg-[#faf7ed] p-4">
         <div className="text-[13px] text-[#888]">
-          {signedIn ? t("ws_credits_title_signed") : t("ws_credits_title_unsigned")}
+          {signedIn
+            ? t("ws_credits_title_signed")
+            : t("ws_credits_title_unsigned")}
         </div>
         <div className="text-[28px] font-semibold tracking-[-1px]">
           {credit ?? "20"}
         </div>
         <div className="text-[12px] text-[#888]">
-          {signedIn ? t("ws_credits_hint_signed") : t("ws_credits_hint_unsigned")}
+          {signedIn
+            ? t("ws_credits_hint_signed")
+            : t("ws_credits_hint_unsigned")}
         </div>
       </div>
       <div className="mt-5">
@@ -133,18 +200,86 @@ function Sidebar({
   );
 }
 
+/** 手机抽屉：从右滑出，遮罩 + 完整菜单 */
+function MobileDrawer({
+  credit,
+  signedIn,
+  onClose,
+}: {
+  credit: number | null;
+  signedIn: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useLang();
+  return (
+    <div
+      className="fixed inset-0 z-50 md:hidden"
+      onClick={onClose}
+      role="dialog"
+    >
+      <div className="absolute inset-0 bg-black/40" />
+      <div
+        className="absolute right-0 top-0 h-full w-[280px] bg-white p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-5 flex items-center justify-between">
+          <BrandLogo />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="close"
+            className="grid h-9 w-9 place-items-center rounded-md text-[#94a3b8] hover:bg-[#f1f5f9]"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <nav className="text-[15px]">
+          <NavItem href="/workspace" label={t("nav_generate")} active onClick={onClose} />
+          <NavItem href="/my" label={t("nav_my_works")} onClick={onClose} />
+          <NavItem href="/credits" label={t("nav_credits")} onClick={onClose} />
+          <NavItem href="/help" label={t("nav_help")} onClick={onClose} />
+        </nav>
+        <div className="mt-5 rounded-2xl border border-[#eadfcb] bg-[#faf7ed] p-4">
+          <div className="text-[13px] text-[#888]">
+            {signedIn
+              ? t("ws_credits_title_signed")
+              : t("ws_credits_title_unsigned")}
+          </div>
+          <div className="text-[28px] font-semibold tracking-[-1px]">
+            {credit ?? "20"}
+          </div>
+          <div className="text-[12px] text-[#888]">
+            {signedIn
+              ? t("ws_credits_hint_signed")
+              : t("ws_credits_hint_unsigned")}
+          </div>
+        </div>
+        <div className="mt-5">
+          <LangToggle />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NavItem({
   href,
   label,
   active,
+  onClick,
 }: {
   href: string;
   label: string;
   active?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <Link
       href={href}
+      onClick={onClick}
       className={`mb-1 block rounded-xl px-3 py-2.5 transition-colors ${
         active
           ? "bg-[#171717] text-white"
@@ -243,20 +378,22 @@ function Main({
   };
 
   return (
-    <main className="px-6 py-6 md:px-8 md:py-7">
+    <main className="px-4 py-5 md:px-8 md:py-7">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[28px] font-semibold tracking-[-1px] md:text-[32px]">
+          <h1 className="text-[22px] font-semibold tracking-[-0.5px] sm:text-[28px] md:text-[32px] md:tracking-[-1px]">
             {t("ws_title")}
           </h1>
-          <p className="mt-2 text-[#666]">{t("ws_subtitle")}</p>
+          <p className="mt-2 text-[14px] text-[#666] md:text-[15px]">
+            {t("ws_subtitle")}
+          </p>
         </div>
-        <div className="rounded-full border border-[#ddd] bg-white px-3 py-2 text-[13px] text-[#555]">
+        <div className="hidden rounded-full border border-[#ddd] bg-white px-3 py-2 text-[13px] text-[#555] md:block">
           {t("ws_mode_chip")}
         </div>
       </div>
 
-      <section className="grid grid-cols-1 gap-5 md:grid-cols-[360px_1fr]">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-[360px_1fr] md:gap-5">
         <Panel title={t("ws_panel_settings")}>
           <Step n={1} label={t("ws_step_upload")}>
             <UploadZone
@@ -346,10 +483,10 @@ function Panel({
 }) {
   return (
     <div
-      className="overflow-hidden rounded-[18px] border border-[#e8e4dc] bg-white"
-      style={{ boxShadow: "0 18px 50px rgba(30,20,10,.05)" }}
+      className="overflow-hidden rounded-[16px] border border-[#e8e4dc] bg-white md:rounded-[18px]"
+      style={{ boxShadow: "0 12px 40px rgba(30,20,10,.05)" }}
     >
-      <h2 className="border-b border-[#eee9df] p-4 text-[15px] font-semibold">
+      <h2 className="border-b border-[#eee9df] p-3.5 text-[14px] font-semibold sm:p-4 sm:text-[15px]">
         {title}
       </h2>
       <div className="p-4 md:p-5">{children}</div>
@@ -371,7 +508,7 @@ function Step({
       <div className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-[#171717] text-[12px] text-white">
         {n}
       </div>
-      <div className="w-full">
+      <div className="w-full min-w-0">
         <div className="mb-2 text-[14px] font-medium">{label}</div>
         {children}
       </div>
@@ -405,19 +542,19 @@ function UploadZone({
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
-        className="grid h-44 w-full place-items-center rounded-2xl border-[1.5px] border-dashed border-[#c9b89a] bg-gradient-to-br from-white to-[#fbf6ec] text-center text-[#6b5a3e] transition-colors hover:border-[#171717]"
+        className="grid h-40 w-full place-items-center rounded-2xl border-[1.5px] border-dashed border-[#c9b89a] bg-gradient-to-br from-white to-[#fbf6ec] px-3 text-center text-[#6b5a3e] transition-colors hover:border-[#171717] sm:h-44"
       >
         {filePreview ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={filePreview}
             alt="uploaded lamp"
-            className="max-h-40 rounded-xl object-contain"
+            className="max-h-36 rounded-xl object-contain sm:max-h-40"
           />
         ) : (
           <div>
             <div className="font-semibold text-[#171717]">{t("ws_step_upload")}</div>
-            <div className="text-[13px]">{t("ws_upload_hint")}</div>
+            <div className="text-[12px] sm:text-[13px]">{t("ws_upload_hint")}</div>
             <div className="mt-1 text-[11px] text-[#9b876b]">
               {t("ws_upload_max")}
             </div>
@@ -429,7 +566,7 @@ function UploadZone({
           <span className="truncate pr-2">{file.name}</span>
           <button
             type="button"
-            className="text-[#999] underline-offset-2 hover:underline"
+            className="flex-none text-[#999] underline-offset-2 hover:underline"
             onClick={() => {
               if (fileInputRef.current) fileInputRef.current.value = "";
               onPick(null);
@@ -440,7 +577,9 @@ function UploadZone({
         </div>
       )}
       {error && <p className="mt-2 text-[12px] text-red-600">{error}</p>}
-      <p className="mt-2 text-[11px] text-[#9b876b]">{t("ws_upload_warn")}</p>
+      <p className="mt-2 text-[11px] leading-relaxed text-[#9b876b]">
+        {t("ws_upload_warn")}
+      </p>
     </div>
   );
 }
@@ -467,13 +606,13 @@ function TemplateGrid({
   };
   const lampTypeMap: Record<string, { zh: string; en: string }> = {
     吊灯: { zh: "吊灯", en: "Pendant" },
-    壁灯: { zh: "壁灯", en: "Wall sconce" },
-    台灯: { zh: "台灯", en: "Table lamp" },
-    落地灯: { zh: "落地灯", en: "Floor lamp" },
+    壁灯: { zh: "壁灯", en: "Sconce" },
+    台灯: { zh: "台灯", en: "Table" },
+    落地灯: { zh: "落地灯", en: "Floor" },
     吸顶灯: { zh: "吸顶灯", en: "Ceiling" },
   };
   return (
-    <div className="grid grid-cols-2 gap-2.5">
+    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
       {templates.map((tpl) => {
         const selected = tpl.id === selectedId;
         const lampLabel = lampTypeMap[tpl.lamp_type]?.[lang] ?? tpl.lamp_type;
@@ -489,7 +628,7 @@ function TemplateGrid({
             }`}
           >
             <div
-              className="mb-2 h-16 rounded-[10px]"
+              className="mb-2 h-14 rounded-[10px] sm:h-16"
               style={{
                 background: "linear-gradient(135deg, #e9dfd0, #7f684d)",
                 position: "relative",
@@ -511,10 +650,10 @@ function TemplateGrid({
                 }}
               />
             </div>
-            <div className="text-[14px] font-semibold text-[#171717]">
+            <div className="text-[13px] font-semibold text-[#171717] sm:text-[14px]">
               {tpl.name}
             </div>
-            <div className="text-[12px] text-[#888]">
+            <div className="text-[11px] text-[#888] sm:text-[12px]">
               {lampLabel} · {sceneLabel}
             </div>
           </button>
@@ -541,7 +680,7 @@ function Segmented<T extends string>({
           <button
             key={opt.value}
             onClick={() => onChange(opt.value)}
-            className={`flex-1 rounded-lg px-3 py-2 text-[13px] transition-colors ${
+            className={`flex-1 rounded-lg px-2 py-2 text-[12px] transition-colors sm:px-3 sm:text-[13px] ${
               on ? "bg-[#171717] text-white" : "text-[#666] hover:text-[#171717]"
             }`}
           >
@@ -576,60 +715,64 @@ function PreviewCanvas({
   return (
     <div>
       <div
-        className="relative h-[460px] overflow-hidden rounded-3xl"
+        className="relative h-[260px] overflow-hidden rounded-2xl sm:h-[360px] md:h-[460px] md:rounded-3xl"
         style={{
           background: "linear-gradient(140deg, #d9c8b3, #f3ece1 45%, #7b6a58)",
           boxShadow: "inset 0 0 0 1px rgba(255,255,255,.25)",
         }}
       >
-        <div className="absolute left-4 top-4 rounded-full bg-white/80 px-3 py-2 text-[13px] backdrop-blur">
+        <div className="absolute left-3 top-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-white/80 px-2.5 py-1.5 text-[11px] backdrop-blur sm:left-4 sm:top-4 sm:px-3 sm:py-2 sm:text-[13px]">
           {templateName} · {platformLabel} · {aspectLabel}
         </div>
         <div
           aria-hidden
-          className="absolute right-32 top-16 h-[110px] w-[80px] rounded-[48px_48px_18px_18px]"
+          className="absolute right-12 top-10 h-[64px] w-[48px] rounded-[28px_28px_12px_12px] sm:right-24 sm:top-14 sm:h-[90px] sm:w-[64px] md:right-32 md:top-16 md:h-[110px] md:w-[80px] md:rounded-[48px_48px_18px_18px]"
           style={{
             background:
               "radial-gradient(circle at 50% 30%, #fff7c8, #e2a23d 40%, #5c3518 75%)",
             boxShadow:
-              "0 0 80px 32px rgba(255,210,101,.45), 0 18px 30px rgba(0,0,0,.18)",
+              "0 0 60px 24px rgba(255,210,101,.45), 0 14px 24px rgba(0,0,0,.18)",
           }}
         />
         <div
           aria-hidden
-          className="absolute bottom-20 left-12 right-12 h-24 rounded-[36px_36px_18px_18px] bg-[#cab89f]"
+          className="absolute bottom-12 left-6 right-6 h-14 rounded-[20px_20px_10px_10px] bg-[#cab89f] sm:bottom-16 sm:left-10 sm:right-10 sm:h-20 md:bottom-20 md:left-12 md:right-12 md:h-24 md:rounded-[36px_36px_18px_18px]"
         />
         {filePreview && !generating && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={filePreview}
             alt="uploaded lamp"
-            className="absolute right-4 top-4 h-20 w-20 rounded-xl border border-white/60 object-cover"
+            className="absolute right-3 top-3 h-14 w-14 rounded-lg border border-white/60 object-cover sm:right-4 sm:top-4 sm:h-20 sm:w-20 sm:rounded-xl"
           />
         )}
         {generating && (
-          <div className="absolute inset-0 grid place-items-center bg-black/30 text-white">
+          <div className="absolute inset-0 grid place-items-center bg-black/30 px-4 text-white">
             <div className="text-center">
-              <div className="text-[18px]">{t("ws_progress_placeholder")}</div>
-              <div className="mt-1 text-[12px] opacity-80">
+              <div className="text-[16px] sm:text-[18px]">
+                {t("ws_progress_placeholder")}
+              </div>
+              <div className="mt-1 text-[11px] opacity-80 sm:text-[12px]">
                 {t("ws_progress_subtext")}
               </div>
             </div>
           </div>
         )}
       </div>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="text-[12px] text-[#888]">{t("ws_preview_disclaimer")}</div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 sm:mt-4">
+        <div className="text-[11px] text-[#888] sm:text-[12px]">
+          {t("ws_preview_disclaimer")}
+        </div>
         <div className="flex gap-2">
           <button
             disabled
-            className="rounded-xl border border-[#e5e1d8] bg-white px-4 py-2 text-[13px] text-[#666] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-xl border border-[#e5e1d8] bg-white px-3 py-2 text-[12px] text-[#666] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-[13px]"
           >
             {t("ws_btn_regenerate")}
           </button>
           <button
             disabled
-            className="rounded-xl bg-[#171717] px-4 py-2 text-[13px] text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-xl bg-[#171717] px-3 py-2 text-[12px] text-white disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-[13px]"
           >
             {t("ws_btn_download")}
           </button>

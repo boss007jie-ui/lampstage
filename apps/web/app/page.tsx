@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { LangToggle } from "@/components/i18n/LangToggle";
 import { useLang } from "@/components/i18n/LangProvider";
 import { BRAND } from "@/lib/brand";
@@ -21,30 +22,99 @@ export default function HomePage() {
 
 function NavBar() {
   const { t, lang } = useLang();
+  const [open, setOpen] = useState(false);
+  // 滚动 / 路由变化时关掉 mobile menu
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, { passive: true });
+    return () => window.removeEventListener("scroll", close);
+  }, [open]);
+
+  const links = [
+    { href: "#showcase", label: t("nav_showcase") },
+    { href: "#product", label: t("nav_product") },
+    { href: "#styles", label: t("nav_styles") },
+    { href: "#pricing", label: t("nav_pricing") },
+  ];
+
   return (
-    <nav className="mx-auto flex max-w-[1180px] items-center justify-between px-6 py-4">
-      <Link href="/" className="flex items-center gap-2 text-[22px] font-semibold tracking-tight">
+    <nav className="relative mx-auto flex max-w-[1180px] items-center justify-between gap-3 px-5 py-4 md:px-6">
+      <Link
+        href="/"
+        className="flex items-center gap-2 text-[18px] font-semibold tracking-tight md:text-[22px]"
+      >
         <span
           aria-hidden
           className="inline-block h-3 w-3 rounded-full bg-[#d69a3a] shadow-[0_0_22px_#d69a3a]"
         />
         {lang === "zh" ? `${BRAND.en} · ${BRAND.cn}` : BRAND.en}
       </Link>
+
+      {/* 桌面：横向链接 */}
       <div className="hidden gap-7 text-[#273951] md:flex">
-        <Link href="#showcase">{t("nav_showcase")}</Link>
-        <Link href="#product">{t("nav_product")}</Link>
-        <Link href="#styles">{t("nav_styles")}</Link>
-        <Link href="#pricing">{t("nav_pricing")}</Link>
+        {links.map((l) => (
+          <Link key={l.href} href={l.href}>
+            {l.label}
+          </Link>
+        ))}
       </div>
-      <div className="flex items-center gap-3">
+
+      <div className="flex items-center gap-2 md:gap-3">
         <LangToggle />
         <Link
           href="/workspace"
-          className="rounded-md border border-[#d6d9fc] px-4 py-2 text-[#533afd] transition-colors hover:bg-[#533afd]/5"
+          className="hidden rounded-md border border-[#d6d9fc] px-4 py-2 text-[14px] text-[#533afd] transition-colors hover:bg-[#533afd]/5 sm:inline-block"
         >
           {t("nav_login")}
         </Link>
+        {/* 手机：汉堡 */}
+        <button
+          type="button"
+          onClick={() => setOpen((s) => !s)}
+          aria-label="menu"
+          aria-expanded={open}
+          className="grid h-10 w-10 place-items-center rounded-md border border-[#e5edf5] text-[#273951] md:hidden"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {open ? (
+              <>
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </>
+            ) : (
+              <>
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </>
+            )}
+          </svg>
+        </button>
       </div>
+
+      {/* 手机：展开抽屉 */}
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-40 mx-3 mt-2 rounded-2xl border border-[#e5edf5] bg-white p-2 shadow-2xl md:hidden">
+          {links.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              onClick={() => setOpen(false)}
+              className="block rounded-lg px-4 py-3 text-[15px] text-[#273951] hover:bg-[#f8fafc]"
+            >
+              {l.label}
+            </Link>
+          ))}
+          <Link
+            href="/workspace"
+            onClick={() => setOpen(false)}
+            className="mt-1 block rounded-lg bg-[#533afd] px-4 py-3 text-center text-[15px] font-medium text-white"
+          >
+            {t("nav_login")}
+          </Link>
+        </div>
+      )}
     </nav>
   );
 }
@@ -52,18 +122,18 @@ function NavBar() {
 function Hero() {
   const { t } = useLang();
   return (
-    <section className="mx-auto grid max-w-[1180px] grid-cols-1 items-center gap-10 px-6 py-10 md:grid-cols-[0.92fr_1.08fr] md:py-14">
+    <section className="mx-auto grid max-w-[1180px] grid-cols-1 items-center gap-8 px-5 py-8 md:grid-cols-[0.92fr_1.08fr] md:gap-10 md:px-6 md:py-14">
       <div>
         <span className="inline-block rounded-full border border-[#e5edf5] bg-white px-3 py-1 text-[12px] tracking-wide text-[#64748d]">
           {t("hero_badge")}
         </span>
-        <h1 className="mt-4 text-[42px] font-light leading-[1.05] tracking-[-1.2px] md:text-[58px]">
+        <h1 className="mt-4 text-[32px] font-light leading-[1.08] tracking-[-1px] sm:text-[42px] sm:leading-[1.05] sm:tracking-[-1.2px] md:text-[58px]">
           {t("hero_title")}
         </h1>
-        <p className="mt-6 text-[18px] leading-[1.55] text-[#64748d] md:text-[20px]">
+        <p className="mt-4 text-[16px] leading-[1.55] text-[#64748d] sm:mt-6 sm:text-[18px] md:text-[20px]">
           {t("hero_subtitle")}
         </p>
-        <div className="mt-7 flex flex-wrap gap-3">
+        <div className="mt-6 flex flex-wrap gap-3 sm:mt-7">
           <Link
             href="/workspace"
             className="rounded-md bg-[#533afd] px-5 py-3 font-medium text-white transition-colors hover:bg-[#4434d4]"
@@ -77,7 +147,7 @@ function Hero() {
             {t("hero_cta_secondary")}
           </Link>
         </div>
-        <div className="mt-6 flex flex-wrap items-center gap-4 text-[12px] text-[#94a3b8]">
+        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-[#94a3b8] sm:mt-6">
           <span>· {t("hero_meta_speed")}</span>
           <span>· {t("hero_meta_count")}</span>
           <span>· {t("hero_meta_styles")}</span>
@@ -91,7 +161,7 @@ function Hero() {
 function HeroVisual() {
   return (
     <div
-      className="overflow-hidden rounded-[20px] border border-[#e5edf5] bg-black"
+      className="overflow-hidden rounded-[16px] border border-[#e5edf5] bg-black md:rounded-[20px]"
       style={{ boxShadow: "var(--shadow-card)" }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -115,19 +185,19 @@ function ShowcaseGallery() {
   ] as const;
 
   return (
-    <section id="showcase" className="mx-auto max-w-[1180px] px-6 pb-2 pt-2">
-      <div className="mb-4 flex items-end justify-between">
+    <section id="showcase" className="mx-auto max-w-[1180px] px-5 pb-2 pt-2 md:px-6">
+      <div className="mb-4 flex items-end justify-between gap-3">
         <div>
-          <div className="text-[12px] uppercase tracking-[0.18em] text-[#94a3b8]">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-[#94a3b8] md:text-[12px]">
             {t("showcase_eyebrow")}
           </div>
-          <h2 className="mt-1 text-[28px] font-light tracking-tight">
+          <h2 className="mt-1 text-[22px] font-light tracking-tight md:text-[28px]">
             {t("showcase_title")}
           </h2>
         </div>
         <Link
           href="/workspace"
-          className="hidden text-[14px] text-[#533afd] hover:underline md:inline"
+          className="hidden flex-none text-[14px] text-[#533afd] hover:underline md:inline"
         >
           {t("showcase_cta")}
         </Link>
@@ -145,11 +215,11 @@ function ShowcaseGallery() {
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
               style={{ aspectRatio: "16 / 10" }}
             />
-            <figcaption className="absolute bottom-3 left-3 flex items-center gap-2">
-              <span className="rounded-full bg-black/55 px-2.5 py-1 text-[12px] text-white backdrop-blur">
+            <figcaption className="absolute bottom-3 left-3 flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-black/55 px-2.5 py-1 text-[11px] text-white backdrop-blur sm:text-[12px]">
                 {t(it.titleKey)}
               </span>
-              <span className="rounded-full bg-white/85 px-2.5 py-1 text-[12px] text-[#061b31] backdrop-blur">
+              <span className="rounded-full bg-white/85 px-2.5 py-1 text-[11px] text-[#061b31] backdrop-blur sm:text-[12px]">
                 {t(it.tagKey)}
               </span>
             </figcaption>
@@ -168,12 +238,17 @@ function Stats() {
     { value: t("stat_credits_value"), label: t("stat_credits_label") },
   ];
   return (
-    <section className="mx-auto max-w-[1180px] px-6 pb-6 pt-8">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <section className="mx-auto max-w-[1180px] px-5 pb-4 pt-4 md:px-6 md:pb-6 md:pt-8">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4 md:grid-cols-3">
         {items.map((it) => (
-          <div key={it.label} className="rounded-xl border border-[#e5edf5] bg-white p-5">
-            <div className="text-[28px] font-light text-[#061b31]">{it.value}</div>
-            <div className="text-[#64748d]">{it.label}</div>
+          <div
+            key={it.label}
+            className="rounded-xl border border-[#e5edf5] bg-white p-3 sm:p-5"
+          >
+            <div className="text-[18px] font-light text-[#061b31] sm:text-[28px]">
+              {it.value}
+            </div>
+            <div className="text-[12px] text-[#64748d] sm:text-[14px]">{it.label}</div>
           </div>
         ))}
       </div>
@@ -191,18 +266,20 @@ function HowItWorks() {
   return (
     <section
       id="product"
-      className="mx-auto my-10 max-w-[1180px] rounded-3xl bg-[#1c1e54] px-6 py-10 text-white md:px-10 md:py-12"
+      className="mx-auto my-8 max-w-[1180px] rounded-3xl bg-[#1c1e54] px-5 py-8 text-white sm:my-10 sm:px-6 sm:py-10 md:px-10 md:py-12"
     >
-      <h2 className="mb-6 text-[28px] font-light tracking-tight">{t("how_title")}</h2>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <h2 className="mb-5 text-[22px] font-light tracking-tight sm:text-[28px] sm:mb-6">
+        {t("how_title")}
+      </h2>
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-3">
         {steps.map((s) => (
           <div key={s.tag} className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-[#ffd36a]">
               {s.icon}
             </div>
             <small className="font-mono text-[12px] text-[#b9b9f9]">{s.tag}</small>
-            <h3 className="mt-2 text-[22px] font-light">{s.title}</h3>
-            <p className="mt-1 text-white/70">{s.desc}</p>
+            <h3 className="mt-2 text-[20px] font-light sm:text-[22px]">{s.title}</h3>
+            <p className="mt-1 text-[14px] text-white/70 sm:text-[15px]">{s.desc}</p>
           </div>
         ))}
       </div>
@@ -215,7 +292,7 @@ function Styles() {
   return (
     <section
       id="styles"
-      className="mx-auto grid max-w-[1180px] grid-cols-1 gap-5 px-6 py-10 md:grid-cols-2"
+      className="mx-auto grid max-w-[1180px] grid-cols-1 gap-4 px-5 py-8 sm:gap-5 sm:py-10 md:grid-cols-2 md:px-6"
     >
       <StyleCard
         title={t("styles_domestic_title")}
@@ -242,10 +319,10 @@ function StyleCard({
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-[#e5edf5] bg-white">
-      <div className="h-48 w-full bg-cover bg-center" style={{ backgroundImage: `url('${cover}')` }} />
-      <div className="p-6">
-        <h3 className="mb-2 text-[24px] font-light">{title}</h3>
-        <p className="text-[#64748d]">{desc}</p>
+      <div className="h-40 w-full bg-cover bg-center sm:h-48" style={{ backgroundImage: `url('${cover}')` }} />
+      <div className="p-5 sm:p-6">
+        <h3 className="mb-2 text-[20px] font-light sm:text-[24px]">{title}</h3>
+        <p className="text-[14px] text-[#64748d] sm:text-[15px]">{desc}</p>
       </div>
     </div>
   );
@@ -254,7 +331,7 @@ function StyleCard({
 function Footer() {
   const { t, lang } = useLang();
   return (
-    <footer className="border-t border-[#e5edf5] py-8 text-center text-sm text-[#64748d]">
+    <footer className="border-t border-[#e5edf5] px-5 py-6 text-center text-[12px] text-[#64748d] sm:py-8 sm:text-sm">
       © {new Date().getFullYear()} {lang === "zh" ? `${BRAND.en} · ${BRAND.cn}` : BRAND.en} ·{" "}
       {t("footer_tagline")} · {BRAND.domain}
     </footer>

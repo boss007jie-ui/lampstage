@@ -1,0 +1,189 @@
+// Prisma schema for 灯境 AI MVP
+// 与 PRD v3 第 9 节数据结构对齐
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum BackgroundType {
+  transparent
+  white
+  simple
+  complex
+  unknown
+}
+
+enum PlatformStyle {
+  domestic_ecommerce
+  brand_site
+}
+
+enum AspectRatio {
+  ratio_1_1
+  ratio_4_5
+  ratio_16_9
+}
+
+enum JobStatus {
+  created
+  uploading
+  generating
+  completed
+  failed
+}
+
+enum CreditTxType {
+  grant
+  consume
+  refund
+  manual_adjustment
+}
+
+model User {
+  id             String   @id @default(cuid())
+  name           String?
+  email          String?  @unique
+  phone          String?  @unique
+  credit_balance Int      @default(0)
+  role           Role     @default(USER)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  uploaded_assets UploadedAsset[]
+  jobs            GenerationJob[]
+  credit_txs      CreditTransaction[]
+  contact_leads   ContactLead[]
+}
+
+model UploadedAsset {
+  id              String         @id @default(cuid())
+  user_id         String
+  image_url       String
+  file_type       String
+  width           Int
+  height          Int
+  background_type BackgroundType @default(unknown)
+  detected_lamp_type String?
+  quality_warning String?
+  created_at      DateTime       @default(now())
+
+  user User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  jobs GenerationJob[]
+
+  @@index([user_id, created_at])
+}
+
+model Template {
+  id                String   @id @default(cuid())
+  name              String
+  category          String
+  lamp_type         String
+  scene_space       String
+  preview_image_url String
+  prompt_template   String
+  is_active         Boolean  @default(true)
+  sort_order        Int      @default(0)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  jobs GenerationJob[]
+
+  @@index([is_active, sort_order])
+}
+
+model GenerationJob {
+  id                String        @id @default(cuid())
+  user_id           String
+  uploaded_asset_id String
+  template_id       String
+  platform_style   PlatformStyle
+  aspect_ratio      AspectRatio
+  credit_cost       Int           @default(4)
+  status            JobStatus     @default(created)
+  failure_reason    String?
+  provider_job_id   String?
+  stage_hint        String?
+  metadata          Json?
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  user           User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  uploaded_asset UploadedAsset @relation(fields: [uploaded_asset_id], references: [id])
+  template       Template      @relation(fields: [template_id], references: [id])
+
+  outputs    OutputImage[]
+  credit_txs CreditTransaction[]
+
+  @@index([user_id, created_at])
+  @@index([status, created_at])
+}
+
+model OutputImage {
+  id            String    @id @default(cuid())
+  job_id        String
+  image_url     String
+  thumbnail_url String?
+  quality_score Float?
+  is_downloaded Boolean   @default(false)
+  downloaded_at DateTime?
+  created_at    DateTime  @default(now())
+
+  job GenerationJob @relation(fields: [job_id], references: [id], onDelete: Cascade)
+
+  @@index([job_id])
+}
+
+model CreditTransaction {
+  id             String       @id @default(cuid())
+  user_id        String
+  type           CreditTxType
+  amount         Int
+  related_job_id String?
+  note           String?
+  created_at     DateTime     @default(now())
+
+  user User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  job  GenerationJob? @relation(fields: [related_job_id], references: [id])
+
+  @@index([user_id, created_at])
+}
+
+model ContactLead {
+  id           String   @id @default(cuid())
+  user_id      String?
+  source       String
+  contact_type String
+  name         String?
+  phone        String?
+  wechat       String?
+  email        String?
+  message      String?
+  created_at   DateTime @default(now())
+
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([source, created_at])
+  @@index([contact_type, created_at])
+}
+
+model VerificationCode {
+  id         String   @id @default(cuid())
+  identifier String
+  code_hash  String
+  type       String
+  expires_at DateTime
+  consumed   Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  @@index([identifier, type, created_at])
+}

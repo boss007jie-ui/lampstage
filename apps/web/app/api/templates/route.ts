@@ -7,6 +7,10 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
 
+// Force dynamic — never prerender at build time (DB not available then)
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function GET() {
   const list = await prisma.template.findMany({
     where: { is_active: true },

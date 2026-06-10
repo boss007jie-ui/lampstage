@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LangToggle } from "@/components/i18n/LangToggle";
 import { useLang } from "@/components/i18n/LangProvider";
+import { BrandMark } from "@/components/brand/BrandMark";
 import { BRAND } from "@/lib/brand";
 
 export default function HomePage() {
@@ -44,10 +45,7 @@ function NavBar() {
         href="/"
         className="flex items-center gap-2 text-[18px] font-semibold tracking-tight md:text-[22px]"
       >
-        <span
-          aria-hidden
-          className="inline-block h-3 w-3 rounded-full bg-[#d69a3a] shadow-[0_0_22px_#d69a3a]"
-        />
+        <BrandMark size={22} onLight />
         {lang === "zh" ? `${BRAND.en} · ${BRAND.cn}` : BRAND.en}
       </Link>
 

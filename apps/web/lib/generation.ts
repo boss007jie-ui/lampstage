@@ -24,7 +24,7 @@ import {
   consumeCredits,
   refundCredits,
 } from "@/lib/credits";
-import { putObject } from "@/lib/storage";
+import { putGeneratedImage } from "@/lib/storage";
 import { getProvider } from "@/lib/providers";
 import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
 
@@ -291,7 +291,7 @@ async function runGenerationPipeline(args: {
     const outputs: { image_url: string; thumbnail_url: string }[] = [];
     for (let i = 0; i < successes.length; i++) {
       const img = successes[i];
-      const url = await putObject(`${jobId}/${i + 1}`, img.bytes, img.mime);
+      const url = await putGeneratedImage(`${jobId}/${i + 1}`, img.bytes, img.mime);
       outputs.push({ image_url: url, thumbnail_url: url });
     }
     await prisma.outputImage.createMany({

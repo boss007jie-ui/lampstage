@@ -6,8 +6,7 @@
  * 实现：调 yunwu 上的 OpenAI 兼容 chat completions 接口，让 vision 模型分类。
  * 走 gemini-2.5-flash-all（在 yunwu 上验证可用，便宜）。
  */
-import path from "node:path";
-import { promises as fs } from "node:fs";
+import { getObjectBytes } from "@/lib/storage";
 
 const ENDPOINT = "https://yunwu.ai/v1/chat/completions";
 const MODEL = "gemini-2.5-flash-all";
@@ -31,24 +30,8 @@ const PROMPT = `Look at this product photo. Classify the lamp type into exactly 
 Reply with EXACTLY one of those single words, nothing else. Lower case.`;
 
 async function imageAsBase64(refUrlOrPath: string): Promise<{ b64: string; mime: string }> {
-  if (refUrlOrPath.startsWith("/")) {
-    const full = path.join(process.cwd(), "public", refUrlOrPath);
-    const buf = await fs.readFile(full);
-    const ext = path.extname(refUrlOrPath).toLowerCase();
-    const mime =
-      ext === ".png"
-        ? "image/png"
-        : ext === ".webp"
-          ? "image/webp"
-          : "image/jpeg";
-    return { b64: buf.toString("base64"), mime };
-  }
-  const r = await fetch(refUrlOrPath);
-  const ab = await r.arrayBuffer();
-  return {
-    b64: Buffer.from(ab).toString("base64"),
-    mime: r.headers.get("content-type") || "image/jpeg",
-  };
+  const { bytes, mime } = await getObjectBytes(refUrlOrPath);
+  return { b64: bytes.toString("base64"), mime };
 }
 
 export async function detectLampType(

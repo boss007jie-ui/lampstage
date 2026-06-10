@@ -6,19 +6,17 @@
  * 按需生成"智能推荐"卡片的 1:1 缩略图。前端 hover 卡片 ~500ms 后才调用，
  * 避免用户随便扫一眼就花费成本。
  *
- * 缓存：写到 public/suggest-thumbs/<asset_id>/<idx>.jpg。已存在直接返回。
+ * 缓存：写到对象存储 suggest-thumbs/<asset_id>/<idx>.jpg。
+ * 内存级 in-flight 去重 + DB 字段 cache miss 时才真生成。
  */
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { nanoBananaProvider } from "@/lib/providers/nano-banana";
+import { putSuggestThumb, getObjectBytes } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-const THUMB_ROOT = path.join(process.cwd(), "public", "suggest-thumbs");
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
@@ -38,7 +36,10 @@ export async function POST(req: NextRequest) {
   const assetId =
     typeof body.uploaded_asset_id === "string" ? body.uploaded_asset_id : "";
   const idx =
-    typeof body.idx === "number" && Number.isInteger(body.idx) && body.idx >= 0 && body.idx < 4
+    typeof body.idx === "number" &&
+    Number.isInteger(body.idx) &&
+    body.idx >= 0 &&
+    body.idx < 4
       ? body.idx
       : -1;
   const promptEn =
@@ -54,21 +55,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "asset_not_found" }, { status: 404 });
   }
 
-  const dir = path.join(THUMB_ROOT, assetId);
-  const outPath = path.join(dir, `${idx}.jpg`);
-  const publicPath = `/suggest-thumbs/${assetId}/${idx}.jpg`;
+  const relKey = `${assetId}/${idx}.jpg`;
 
-  // 已生成过就直接返回
+  // 检查缓存：尝试从 storage 读，若有且 > 5KB 直接返回
   try {
-    const stat = await fs.stat(outPath);
-    if (stat.size > 5_000) {
-      return NextResponse.json({ thumb_url: publicPath, cached: true });
+    const cached = await getObjectBytes(`suggest-thumbs/${relKey}`);
+    if (cached.bytes.length > 5000) {
+      const url = await putSuggestThumb(relKey, cached.bytes, cached.mime);
+      return NextResponse.json({ thumb_url: url, cached: true });
     }
   } catch {
     // not exists, will generate
   }
 
-  await fs.mkdir(dir, { recursive: true });
   try {
     const result = await nanoBananaProvider.generate({
       prompt:
@@ -85,8 +84,8 @@ export async function POST(req: NextRequest) {
         { status: 502 },
       );
     }
-    await fs.writeFile(outPath, result.bytes);
-    return NextResponse.json({ thumb_url: publicPath, cached: false });
+    const url = await putSuggestThumb(relKey, result.bytes, result.mime);
+    return NextResponse.json({ thumb_url: url, cached: false });
   } catch (e) {
     console.error("[suggest-thumb] failed", e);
     return NextResponse.json(

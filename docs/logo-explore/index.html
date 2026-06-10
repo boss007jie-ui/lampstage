@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lampstage · Logo Exploration</title>
+<style>
+  :root {
+    --ink: #0e1626;
+    --muted: #6b7383;
+    --border: #e4e6ec;
+    --bg: #fafafa;
+    --warm: #f3a93b;
+    --card: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.55 -apple-system, "Segoe UI", "PingFang SC",
+      "Microsoft YaHei", Roboto, sans-serif;
+  }
+  header {
+    padding: 48px 32px 24px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: #fff;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+  }
+  header p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  main {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 32px;
+  }
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    margin: 0 0 16px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .card .preview {
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+  .card .preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  /* SVG card uses dark and light navbar previews stacked */
+  .card .nav-preview-dark,
+  .card .nav-preview-light {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    height: 64px;
+  }
+  .card .nav-preview-dark {
+    background: #0e1626;
+    color: #fff;
+  }
+  .card .nav-preview-light {
+    background: #fff;
+    color: var(--ink);
+    border-top: 1px solid var(--border);
+  }
+  .card .nav-preview-dark .brand-text,
+  .card .nav-preview-light .brand-text {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+  }
+  .card .nav-preview-light .brand-text { color: var(--ink); }
+  .card .nav-preview-dark .brand-text { color: #fff; }
+  .card .meta {
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .card .meta .num {
+    font-weight: 600;
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+  }
+  .card .meta .name {
+    font-weight: 600;
+    font-size: 14px;
+  }
+  /* For the AI inspiration row, show the full image not square-cropped */
+  .ai-card .preview {
+    aspect-ratio: 1 / 1;
+  }
+  .ai-card .preview img {
+    object-fit: contain;
+    background: #f4f4ed;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lampstage · Logo Exploration</h1>
+  <p>6 nano banana inspirations + 6 SVG directions, displayed in real navbar context (dark and light)</p>
+</header>
+
+<main>
+  <!-- Row 1: AI inspirations -->
+  <section class="section">
+    <h2 class="section-title">A · 6 AI inspirations (nano banana, Dec 2026)</h2>
+    <div class="grid">
+      <div class="card ai-card">
+        <div class="preview"><img src="inspiration/01_pendant_line.jpg" alt="" /></div>
+        <div class="meta"><span class="name">Pendant line</span><span class="num">01</span></div>
+      </div>
+      <div class="card ai-card">
+        <div class="preview"><img src="inspiration/02_letterform_l.jpg" alt="" /></div>
+        <div class="meta"><span class="name">Letterform L</span><span class="num">02</span></div>
+      </div>
+      <div class="card ai-card">
+        <div class="preview"><img src="inspiration/03_stage_spotlight.jpg" alt="" /></div>
+        <div class="meta"><span class="name">Stage spotlight</span><span class="num">03</span></div>
+      </div>
+      <div class="card ai-card">
+        <div class="preview"><img src="inspiration/04_pixel_bulb.jpg" alt="" /></div>
+        <div class="meta"><span class="name">Pixel bulb</span><span class="num">04</span></div>
+      </div>
+      <div class="card ai-card">
+        <div class="preview"><img src="inspiration/05_concentric_rings.jpg" alt="" /></div>
+        <div class="meta"><span class="name">Concentric rings</span><span class="num">05</span></div>
+      </div>
+      <div class="card ai-card">
+        <div class="preview"><img src="inspiration/06_squared_filament.jpg" alt="" /></div>
+        <div class="meta"><span class="name">Squared filament</span><span class="num">06</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Row 2: SVG directions in real navbar context -->
+  <section class="section">
+    <h2 class="section-title">B · 6 SVG directions (production-ready, dark / light navbar)</h2>
+    <div class="grid">
+
+      <!-- B1: minimal pendant line -->
+      <div class="card">
+        <div class="nav-preview-dark">
+          <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+            <line x1="16" y1="2" x2="16" y2="14" stroke="#fff" stroke-width="1.5" />
+            <ellipse cx="16" cy="20" rx="7" ry="5"
+                     fill="url(#g_b1)" stroke="#fff" stroke-width="1.2" />
+            <defs>
+              <radialGradient id="g_b1" cx="0.5" cy="0.4" r="0.6">
+                <stop offset="0" stop-color="#fff5b8" />
+                <stop offset="1" stop-color="#f3a93b" />
+              </radialGradient>
+            </defs>
+          </svg>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="nav-preview-light">
+          <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+            <line x1="16" y1="2" x2="16" y2="14" stroke="#0e1626" stroke-width="1.5" />
+            <ellipse cx="16" cy="20" rx="7" ry="5"
+                     fill="url(#g_b1l)" stroke="#0e1626" stroke-width="1.2" />
+            <defs>
+              <radialGradient id="g_b1l" cx="0.5" cy="0.4" r="0.6">
+                <stop offset="0" stop-color="#fff5b8" />
+                <stop offset="1" stop-color="#f3a93b" />
+              </radialGradient>
+            </defs>
+          </svg>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="meta"><span class="name">B1 — Pendant line</span><span class="num">SVG</span></div>
+      </div>
+
+      <!-- B2: letterform L with filament -->
+      <div class="card">
+        <div class="nav-preview-dark">
+          <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+            <rect x="2" y="2" width="28" height="28" rx="7" fill="#1a2438" />
+            <path d="M11 8 L11 22 L22 22"
+                  fill="none" stroke="#f3a93b" stroke-width="2.4"
+                  stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M14 18 q1 -2 2 0 t2 0"
+                  fill="none" stroke="#fff5b8" stroke-width="0.9" stroke-linecap="round" />
+          </svg>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="nav-preview-light">
+          <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+            <rect x="2" y="2" width="28" height="28" rx="7" fill="#0e1626" />
+            <path d="M11 8 L11 22 L22 22"
+                  fill="none" stroke="#f3a93b" stroke-width="2.4"
+                  stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M14 18 q1 -2 2 0 t2 0"
+                  fill="none" stroke="#fff5b8" stroke-width="0.9" stroke-linecap="round" />
+          </svg>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="meta"><span class="name">B2 — Letter L + filament</span><span class="num">SVG</span></div>
+      </div>
+
+      <!-- B3: stage spotlight cone -->
+      <div class="card">
+        <div class="nav-preview-dark">
+          <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+            <circle cx="16" cy="6" r="2.2" fill="#f3a93b" />
+            <path d="M14 8 L7 28 L25 28 L18 8 Z"
+                  fill="url(#g_b3)" opacity="0.75" />
+            <defs>
+              <linearGradient id="g_b3" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#fff5b8" stop-opacity="0.85" />
+                <stop offset="1" stop-color="#f3a93b" stop-opacity="0.05" />
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="nav-preview-light">
+          <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+            <circle cx="16" cy="6" r="2.2" fill="#0e1626" />
+            <path d="M14 8 L7 28 L25 28 L18 8 Z"
+                  fill="url(#g_b3l)" opacity="0.85" />
+            <defs>
+              <linearGradient id="g_b3l" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#f3a93b" stop-opacity="0.95" />
+                <stop offset="1" stop-color="#f3a93b" stop-opacity="0.05" />
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="meta"><span class="name">B3 — Stage spotlight</span><span class="num">SVG</span></div>
+      </div>
+
+      <!-- B4: pixel bulb -->
+      <div class="card">
+        <div class="nav-preview-dark">
+          <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" shape-rendering="crispEdges">
+            <g fill="#f3a93b">
+              <rect x="10" y="4"  width="8" height="3" />
+              <rect x="7"  y="7"  width="14" height="3" />
+              <rect x="6"  y="10" width="16" height="3" />
+              <rect x="7"  y="13" width="14" height="3" />
+              <rect x="9"  y="16" width="10" height="3" />
+              <rect x="11" y="19" width="6"  height="3" />
+            </g>
+            <rect x="11" y="22" width="6" height="3" fill="#fff" />
+          </svg>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="nav-preview-light">
+          <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" shape-rendering="crispEdges">
+            <g fill="#f3a93b">
+              <rect x="10" y="4"  width="8" height="3" />
+              <rect x="7"  y="7"  width="14" height="3" />
+              <rect x="6"  y="10" width="16" height="3" />
+              <rect x="7"  y="13" width="14" height="3" />
+              <rect x="9"  y="16" width="10" height="3" />
+              <rect x="11" y="19" width="6"  height="3" />
+            </g>
+            <rect x="11" y="22" width="6" height="3" fill="#0e1626" />
+          </svg>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="meta"><span class="name">B4 — Pixel bulb</span><span class="num">SVG</span></div>
+      </div>
+
+      <!-- B5: concentric rings -->
+      <div class="card">
+        <div class="nav-preview-dark">
+          <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+            <circle cx="16" cy="16" r="14" fill="none" stroke="#f3a93b" stroke-width="0.8" stroke-opacity="0.35" />
+            <circle cx="16" cy="16" r="10" fill="none" stroke="#f3a93b" stroke-width="1.0" stroke-opacity="0.55" />
+            <circle cx="16" cy="16" r="6"  fill="none" stroke="#f3a93b" stroke-width="1.4" stroke-opacity="0.85" />
+            <circle cx="16" cy="16" r="3"  fill="#fff5b8" />
+          </svg>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="nav-preview-light">
+          <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+            <circle cx="16" cy="16" r="14" fill="none" stroke="#f3a93b" stroke-width="0.8" stroke-opacity="0.45" />
+            <circle cx="16" cy="16" r="10" fill="none" stroke="#f3a93b" stroke-width="1.0" stroke-opacity="0.7" />
+            <circle cx="16" cy="16" r="6"  fill="none" stroke="#f3a93b" stroke-width="1.4" />
+            <circle cx="16" cy="16" r="3"  fill="#f3a93b" />
+          </svg>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="meta"><span class="name">B5 — Concentric rings</span><span class="num">SVG</span></div>
+      </div>
+
+      <!-- B6: square + filament wave -->
+      <div class="card">
+        <div class="nav-preview-dark">
+          <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
+            <rect x="2" y="2" width="24" height="24" rx="6" fill="#0e1626" />
+            <path d="M6 14 q3 -5 6 0 t6 0 t6 0"
+                  fill="none" stroke="#f3a93b" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="nav-preview-light">
+          <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
+            <rect x="2" y="2" width="24" height="24" rx="6" fill="#0e1626" />
+            <path d="M6 14 q3 -5 6 0 t6 0 t6 0"
+                  fill="none" stroke="#f3a93b" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="meta"><span class="name">B6 — Square + filament</span><span class="num">SVG</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Row 3: current baseline -->
+  <section class="section">
+    <h2 class="section-title">Baseline · current "orange dot" (for reference)</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="nav-preview-dark">
+          <span aria-hidden="true" style="
+            display:inline-block; width:28px; height:28px; border-radius:8px;
+            background:radial-gradient(circle at 30% 20%, #fff1bc, #c88736 42%, #16110b 85%);
+            box-shadow:0 8px 22px rgba(174,110,35,.25);"></span>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="nav-preview-light">
+          <span aria-hidden="true" style="
+            display:inline-block; width:28px; height:28px; border-radius:8px;
+            background:radial-gradient(circle at 30% 20%, #fff1bc, #c88736 42%, #16110b 85%);
+            box-shadow:0 8px 22px rgba(174,110,35,.25);"></span>
+          <span class="brand-text">Lampstage · 灯境</span>
+        </div>
+        <div class="meta"><span class="name">Current</span><span class="num">B0</span></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+</body>
+</html>

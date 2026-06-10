@@ -9,6 +9,7 @@ import type {
   GenSingleResult,
   IGenerationProvider,
 } from "./types";
+import { getObjectBytes } from "@/lib/storage";
 
 const ENDPOINT_TPL =
   process.env.NANO_BANANA_ENDPOINT ||
@@ -31,30 +32,8 @@ function apiKey(): string {
 async function fetchAsBase64(
   url: string,
 ): Promise<{ mime: string; b64: string }> {
-  // 本地相对 URL（如 /uploads/abc.jpg / /generated/...）：直接读盘，避免 dev fetch 自身循环
-  if (url.startsWith("/")) {
-    const { promises: fs } = await import("node:fs");
-    const path = (await import("node:path")).default;
-    const full = path.join(process.cwd(), "public", url);
-    const buf = await fs.readFile(full);
-    const ext = path.extname(url).toLowerCase();
-    const mime =
-      ext === ".png"
-        ? "image/png"
-        : ext === ".webp"
-          ? "image/webp"
-          : "image/jpeg";
-    return { mime, b64: buf.toString("base64") };
-  }
-  const r = await fetch(url);
-  if (!r.ok) {
-    throw new Error(
-      `failed to fetch reference image (${r.status}): ${url.slice(0, 120)}`,
-    );
-  }
-  const buf = Buffer.from(await r.arrayBuffer());
-  const mime = r.headers.get("content-type") || "image/jpeg";
-  return { mime, b64: buf.toString("base64") };
+  const { bytes, mime } = await getObjectBytes(url);
+  return { mime, b64: bytes.toString("base64") };
 }
 
 interface InlineDataLike {

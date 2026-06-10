@@ -12,9 +12,8 @@
  * 返回 { id, image_url, background_type, quality_warning }
  */
 import { NextRequest, NextResponse } from "next/server";
-import path from "node:path";
-import { promises as fs } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { putUploadedAsset } from "@/lib/storage";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
@@ -148,11 +147,8 @@ export async function POST(req: NextRequest) {
   const id = randomUUID();
   const ext = extOf(file.type);
   const filename = `${id}.${ext}`;
-  const subdir = path.join("uploads", user.id);
-  const fullDir = path.join(process.cwd(), "public", subdir);
-  await fs.mkdir(fullDir, { recursive: true });
-  await fs.writeFile(path.join(fullDir, filename), buf);
-  const imageUrl = `/${subdir.replace(/\\/g, "/")}/${filename}`;
+  const relKey = `${user.id}/${filename}`;
+  const imageUrl = await putUploadedAsset(relKey, buf, file.type);
 
   const qualityWarning =
     meta.background_type === "complex"

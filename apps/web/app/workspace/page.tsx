@@ -6,6 +6,7 @@ import { LoginModal } from "@/components/auth/LoginModal";
 import { LeadCaptureModal } from "@/components/credits/LeadCaptureModal";
 import { LangToggle } from "@/components/i18n/LangToggle";
 import { useLang } from "@/components/i18n/LangProvider";
+import { BrandMark } from "@/components/brand/BrandMark";
 import {
   SceneSelector,
   type Scene,
@@ -100,15 +101,7 @@ function BrandLogo() {
   const { lang } = useLang();
   return (
     <div className="flex items-center gap-2">
-      <span
-        aria-hidden
-        className="inline-block h-7 w-7 rounded-[8px]"
-        style={{
-          background:
-            "radial-gradient(circle at 30% 20%, #fff1bc, #c88736 42%, #16110b 85%)",
-          boxShadow: "0 8px 22px rgba(174,110,35,.25)",
-        }}
-      />
+      <BrandMark size={26} onLight />
       <div className="text-[15px] font-semibold tracking-tight text-[#171717]">
         {lang === "zh" ? `${BRAND.en} · ${BRAND.cn}` : BRAND.en}
       </div>

@@ -298,7 +298,7 @@ function Main({
   signedIn: boolean;
   onRequireLogin: () => void;
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -308,7 +308,20 @@ function Main({
   const [platformStyle, setPlatformStyle] =
     useState<PlatformStyle>("domestic_ecommerce");
   const [aspect, setAspect] = useState<AspectRatio>("4_5");
-  const [generating, setGenerating] = useState(false);
+
+  // Pipeline state
+  const [phase, setPhase] = useState<
+    "idle" | "uploading" | "prechecking" | "submitting" | "polling" | "completed" | "failed"
+  >("idle");
+  const [stageHint, setStageHint] = useState<string | null>(null);
+  const [outputs, setOutputs] = useState<{ id: string; image_url: string }[]>([]);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [mismatch, setMismatch] = useState<{
+    detected: string;
+    template_lamp_type: string;
+    onContinue: () => void;
+  } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -332,6 +345,7 @@ function Main({
     };
   }, []);
 
+  const generating = phase !== "idle" && phase !== "completed" && phase !== "failed";
   const canGenerate = useMemo(
     () => Boolean(file && templateId && !fileError && !generating),
     [file, templateId, fileError, generating],
@@ -339,6 +353,9 @@ function Main({
 
   const onPick = (f: File | null) => {
     setFileError(null);
+    setOutputs([]);
+    setErrMsg(null);
+    setPhase("idle");
     if (!f) {
       setFile(null);
       setFilePreview(null);
@@ -356,26 +373,123 @@ function Main({
     setFilePreview(URL.createObjectURL(f));
   };
 
-  const onGenerate = () => {
-    if (!canGenerate) return;
+  const lampTypeLabel = (raw: string) => {
+    const map: Record<string, { zh: string; en: string }> = {
+      pendant: { zh: "吊灯", en: "pendant" },
+      wall: { zh: "壁灯", en: "wall sconce" },
+      table: { zh: "台灯", en: "table lamp" },
+      floor: { zh: "落地灯", en: "floor lamp" },
+      ceiling: { zh: "吸顶灯", en: "ceiling lamp" },
+      unknown: { zh: "未知类型", en: "unknown type" },
+    };
+    if (map[raw]) return map[raw][lang];
+    return raw;
+  };
+
+  const startPipeline = async () => {
+    if (!canGenerate || !file || !templateId) return;
     if (!signedIn) {
       onRequireLogin();
       return;
     }
-    setGenerating(true);
-    window.setTimeout(() => {
-      setGenerating(false);
-      window.alert(
-        t("ws_alert_dryrun") +
-          "\n" +
-          JSON.stringify(
-            { templateId, platformStyle, aspect, fileName: file?.name },
-            null,
-            2,
-          ),
-      );
-    }, 600);
+    setErrMsg(null);
+    setOutputs([]);
+
+    try {
+      // 1) Upload
+      setPhase("uploading");
+      const fd = new FormData();
+      fd.append("file", file);
+      const upRes = await fetch("/api/uploads", { method: "POST", body: fd });
+      if (!upRes.ok) {
+        if (upRes.status === 401) {
+          onRequireLogin();
+          setPhase("idle");
+          return;
+        }
+        throw new Error(t("ws_err_upload_failed"));
+      }
+      const { id: assetId } = (await upRes.json()) as { id: string };
+
+      // 2) Precheck
+      setPhase("prechecking");
+      const pcRes = await fetch("/api/generation/precheck", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          uploaded_asset_id: assetId,
+          template_id: templateId,
+        }),
+      });
+      const pc = await pcRes.json();
+      if (pcRes.ok && pc.match === false) {
+        // Show modal, wait for user decision
+        await new Promise<void>((resolve, reject) => {
+          setMismatch({
+            detected: pc.detected_lamp_type,
+            template_lamp_type: pc.template_lamp_type,
+            onContinue: () => {
+              setMismatch(null);
+              resolve();
+            },
+          });
+          // store reject for cancel via mismatch.onCancel — handled inline below
+          (window as unknown as { __cancelMismatch?: () => void }).__cancelMismatch = () => {
+            setMismatch(null);
+            reject(new Error("user_cancelled_template"));
+          };
+        });
+      }
+
+      // 3) Submit job
+      setPhase("submitting");
+      const subRes = await fetch("/api/generation/jobs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          uploaded_asset_id: assetId,
+          template_id: templateId,
+          platform_style: platformStyle,
+          aspect_ratio: aspect,
+        }),
+      });
+      const sub = await subRes.json();
+      if (!subRes.ok) {
+        if (sub.error === "insufficient_credits") {
+          setErrMsg(t("ws_err_insufficient"));
+          setPhase("failed");
+          return;
+        }
+        throw new Error(sub.error || t("ws_err_generic"));
+      }
+      const jobId: string = sub.job_id;
+
+      // 4) Poll
+      setPhase("polling");
+      const finalJob = await pollJob(jobId, (hint) => setStageHint(hint));
+      if (finalJob.status === "completed") {
+        setOutputs(finalJob.output_images);
+        setPhase("completed");
+      } else {
+        setErrMsg(
+          (finalJob.failure_reason ? t("ws_failure_label") + finalJob.failure_reason : t("ws_failure_label")) +
+            " · " +
+            t("ws_failure_refunded"),
+        );
+        setPhase("failed");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg !== "user_cancelled_template") {
+        setErrMsg(msg);
+      }
+      setPhase("failed");
+    }
   };
+
+  const stageText = stageHint
+    ? t(`ws_stage_${stageHint}` as never)
+    : t("ws_stage_generating");
 
   return (
     <main className="px-4 py-5 md:px-8 md:py-7">
@@ -443,7 +557,7 @@ function Main({
           </Step>
 
           <button
-            onClick={onGenerate}
+            onClick={startPipeline}
             disabled={!canGenerate}
             className="mt-2 w-full rounded-xl bg-[#171717] px-4 py-3 font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -459,18 +573,105 @@ function Main({
         </Panel>
 
         <Panel title={t("ws_panel_preview")}>
-          <PreviewCanvas
+          <PreviewArea
             templateName={
               templates.find((t2) => t2.id === templateId)?.name ?? "—"
             }
             platformStyle={platformStyle}
             aspect={aspect}
-            generating={generating}
+            phase={phase}
+            stageText={stageText}
+            outputs={outputs}
+            errMsg={errMsg}
             filePreview={filePreview}
           />
         </Panel>
       </section>
+
+      {mismatch && (
+        <MismatchModal
+          detected={lampTypeLabel(mismatch.detected)}
+          template={lampTypeLabel(mismatch.template_lamp_type)}
+          onContinue={mismatch.onContinue}
+          onCancel={() => {
+            const w = window as unknown as { __cancelMismatch?: () => void };
+            w.__cancelMismatch?.();
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+async function pollJob(
+  jobId: string,
+  onStage: (stage: string) => void,
+): Promise<{
+  status: "completed" | "failed";
+  failure_reason: string | null;
+  output_images: { id: string; image_url: string }[];
+}> {
+  const start = Date.now();
+  for (;;) {
+    if (Date.now() - start > 180_000) {
+      return {
+        status: "failed",
+        failure_reason: "timeout",
+        output_images: [],
+      };
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+    const res = await fetch(`/api/generation/jobs/${jobId}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) continue;
+    const data = await res.json();
+    if (data.stage_hint) onStage(data.stage_hint);
+    if (data.status === "completed" || data.status === "failed") {
+      return {
+        status: data.status,
+        failure_reason: data.failure_reason ?? null,
+        output_images: data.output_images ?? [],
+      };
+    }
+  }
+}
+
+function MismatchModal({
+  detected,
+  template,
+  onContinue,
+  onCancel,
+}: {
+  detected: string;
+  template: string;
+  onContinue: () => void;
+  onCancel: () => void;
+}) {
+  const { t } = useLang();
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <h3 className="text-[18px] font-semibold">{t("ws_mismatch_title")}</h3>
+        <p className="mt-2 text-[14px] leading-relaxed text-[#64748d]">
+          {t("ws_mismatch_body", { template, detected })}
+        </p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="rounded-md border border-[#e5edf5] bg-white px-4 py-2 text-[14px] text-[#273951]"
+          >
+            {t("ws_mismatch_change")}
+          </button>
+          <button
+            onClick={onContinue}
+            className="rounded-md bg-[#171717] px-4 py-2 text-[14px] text-white"
+          >
+            {t("ws_mismatch_continue")}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -692,17 +893,30 @@ function Segmented<T extends string>({
   );
 }
 
-function PreviewCanvas({
+function PreviewArea({
   templateName,
   platformStyle,
   aspect,
-  generating,
+  phase,
+  stageText,
+  outputs,
+  errMsg,
   filePreview,
 }: {
   templateName: string;
   platformStyle: PlatformStyle;
   aspect: AspectRatio;
-  generating: boolean;
+  phase:
+    | "idle"
+    | "uploading"
+    | "prechecking"
+    | "submitting"
+    | "polling"
+    | "completed"
+    | "failed";
+  stageText: string;
+  outputs: { id: string; image_url: string }[];
+  errMsg: string | null;
   filePreview: string | null;
 }) {
   const { t } = useLang();
@@ -712,6 +926,34 @@ function PreviewCanvas({
     platformStyle === "domestic_ecommerce"
       ? t("ws_platform_domestic")
       : t("ws_platform_brand");
+
+  const showStageText =
+    phase === "uploading"
+      ? t("ws_uploading")
+      : phase === "prechecking"
+        ? t("ws_stage_analyzing")
+        : phase === "submitting"
+          ? t("ws_stage_matching")
+          : phase === "polling"
+            ? stageText
+            : "";
+
+  // completed → 显示 4 张结果图
+  if (phase === "completed" && outputs.length > 0) {
+    return (
+      <div>
+        <div className="grid grid-cols-2 gap-3">
+          {outputs.map((o) => (
+            <ResultCell key={o.id} output={o} />
+          ))}
+        </div>
+        <div className="mt-3 text-[12px] text-[#64748d]">
+          {t("ws_panel_preview")} · {templateName} · {platformLabel} · {aspectLabel}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div
@@ -738,7 +980,7 @@ function PreviewCanvas({
           aria-hidden
           className="absolute bottom-12 left-6 right-6 h-14 rounded-[20px_20px_10px_10px] bg-[#cab89f] sm:bottom-16 sm:left-10 sm:right-10 sm:h-20 md:bottom-20 md:left-12 md:right-12 md:h-24 md:rounded-[36px_36px_18px_18px]"
         />
-        {filePreview && !generating && (
+        {filePreview && phase === "idle" && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={filePreview}
@@ -746,38 +988,107 @@ function PreviewCanvas({
             className="absolute right-3 top-3 h-14 w-14 rounded-lg border border-white/60 object-cover sm:right-4 sm:top-4 sm:h-20 sm:w-20 sm:rounded-xl"
           />
         )}
-        {generating && (
-          <div className="absolute inset-0 grid place-items-center bg-black/30 px-4 text-white">
-            <div className="text-center">
-              <div className="text-[16px] sm:text-[18px]">
-                {t("ws_progress_placeholder")}
+        {phase !== "idle" && phase !== "completed" && phase !== "failed" && (
+          <div className="absolute inset-0 grid place-items-center bg-black/45 px-4 text-center text-white">
+            <div>
+              <div className="mb-2 inline-flex">
+                <Spinner />
               </div>
+              <div className="text-[15px] sm:text-[18px]">{showStageText}</div>
               <div className="mt-1 text-[11px] opacity-80 sm:text-[12px]">
-                {t("ws_progress_subtext")}
+                {t("ws_eta")}
               </div>
+            </div>
+          </div>
+        )}
+        {phase === "failed" && errMsg && (
+          <div className="absolute inset-0 grid place-items-center bg-black/55 px-6 text-center text-white">
+            <div>
+              <div className="text-[15px]">{errMsg}</div>
             </div>
           </div>
         )}
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 sm:mt-4">
         <div className="text-[11px] text-[#888] sm:text-[12px]">
-          {t("ws_preview_disclaimer")}
-        </div>
-        <div className="flex gap-2">
-          <button
-            disabled
-            className="rounded-xl border border-[#e5e1d8] bg-white px-3 py-2 text-[12px] text-[#666] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-[13px]"
-          >
-            {t("ws_btn_regenerate")}
-          </button>
-          <button
-            disabled
-            className="rounded-xl bg-[#171717] px-3 py-2 text-[12px] text-white disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-[13px]"
-          >
-            {t("ws_btn_download")}
-          </button>
+          {phase === "idle"
+            ? null
+            : phase === "completed"
+              ? null
+              : phase === "failed"
+                ? null
+                : t("ws_eta")}
         </div>
       </div>
     </div>
+  );
+}
+
+function ResultCell({
+  output,
+}: {
+  output: { id: string; image_url: string };
+}) {
+  const { t } = useLang();
+  const onDownload = async () => {
+    const r = await fetch(`/api/output-images/${output.id}/download`, {
+      method: "POST",
+    });
+    const data = await r.json().catch(() => ({}));
+    const url = data.image_url || output.image_url;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = url.split("/").pop() || "lampstage.jpg";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+  return (
+    <figure className="group relative overflow-hidden rounded-xl border border-[#e5edf5] bg-black">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={output.image_url}
+        alt="generated"
+        className="h-full w-full object-cover"
+        style={{ aspectRatio: "1 / 1" }}
+      />
+      <button
+        onClick={onDownload}
+        className="absolute bottom-2 right-2 rounded-md bg-black/65 px-2.5 py-1 text-[11px] text-white backdrop-blur transition-opacity opacity-0 group-hover:opacity-100"
+      >
+        {t("ws_btn_download")}
+      </button>
+    </figure>
+  );
+}
+
+function Spinner() {
+  return (
+    <svg
+      width="32"
+      height="32"
+      viewBox="0 0 50 50"
+      className="animate-spin"
+      aria-hidden
+    >
+      <circle
+        cx="25"
+        cy="25"
+        r="20"
+        fill="none"
+        stroke="rgba(255,255,255,0.25)"
+        strokeWidth="4"
+      />
+      <circle
+        cx="25"
+        cy="25"
+        r="20"
+        fill="none"
+        stroke="white"
+        strokeWidth="4"
+        strokeDasharray="80 200"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

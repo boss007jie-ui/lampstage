@@ -193,9 +193,36 @@ const D = {
     en: "Welcome — {n} free credits have been added.",
   },
   ws_welcome_back: {
-    zh: "已登录，剩余额度 {n} 次",
+    zh: "已登录,剩余额度 {n} 次",
     en: "Signed in. {n} credits remaining.",
   },
+
+  // Generation pipeline
+  ws_stage_analyzing: { zh: "正在分析灯具结构…", en: "Analyzing lamp structure…" },
+  ws_stage_matching: { zh: "正在匹配家居场景…", en: "Matching the room…" },
+  ws_stage_generating: { zh: "正在生成家居场景图…", en: "Generating scene shots…" },
+  ws_stage_lighting: { zh: "正在优化光影效果…", en: "Refining the lighting…" },
+  ws_stage_finalizing: { zh: "正在准备预览图…", en: "Preparing previews…" },
+  ws_eta: { zh: "预计 30–60 秒完成", en: "Usually 30–60s" },
+
+  ws_uploading: { zh: "正在上传…", en: "Uploading…" },
+  ws_err_upload_failed: { zh: "上传失败", en: "Upload failed" },
+  ws_err_insufficient: {
+    zh: "额度不足。一次生成 4 张需 4 次额度。",
+    en: "Not enough credits. Each run uses 4.",
+  },
+  ws_err_generic: { zh: "请求失败", en: "Request failed" },
+  ws_failure_label: { zh: "生成失败：", en: "Generation failed: " },
+  ws_failure_refunded: { zh: "已退回 4 次额度", en: "4 credits refunded" },
+
+  // Mismatch warning
+  ws_mismatch_title: { zh: "灯具类型与模板不匹配", en: "Lamp type mismatch" },
+  ws_mismatch_body: {
+    zh: "该模板更适合「{template}」，当前上传图看起来是「{detected}」。继续生成可能在比例和安装方式上不稳定。",
+    en: "This template was made for {template}, but the uploaded image looks like a {detected}. Generations may be inconsistent.",
+  },
+  ws_mismatch_continue: { zh: "仍要使用该模板", en: "Use this template anyway" },
+  ws_mismatch_change: { zh: "返回换模板", en: "Pick another template" },
 
   // Login modal
   login_title: { zh: "登录领取 20 次免费额度", en: "Sign in for 20 free credits" },
@@ -238,6 +265,19 @@ const D = {
     en: "Curating real generations from beta users. Public showcase coming soon.",
   },
   cases_back: { zh: "返回首页", en: "Back to home" },
+
+  // My works
+  my_title: { zh: "我的作品", en: "My works" },
+  my_empty: {
+    zh: "还没有生成记录。返回工作台上传一张灯具图试试。",
+    en: "No generations yet. Head back to the workspace to create your first scene.",
+  },
+  my_back: { zh: "返回工作台", en: "Back to workspace" },
+  my_status_completed: { zh: "已完成", en: "Done" },
+  my_status_generating: { zh: "生成中", en: "Generating" },
+  my_status_failed: { zh: "失败", en: "Failed" },
+  my_btn_download: { zh: "下载", en: "Download" },
+  my_input_label: { zh: "原图", en: "Source" },
 
   // Lang toggle
   lang_toggle_to_en: { zh: "EN", en: "EN" },

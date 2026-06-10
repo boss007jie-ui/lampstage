@@ -316,44 +316,31 @@ function TemplateGrid({
         const lampLabel = lampTypeMap[tpl.lamp_type]?.[lang] ?? tpl.lamp_type;
         const sceneLabel =
           sceneLabelMap[tpl.scene_space]?.[lang] ?? tpl.scene_space;
+        const cover = `/templates/${tpl.id}.jpg`;
         return (
           <button
             key={tpl.id}
             onClick={() => onSelect(tpl.id)}
-            className={`rounded-2xl border bg-white p-3 text-left transition-all ${
+            className={`overflow-hidden rounded-2xl border bg-white text-left transition-all ${
               selected
                 ? "border-[#171717] shadow-[0_0_0_3px_rgba(23,23,23,.06)]"
                 : "border-[#e7e1d7] hover:border-[#171717]"
             }`}
           >
-            <div
-              className="mb-2 h-14 rounded-[10px] sm:h-16"
-              style={{
-                background: "linear-gradient(135deg, #e9dfd0, #7f684d)",
-                position: "relative",
-                overflow: "hidden",
-              }}
-            >
-              <span
-                aria-hidden
-                className="absolute"
-                style={{
-                  left: "40%",
-                  top: "16%",
-                  width: 28,
-                  height: 38,
-                  borderRadius: "50% 50% 45% 45%",
-                  background:
-                    "radial-gradient(circle, #fff8cc, #e9a742 55%, #5e3715)",
-                  boxShadow: "0 0 35px 9px rgba(244,185,72,.55)",
-                }}
-              />
-            </div>
-            <div className="text-[13px] font-semibold text-[#171717] sm:text-[14px]">
-              {tpl.name}
-            </div>
-            <div className="text-[11px] text-[#888] sm:text-[12px]">
-              {lampLabel} · {sceneLabel}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={cover}
+              alt={tpl.name}
+              className="h-32 w-full object-cover sm:h-36"
+              loading="lazy"
+            />
+            <div className="p-3">
+              <div className="text-[13px] font-semibold text-[#171717] sm:text-[14px]">
+                {tpl.name}
+              </div>
+              <div className="text-[11px] text-[#888] sm:text-[12px]">
+                {lampLabel} · {sceneLabel}
+              </div>
             </div>
           </button>
         );

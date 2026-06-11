@@ -215,6 +215,17 @@ export async function getCurrentUser() {
   return session.user;
 }
 
+/** 当前用户是否为管理员（基于 ADMIN_EMAILS 环境变量白名单，逗号分隔）。 */
+export async function isAdmin(): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user?.email) return false;
+  const list = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes(user.email.toLowerCase());
+}
+
 /** 退出登录。 */
 export async function signOut(): Promise<void> {
   const sid = cookies().get(SESSION_COOKIE)?.value;

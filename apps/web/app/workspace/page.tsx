@@ -996,91 +996,118 @@ function PreviewArea({
     );
   }
 
-  // ── idle / C 空态（聚光灯呼吸动画）──
+  // ── idle / C 空态（写实舞台聚光灯）──
   return (
     <div
-      className="relative grid place-items-center overflow-hidden rounded-2xl border border-[#e8e1d2] md:rounded-3xl"
+      className="relative grid place-items-center overflow-hidden rounded-2xl border border-[#2a2a38] md:rounded-3xl"
       style={{
         minHeight: 460,
         background:
-          "radial-gradient(120% 80% at 50% 0%, #fbf9f4 0%, #f3eee2 55%, #ece4d2 100%)",
+          "radial-gradient(130% 90% at 50% -10%, #2c2c44 0%, #1c1c2e 45%, #14141f 100%)",
       }}
     >
       <style>{`
-        @keyframes lampGlow {
-          0%, 100% { opacity: .35; transform: translateX(-50%) scaleY(.92); }
-          50%      { opacity: .85; transform: translateX(-50%) scaleY(1.05); }
+        @keyframes spotPulse {
+          0%, 100% { opacity: .55; }
+          50%      { opacity: 1; }
         }
-        @keyframes lampDot {
-          0%, 100% { opacity: .55; box-shadow: 0 0 18px 4px rgba(243,169,59,.45); }
-          50%      { opacity: 1;  box-shadow: 0 0 34px 10px rgba(243,169,59,.75); }
+        @keyframes spotBeam {
+          0%, 100% { opacity: .4; }
+          50%      { opacity: .72; }
+        }
+        @keyframes spotPool {
+          0%, 100% { opacity: .5; transform: translateX(-50%) scale(.95); }
+          50%      { opacity: .85; transform: translateX(-50%) scale(1.04); }
         }
         @keyframes floatY {
           0%, 100% { transform: translateY(0); }
           50%      { transform: translateY(-6px); }
         }
         @media (prefers-reduced-motion: reduce) {
-          .lamp-glow, .lamp-dot, .lamp-float { animation: none !important; }
+          .spot-pulse, .spot-beam, .spot-pool, .lamp-float { animation: none !important; }
         }
       `}</style>
 
       {filePreview ? (
-        <div className="lamp-float text-center" style={{ animation: "floatY 3.5s ease-in-out infinite" }}>
+        <div
+          className="lamp-float relative z-10 text-center"
+          style={{ animation: "floatY 3.5s ease-in-out infinite" }}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={filePreview}
             alt="uploaded lamp"
-            className="mx-auto h-28 w-28 rounded-2xl border border-[#e0d8c8] object-cover shadow-md"
+            className="mx-auto h-28 w-28 rounded-2xl object-cover"
+            style={{ boxShadow: "0 0 50px 8px rgba(255,210,120,.35)" }}
           />
-          <p className="mt-4 text-[13px] font-medium" style={{ color: "#8a8170" }}>
+          <p className="mt-4 text-[13px] font-medium" style={{ color: "#cbb78f" }}>
             {t("ws_idle_hint_uploaded")}
           </p>
         </div>
       ) : (
-        <div className="relative flex flex-col items-center">
-          {/* 光锥 */}
+        <>
+          {/* 光柱（体积光）：上窄下宽，从顶部打下 */}
           <div
-            className="lamp-glow pointer-events-none absolute left-1/2 top-0"
+            className="spot-beam pointer-events-none absolute left-1/2 top-0"
             style={{
-              width: 160,
-              height: 240,
+              width: 320,
+              height: 360,
+              transform: "translateX(-50%)",
               background:
-                "linear-gradient(to bottom, rgba(243,169,59,.5), rgba(243,169,59,.08) 60%, transparent)",
-              clipPath: "polygon(42% 0, 58% 0, 100% 100%, 0% 100%)",
-              animation: "lampGlow 4s ease-in-out infinite",
-              filter: "blur(4px)",
+                "linear-gradient(to bottom, rgba(255,224,150,.55), rgba(255,214,130,.14) 55%, transparent 85%)",
+              clipPath: "polygon(46% 0, 54% 0, 88% 100%, 12% 100%)",
+              filter: "blur(6px)",
+              animation: "spotBeam 4s ease-in-out infinite",
             }}
           />
-          {/* 光源点 */}
+          {/* 顶部灯具光源 */}
           <div
-            className="lamp-dot relative z-10 mt-2 rounded-full"
+            className="spot-pulse absolute left-1/2 top-[14px] z-10"
             style={{
-              width: 14,
-              height: 14,
+              width: 26,
+              height: 26,
+              transform: "translateX(-50%)",
+              borderRadius: "50%",
               background:
-                "radial-gradient(circle at 50% 40%, #fff3c4, #f3a93b 70%)",
-              animation: "lampDot 4s ease-in-out infinite",
+                "radial-gradient(circle at 50% 40%, #fff6d2, #ffcf66 55%, #d98a26 100%)",
+              boxShadow:
+                "0 0 30px 10px rgba(255,205,100,.7), 0 4px 8px rgba(0,0,0,.4)",
+              animation: "spotPulse 4s ease-in-out infinite",
+            }}
+          />
+          {/* 地面光斑（被照亮的椭圆） */}
+          <div
+            className="spot-pool pointer-events-none absolute left-1/2"
+            style={{
+              bottom: 64,
+              width: 220,
+              height: 60,
+              borderRadius: "50%",
+              background:
+                "radial-gradient(ellipse at 50% 50%, rgba(255,220,150,.5), rgba(255,210,130,.12) 55%, transparent 75%)",
+              filter: "blur(3px)",
+              animation: "spotPool 4s ease-in-out infinite",
             }}
           />
           {/* 文字 */}
-          <div className="relative z-10 mt-28 text-center">
-            <div className="text-[14px] font-semibold uppercase tracking-[0.22em] text-[#a89f8c]">
+          <div className="relative z-10 mt-24 text-center">
+            <div className="text-[14px] font-semibold uppercase tracking-[0.22em] text-[#e8dcc0]">
               Lampstage
             </div>
             <div
               style={{
                 width: 44,
                 height: 1,
-                background: "#d8d2c6",
+                background: "rgba(232,220,192,.35)",
                 margin: "12px auto",
               }}
             />
-            <div className="text-[12px] text-[#b0a898]">{t("ws_idle_hint")}</div>
-            <div className="mt-1 text-[11px] text-[#c4bdaf]">
+            <div className="text-[12px] text-[#bcae90]">{t("ws_idle_hint")}</div>
+            <div className="mt-1 text-[11px] text-[#8c8268]">
               {t("ws_idle_sub")}
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

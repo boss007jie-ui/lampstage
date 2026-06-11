@@ -34,6 +34,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
   const [step, setStep] = useState<Step>("email-input");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [code, setCode] = useState("");
   const [devCode, setDevCode] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -373,15 +374,25 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
             <label className="mb-2 block text-[13px] font-medium text-[#273951]">
               {t("login_label_password")}
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={t("login_placeholder_password")}
-              autoFocus
-              className="w-full rounded-md border border-[#e5edf5] px-3 py-2.5 text-[14px] outline-none focus:border-[#533afd]"
-              onKeyDown={(e) => e.key === "Enter" && signInWithPassword()}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={t("login_placeholder_password")}
+                autoFocus
+                className="w-full rounded-md border border-[#e5edf5] px-3 py-2.5 pr-10 text-[14px] outline-none focus:border-[#533afd]"
+                onKeyDown={(e) => e.key === "Enter" && signInWithPassword()}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-[#94a3b8] hover:text-[#533afd]"
+                aria-label={showPassword ? "hide" : "show"}
+              >
+                <EyeIcon open={showPassword} />
+              </button>
+            </div>
             {error && <p className="mt-2 text-[13px] text-red-600">{error}</p>}
             <button
               onClick={signInWithPassword}
@@ -418,15 +429,25 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
             <label className="mb-2 block text-[13px] font-medium text-[#273951]">
               {t("login_label_set_password")}
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={t("login_placeholder_set_password")}
-              autoFocus
-              className="w-full rounded-md border border-[#e5edf5] px-3 py-2.5 text-[14px] outline-none focus:border-[#533afd]"
-              onKeyDown={(e) => e.key === "Enter" && sendRegisterCode()}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={t("login_placeholder_set_password")}
+                autoFocus
+                className="w-full rounded-md border border-[#e5edf5] px-3 py-2.5 pr-10 text-[14px] outline-none focus:border-[#533afd]"
+                onKeyDown={(e) => e.key === "Enter" && sendRegisterCode()}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-[#94a3b8] hover:text-[#533afd]"
+                aria-label={showPassword ? "hide" : "show"}
+              >
+                <EyeIcon open={showPassword} />
+              </button>
+            </div>
             <p className="mt-1.5 text-[11px] text-[#94a3b8]">
               {t("login_hint_password")}
             </p>
@@ -562,5 +583,19 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         )}
       </div>
     </div>
+  );
+}
+
+function EyeIcon({ open }: { open: boolean }) {
+  return open ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9.9 4.2A10.9 10.9 0 0 1 12 4c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3 4M6.6 6.6A17.6 17.6 0 0 0 2 11s3.5 7 10 7a10.9 10.9 0 0 0 4.1-.8" />
+      <path d="m2 2 20 20" />
+    </svg>
   );
 }

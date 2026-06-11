@@ -82,8 +82,21 @@ export async function sendCode(identifier: string): Promise<{
     console.log(`[dev] verification code for ${id}: ${code}`);
     return { sent: true, devCode: code };
   }
-  // TODO: 生产环境接短信/邮件网关
-  return { sent: true };
+
+  // Production: send email via Resend (only email identifier supported)
+  if (type === "email") {
+    const { sendVerificationEmail } = await import("@/lib/email");
+    const result = await sendVerificationEmail(id, code);
+    if (!result.ok) {
+      // eslint-disable-next-line no-console
+      console.error(`[email] send failed for ${id}: ${result.error}`);
+      return { sent: false, reason: "email_send_failed" };
+    }
+    return { sent: true };
+  }
+
+  // Phone path not yet wired up — surface as error rather than silent black hole
+  return { sent: false, reason: "phone_not_supported" };
 }
 
 /**

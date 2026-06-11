@@ -71,13 +71,13 @@ const D = {
   hero_cta_primary: { zh: "开始生成场景图", en: "Start generating" },
   hero_cta_secondary: { zh: "查看案例", en: "See examples" },
   hero_meta_speed: { zh: "30–60 秒出图", en: "30–60s per image" },
-  hero_meta_count: { zh: "一次 4 张", en: "4 shots per run" },
+  hero_meta_count: { zh: "一次 3 张", en: "3 shots per run" },
   hero_meta_styles: { zh: "国内电商 / 独立站双版本", en: "Marketplace + brand-site styles" },
 
   // Stats
   stat_speed_value: { zh: "30–60s", en: "30–60s" },
   stat_speed_label: { zh: "出图速度", en: "Output speed" },
-  stat_count_value: { zh: "4 张", en: "4 shots" },
+  stat_count_value: { zh: "3 张", en: "3 shots" },
   stat_count_label: { zh: "一次预览", en: "Per generation" },
   stat_credits_value: { zh: "20 次", en: "20 free" },
   stat_credits_label: { zh: "新用户免费额度", en: "New-user credits" },
@@ -162,10 +162,10 @@ const D = {
   ws_aspect_4_5: { zh: "4:5 详情", en: "4:5 Portrait" },
   ws_aspect_16_9: { zh: "16:9 横图", en: "16:9 Wide" },
 
-  ws_btn_generate: { zh: "生成 4 张预览图", en: "Generate 4 previews" },
-  ws_btn_generate_loginfirst: { zh: "登录后生成 4 张预览图", en: "Sign in to generate 4 previews" },
+  ws_btn_generate: { zh: "生成 3 张预览图", en: "Generate 3 previews" },
+  ws_btn_generate_loginfirst: { zh: "登录后生成 3 张预览图", en: "Sign in to generate 3 previews" },
   ws_btn_generating: { zh: "生成中…", en: "Generating…" },
-  ws_cost_hint: { zh: "一次生成 4 张图，消耗 4 次额度", en: "Each run uses 4 credits and outputs 4 images" },
+  ws_cost_hint: { zh: "一次生成 3 张图，消耗 3 次额度", en: "Each run uses 3 credits and outputs 3 images" },
 
   ws_credits_title_signed: { zh: "本月剩余额度", en: "Credits this month" },
   ws_credits_title_unsigned: { zh: "免费额度（登录后可用）", en: "Free credits (sign in to use)" },
@@ -208,8 +208,8 @@ const D = {
   ws_uploading: { zh: "正在上传…", en: "Uploading…" },
   ws_err_upload_failed: { zh: "上传失败", en: "Upload failed" },
   ws_err_insufficient: {
-    zh: "额度不足。一次生成 4 张需 4 次额度。",
-    en: "Not enough credits. Each run uses 4.",
+    zh: "额度不足。一次生成 3 张需 3 次额度。",
+    en: "Not enough credits. Each run uses 3.",
   },
   ws_err_generic: { zh: "请求失败", en: "Request failed" },
   ws_failure_label: { zh: "生成失败：", en: "Generation failed: " },
@@ -225,38 +225,103 @@ const D = {
   ws_mismatch_change: { zh: "返回换模板", en: "Pick another template" },
 
   // Login modal
-  login_title: { zh: "登录领取 20 次免费额度", en: "Sign in for 20 free credits" },
+  login_title: { zh: "登录或注册", en: "Sign in or sign up" },
+  login_title_signin: { zh: "欢迎回来", en: "Welcome back" },
+  login_title_register: { zh: "创建账号", en: "Create your account" },
+  login_title_forgot: { zh: "通过邮箱验证码登录", en: "Sign in with email code" },
+  login_signin_for: { zh: "登录账号：", en: "Signing in as" },
+  login_register_for: { zh: "新账号：", en: "Creating account for" },
   login_desc: {
     zh: "新用户首次登录即送 20 次生成额度，足够生成 5 组场景图。",
     en: "New users get 20 free credits on first sign-in — enough for 5 scene runs.",
   },
   login_label_id: { zh: "邮箱", en: "Email" },
   login_placeholder_id: { zh: "you@example.com", en: "you@example.com" },
+  login_btn_continue: { zh: "下一步", en: "Continue" },
+  login_btn_checking: { zh: "检查中…", en: "Checking…" },
+  login_hint_smart: {
+    zh: "新邮箱将引导你创建账号，已注册邮箱直接登录。",
+    en: "New emails go to signup, existing ones to sign-in.",
+  },
+
+  // Sign in (existing user with password)
+  login_label_password: { zh: "密码", en: "Password" },
+  login_placeholder_password: { zh: "你的密码", en: "Your password" },
+  login_btn_sign_in: { zh: "登录", en: "Sign in" },
+  login_btn_signing_in: { zh: "登录中…", en: "Signing in…" },
+  login_back_email: { zh: "← 换个邮箱", en: "← Use a different email" },
+  login_forgot_password: { zh: "忘记密码？", en: "Forgot password?" },
+  login_err_no_password: { zh: "请输入密码", en: "Enter your password." },
+  login_err_wrong_password: { zh: "密码错误", en: "Wrong password." },
+  login_err_no_account: {
+    zh: "该邮箱尚未注册",
+    en: "This email isn't registered yet.",
+  },
+
+  // Register (new user setting password)
+  login_label_set_password: { zh: "设置密码", en: "Set a password" },
+  login_placeholder_set_password: {
+    zh: "至少 6 位",
+    en: "At least 6 characters",
+  },
+  login_hint_password: {
+    zh: "下次登录时使用此密码。",
+    en: "You'll use this password to sign in next time.",
+  },
   login_btn_send: { zh: "发送验证码", en: "Send code" },
   login_btn_sending: { zh: "发送中…", en: "Sending…" },
-  login_dev_hint: {
-    zh: "开发环境：验证码会输出到服务器控制台和返回体里，方便联调。",
-    en: "Dev mode: codes print to the server log and response body for testing.",
+  login_btn_register: { zh: "完成注册", en: "Complete sign-up" },
+  login_btn_registering: { zh: "注册中…", en: "Creating…" },
+  login_err_weak_password: {
+    zh: "密码至少 6 位",
+    en: "Password must be at least 6 characters.",
   },
+  login_err_already_registered: {
+    zh: "该邮箱已注册，请直接登录",
+    en: "This email is already registered. Sign in instead.",
+  },
+
+  // Verification code
   login_label_code: { zh: "6 位验证码", en: "6-digit code" },
-  login_sent_to: { zh: "已向 {id} 发送验证码，请到邮箱查收（含垃圾邮件）。", en: "Code sent to {id}. Check your inbox (and spam)." },
+  login_sent_to: {
+    zh: "已向 {id} 发送验证码，请到邮箱查收（含垃圾邮件）。",
+    en: "Code sent to {id}. Check your inbox (and spam).",
+  },
   login_dev_code: { zh: "开发环境验证码：", en: "Dev code:" },
   login_btn_verify: { zh: "验证并登录", en: "Verify & sign in" },
   login_btn_verifying: { zh: "验证中…", en: "Verifying…" },
-  login_back: { zh: "← 修改邮箱", en: "← Change email" },
+  login_back: { zh: "← 上一步", en: "← Back" },
   login_resend: { zh: "重新发送", en: "Resend" },
   login_resend_in: { zh: "{s}s 后可重发", en: "Resend in {s}s" },
+
+  // Errors (shared)
   login_err_no_id: { zh: "请输入邮箱", en: "Enter an email." },
-  login_err_invalid_id: { zh: "请输入有效的邮箱地址", en: "Enter a valid email address." },
-  login_err_rate: { zh: "发送过于频繁，请稍后再试", en: "Too many requests. Try again in a minute." },
+  login_err_invalid_id: {
+    zh: "请输入有效的邮箱地址",
+    en: "Enter a valid email address.",
+  },
+  login_err_rate: {
+    zh: "发送过于频繁，请稍后再试",
+    en: "Too many requests. Try again in a minute.",
+  },
   login_err_send_generic: { zh: "发送失败：", en: "Send failed: " },
-  login_err_code_format: { zh: "请输入 6 位验证码", en: "Enter the 6-digit code." },
+  login_err_code_format: {
+    zh: "请输入 6 位验证码",
+    en: "Enter the 6-digit code.",
+  },
   login_err_wrong: { zh: "验证码错误", en: "Wrong code." },
-  login_err_expired: { zh: "验证码已过期，请重新发送", en: "Code expired — request a new one." },
+  login_err_expired: {
+    zh: "验证码已过期，请重新发送",
+    en: "Code expired — request a new one.",
+  },
   login_err_no_code: { zh: "尚未发送验证码", en: "Send a code first." },
   login_err_verify_generic: { zh: "验证失败：", en: "Verification failed: " },
   login_err_network: { zh: "网络错误：", en: "Network error: " },
   login_close: { zh: "关闭", en: "Close" },
+  login_dev_hint: {
+    zh: "开发环境：验证码会输出到服务器控制台和返回体里，方便联调。",
+    en: "Dev mode: codes print to the server log and response body for testing.",
+  },
 
   // Cases page
   cases_title: { zh: "案例", en: "Cases" },

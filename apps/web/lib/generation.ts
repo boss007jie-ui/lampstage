@@ -28,8 +28,8 @@ import { putGeneratedImage } from "@/lib/storage";
 import { getProvider } from "@/lib/providers";
 import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
 
-const OUTPUT_COUNT = 4;
-const CREDIT_COST = 4;
+const OUTPUT_COUNT = 3;
+const CREDIT_COST = 3;
 
 const PLATFORM_STYLE_RULES: Record<PlatformStyle, string> = {
   domestic_ecommerce:
@@ -196,8 +196,9 @@ export async function createAndRunGenerationJob(args: {
     return { ok: false, reason: "missing_prompt" };
   }
 
-  // Step B: 启动后台生成（不 await，让 API 立即返回）
-  void runGenerationPipeline({
+  // Step B: 同步 await 整个生成（serverless 不能用 fire-and-forget）
+  // 等所有图生成完才返回，前端轮询 GET /api/generation/jobs/[id] 看进度
+  await runGenerationPipeline({
     jobId: result.job.id,
     userId: args.userId,
     referenceImageUrl: result.asset.image_url,

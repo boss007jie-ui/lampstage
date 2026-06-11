@@ -61,6 +61,8 @@ model User {
   name           String?
   email          String?  @unique
   phone          String?  @unique
+  password_hash  String?
+  email_verified DateTime?
   credit_balance Int      @default(0)
   role           Role     @default(USER)
   created_at     DateTime @default(now())

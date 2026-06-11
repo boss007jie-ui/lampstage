@@ -91,10 +91,10 @@ export async function POST(req: NextRequest) {
           : 404;
     return NextResponse.json({ error: result.reason }, { status });
   }
+  // 同步生成：返回时所有图已生成完毕（成功或失败都可由 GET /jobs/[id] 查到）
   return NextResponse.json({
     job_id: result.jobId,
-    status: "generating",
+    status: "completed",
     credit_balance: result.creditBalance,
-    estimated_seconds: 45,
   });
 }

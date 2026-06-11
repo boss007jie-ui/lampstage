@@ -20,6 +20,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1065.0",
     "@prisma/client": "^6.19.3",
+    "bcryptjs": "^3.0.3",
     "next": "14.2.35",
     "prisma": "^6.19.3",
     "react": "^18",
@@ -28,6 +29,7 @@
     "sharp": "^0.34.5"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

@@ -207,6 +207,7 @@ const D = {
 
   ws_uploading: { zh: "正在上传…", en: "Uploading…" },
   ws_idle_hint: { zh: "等待上传", en: "Waiting for upload" },
+  ws_idle_sub: { zh: "上传灯具图，舞台灯光即将为它点亮", en: "Upload a lamp — the stage lights are ready" },
   ws_idle_hint_uploaded: { zh: "已就绪 · 选好场景后点生成", en: "Ready · pick a scene and generate" },
   ws_err_upload_failed: { zh: "上传失败", en: "Upload failed" },
   ws_err_insufficient: {

@@ -26,6 +26,7 @@ Thumbs.db
 .vscode/
 
 # test artifacts
+test/
 coverage/
 playwright-report/
 test-results/

@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { LangToggle } from "@/components/i18n/LangToggle";
 import { useLang } from "@/components/i18n/LangProvider";
 import { BrandMark } from "@/components/brand/BrandMark";
+import { LoginModal } from "@/components/auth/LoginModal";
 import { BRAND } from "@/lib/brand";
 
 export default function HomePage() {
@@ -23,7 +25,9 @@ export default function HomePage() {
 
 function NavBar() {
   const { t, lang } = useLang();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
   // 滚动 / 路由变化时关掉 mobile menu
   useEffect(() => {
     if (!open) return;
@@ -60,12 +64,13 @@ function NavBar() {
 
       <div className="flex items-center gap-2 md:gap-3">
         <LangToggle />
-        <Link
-          href="/workspace"
+        <button
+          type="button"
+          onClick={() => setLoginOpen(true)}
           className="hidden rounded-md border border-[#d6d9fc] px-4 py-2 text-[14px] text-[#533afd] transition-colors hover:bg-[#533afd]/5 sm:inline-block"
         >
           {t("nav_login")}
-        </Link>
+        </button>
         {/* 手机：汉堡 */}
         <button
           type="button"
@@ -104,15 +109,26 @@ function NavBar() {
               {l.label}
             </Link>
           ))}
-          <Link
-            href="/workspace"
-            onClick={() => setOpen(false)}
-            className="mt-1 block rounded-lg bg-[#533afd] px-4 py-3 text-center text-[15px] font-medium text-white"
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              setLoginOpen(true);
+            }}
+            className="mt-1 block w-full rounded-lg bg-[#533afd] px-4 py-3 text-center text-[15px] font-medium text-white"
           >
             {t("nav_login")}
-          </Link>
+          </button>
         </div>
       )}
+      <LoginModal
+        open={loginOpen}
+        onClose={() => setLoginOpen(false)}
+        onSignedIn={() => {
+          setLoginOpen(false);
+          router.push("/workspace");
+        }}
+      />
     </nav>
   );
 }

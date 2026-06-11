@@ -697,7 +697,7 @@ async function pollJob(
       return {
         status: data.status,
         failure_reason: data.failure_reason ?? null,
-        output_images: data.output_images ?? [],
+        output_images: data.outputs ?? data.output_images ?? [],
       };
     }
   }
@@ -907,92 +907,136 @@ function PreviewArea({
   filePreview: string | null;
 }) {
   const { t } = useLang();
+  const [activeIdx, setActiveIdx] = useState(0);
+
   const aspectLabel =
     { "1_1": "1:1", "4_5": "4:5", "16_9": "16:9" }[aspect] || aspect;
   const platformLabel =
     platformStyle === "domestic_ecommerce"
       ? t("ws_platform_domestic")
       : t("ws_platform_brand");
+  const aspectRatioCss =
+    aspect === "16_9" ? "16/9" : aspect === "1_1" ? "1/1" : "4/5";
 
-  // completed → 显示 4 张结果图
+  useEffect(() => {
+    setActiveIdx(0);
+  }, [outputs.length]);
+
+  // ── 方向 B：大图轮播 + 缩略图条 ──
   if (phase === "completed" && outputs.length > 0) {
+    const active = outputs[Math.min(activeIdx, outputs.length - 1)];
     return (
       <div>
-        <div className="grid grid-cols-2 gap-3">
-          {outputs.map((o) => (
-            <ResultCell key={o.id} output={o} />
-          ))}
+        <div className="relative overflow-hidden rounded-2xl bg-black md:rounded-3xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            key={active.image_url}
+            src={active.image_url}
+            alt="generated scene"
+            className="w-full object-cover"
+            style={{ aspectRatio: aspectRatioCss, display: "block" }}
+          />
+          <div className="absolute left-3 top-3 rounded-full bg-black/55 px-3 py-1.5 text-[11px] text-white backdrop-blur-sm">
+            {templateName} · {platformLabel} · {aspectLabel}
+          </div>
+          <DownloadBtn output={active} />
         </div>
-        <div className="mt-3 text-[12px] text-[#64748d]">
-          {t("ws_panel_preview")} · {templateName} · {platformLabel} · {aspectLabel}
-        </div>
+        {outputs.length > 1 && (
+          <div className="mt-2.5 flex gap-2">
+            {outputs.map((o, i) => (
+              <button
+                key={o.id}
+                onClick={() => setActiveIdx(i)}
+                className={`overflow-hidden rounded-lg transition-all ${
+                  i === activeIdx
+                    ? "opacity-100 ring-2 ring-[#533afd] ring-offset-1"
+                    : "opacity-50 hover:opacity-80"
+                }`}
+                style={{ width: 56, flex: "none" }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={o.image_url}
+                  alt={`scene ${i + 1}`}
+                  className="w-full object-cover"
+                  style={{ aspectRatio: "4/5", display: "block" }}
+                />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
 
-  return (
-    <div>
+  // ── failed ──
+  if (phase === "failed" && errMsg) {
+    return (
       <div
-        className="relative h-[260px] overflow-hidden rounded-2xl sm:h-[360px] md:h-[460px] md:rounded-3xl"
+        className="grid place-items-center rounded-2xl border border-red-100 bg-red-50 p-8 text-center md:rounded-3xl"
+        style={{ minHeight: 280 }}
+      >
+        <p className="text-[13px] leading-relaxed text-red-700">{errMsg}</p>
+      </div>
+    );
+  }
+
+  // ── generating: 深色背景 + 进度时间线 ──
+  if (phase !== "idle") {
+    return (
+      <div
+        className="grid place-items-center overflow-hidden rounded-2xl md:rounded-3xl"
         style={{
-          background: "linear-gradient(140deg, #d9c8b3, #f3ece1 45%, #7b6a58)",
-          boxShadow: "inset 0 0 0 1px rgba(255,255,255,.25)",
+          minHeight: 320,
+          background: "linear-gradient(160deg,#1a1a2e,#16213e)",
         }}
       >
-        <div className="absolute left-3 top-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-white/80 px-2.5 py-1.5 text-[11px] backdrop-blur sm:left-4 sm:top-4 sm:px-3 sm:py-2 sm:text-[13px]">
-          {templateName} · {platformLabel} · {aspectLabel}
-        </div>
-        <div
-          aria-hidden
-          className="absolute right-12 top-10 h-[64px] w-[48px] rounded-[28px_28px_12px_12px] sm:right-24 sm:top-14 sm:h-[90px] sm:w-[64px] md:right-32 md:top-16 md:h-[110px] md:w-[80px] md:rounded-[48px_48px_18px_18px]"
-          style={{
-            background:
-              "radial-gradient(circle at 50% 30%, #fff7c8, #e2a23d 40%, #5c3518 75%)",
-            boxShadow:
-              "0 0 60px 24px rgba(255,210,101,.45), 0 14px 24px rgba(0,0,0,.18)",
-          }}
-        />
-        <div
-          aria-hidden
-          className="absolute bottom-12 left-6 right-6 h-14 rounded-[20px_20px_10px_10px] bg-[#cab89f] sm:bottom-16 sm:left-10 sm:right-10 sm:h-20 md:bottom-20 md:left-12 md:right-12 md:h-24 md:rounded-[36px_36px_18px_18px]"
-        />
-        {filePreview && phase === "idle" && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={filePreview}
-            alt="uploaded lamp"
-            className="absolute right-3 top-3 h-14 w-14 rounded-lg border border-white/60 object-cover sm:right-4 sm:top-4 sm:h-20 sm:w-20 sm:rounded-xl"
-          />
-        )}
-        {phase !== "idle" && phase !== "completed" && phase !== "failed" && (
-          <div className="absolute inset-0 grid place-items-center bg-black/55 px-4 text-center text-white backdrop-blur-sm">
-            <ProgressTimeline phase={phase} stageHint={stageText} />
-          </div>
-        )}
-        {phase === "failed" && errMsg && (
-          <div className="absolute inset-0 grid place-items-center bg-black/55 px-6 text-center text-white">
-            <div>
-              <div className="text-[15px]">{errMsg}</div>
-            </div>
-          </div>
-        )}
+        <ProgressTimeline phase={phase} stageHint={stageText} />
       </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 sm:mt-4">
-        <div className="text-[11px] text-[#888] sm:text-[12px]">
-          {phase === "idle"
-            ? null
-            : phase === "completed"
-              ? null
-              : phase === "failed"
-                ? null
-                : t("ws_eta")}
-        </div>
+    );
+  }
+
+  // ── idle / C 空态 ──
+  return (
+    <div
+      className="grid place-items-center rounded-2xl border border-[#e8e1d2] bg-[#f7f4ee] md:rounded-3xl"
+      style={{ minHeight: 320 }}
+    >
+      <div className="text-center">
+        {filePreview ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={filePreview}
+              alt="uploaded lamp"
+              className="mx-auto h-24 w-24 rounded-xl border border-[#e0d8c8] object-cover shadow-sm"
+            />
+            <p className="mt-3 text-[12px] text-[#b0a898]">
+              {t("ws_idle_hint_uploaded")}
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-[#c0bbb0]">
+              Lampstage
+            </div>
+            <div
+              style={{
+                width: 40,
+                height: 1,
+                background: "#d8d2c6",
+                margin: "10px auto",
+              }}
+            />
+            <div className="text-[11px] text-[#c0bbb0]">{t("ws_idle_hint")}</div>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function ResultCell({
+function DownloadBtn({
   output,
 }: {
   output: { id: string; image_url: string };
@@ -1012,21 +1056,12 @@ function ResultCell({
     document.body.removeChild(a);
   };
   return (
-    <figure className="group relative overflow-hidden rounded-xl border border-[#e5edf5] bg-black">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={output.image_url}
-        alt="generated"
-        className="h-full w-full object-cover"
-        style={{ aspectRatio: "1 / 1" }}
-      />
-      <button
-        onClick={onDownload}
-        className="absolute bottom-2 right-2 rounded-md bg-black/65 px-2.5 py-1 text-[11px] text-white backdrop-blur transition-opacity opacity-0 group-hover:opacity-100"
-      >
-        {t("ws_btn_download")}
-      </button>
-    </figure>
+    <button
+      onClick={onDownload}
+      className="absolute bottom-3 right-3 rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-semibold text-[#171717] shadow-md backdrop-blur-sm transition-colors hover:bg-white"
+    >
+      {t("ws_btn_download")} ↓
+    </button>
   );
 }
 

@@ -914,17 +914,6 @@ function PreviewArea({
       ? t("ws_platform_domestic")
       : t("ws_platform_brand");
 
-  const showStageText =
-    phase === "uploading"
-      ? t("ws_uploading")
-      : phase === "prechecking"
-        ? t("ws_stage_analyzing")
-        : phase === "submitting"
-          ? t("ws_stage_matching")
-          : phase === "polling"
-            ? stageText
-            : "";
-
   // completed → 显示 4 张结果图
   if (phase === "completed" && outputs.length > 0) {
     return (
@@ -976,16 +965,8 @@ function PreviewArea({
           />
         )}
         {phase !== "idle" && phase !== "completed" && phase !== "failed" && (
-          <div className="absolute inset-0 grid place-items-center bg-black/45 px-4 text-center text-white">
-            <div>
-              <div className="mb-2 inline-flex">
-                <Spinner />
-              </div>
-              <div className="text-[15px] sm:text-[18px]">{showStageText}</div>
-              <div className="mt-1 text-[11px] opacity-80 sm:text-[12px]">
-                {t("ws_eta")}
-              </div>
-            </div>
+          <div className="absolute inset-0 grid place-items-center bg-black/55 px-4 text-center text-white backdrop-blur-sm">
+            <ProgressTimeline phase={phase} stageHint={stageText} />
           </div>
         )}
         {phase === "failed" && errMsg && (
@@ -1049,37 +1030,6 @@ function ResultCell({
   );
 }
 
-function Spinner() {
-  return (
-    <svg
-      width="32"
-      height="32"
-      viewBox="0 0 50 50"
-      className="animate-spin"
-      aria-hidden
-    >
-      <circle
-        cx="25"
-        cy="25"
-        r="20"
-        fill="none"
-        stroke="rgba(255,255,255,0.25)"
-        strokeWidth="4"
-      />
-      <circle
-        cx="25"
-        cy="25"
-        r="20"
-        fill="none"
-        stroke="white"
-        strokeWidth="4"
-        strokeDasharray="80 200"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 function QuotaExhaustedDialog({
   open,
   onClose,
@@ -1137,5 +1087,132 @@ function QuotaExhaustedDialog({
         }}
       />
     </>
+  );
+}
+
+/**
+ * 工作流时间线：5 个阶段以勾选 / 当前 / 待办形式呈现，让用户清楚看到进展。
+ *
+ * Phase mapping:
+ *   uploading    -> 客户端流程，不在这里展示（PreviewArea 顶部已经有 phase 文案）
+ *   prechecking  -> stage[0] analyzing
+ *   submitting   -> stage[1] matching
+ *   polling      -> stageHint 真实告诉我们当前是 generating / lighting / finalizing
+ */
+function ProgressTimeline({
+  phase,
+  stageHint,
+}: {
+  phase:
+    | "idle"
+    | "uploading"
+    | "prechecking"
+    | "submitting"
+    | "polling"
+    | "completed"
+    | "failed";
+  stageHint: string;
+}) {
+  const { t } = useLang();
+
+  const STAGES: { key: string; label: string }[] = [
+    { key: "analyzing", label: t("ws_stage_analyzing") },
+    { key: "matching", label: t("ws_stage_matching") },
+    { key: "generating", label: t("ws_stage_generating") },
+    { key: "lighting", label: t("ws_stage_lighting") },
+    { key: "finalizing", label: t("ws_stage_finalizing") },
+  ];
+
+  // map phase + stageHint to current stage index
+  let currentIdx = 0;
+  if (phase === "uploading") currentIdx = -1; // pre-stage
+  else if (phase === "prechecking") currentIdx = 0;
+  else if (phase === "submitting") currentIdx = 1;
+  else if (phase === "polling") {
+    // try to match stageHint (might be t() rendered, fall back by guessing)
+    const lower = stageHint.toLowerCase();
+    if (lower.includes("matching") || lower.includes("匹配")) currentIdx = 1;
+    else if (lower.includes("lighting") || lower.includes("光影")) currentIdx = 3;
+    else if (lower.includes("finalizing") || lower.includes("准备")) currentIdx = 4;
+    else currentIdx = 2; // default to "generating"
+  }
+
+  return (
+    <div className="w-full max-w-[420px] px-2 sm:px-4">
+      {phase === "uploading" && (
+        <div className="mb-5 text-center">
+          <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+          <div className="mt-2 text-[13px] sm:text-[15px] text-white/90">
+            {t("ws_uploading")}
+          </div>
+        </div>
+      )}
+      {phase !== "uploading" && (
+        <ol className="space-y-2.5 sm:space-y-3">
+          {STAGES.map((stage, idx) => {
+            const done = idx < currentIdx;
+            const active = idx === currentIdx;
+            return (
+              <li
+                key={stage.key}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors ${
+                  active
+                    ? "bg-white/15"
+                    : done
+                      ? "opacity-90"
+                      : "opacity-40"
+                }`}
+              >
+                <span
+                  className={`flex h-6 w-6 flex-none items-center justify-center rounded-full text-[11px] font-semibold ${
+                    done
+                      ? "bg-emerald-400 text-emerald-950"
+                      : active
+                        ? "bg-white text-[#171717]"
+                        : "bg-white/20 text-white/80"
+                  }`}
+                >
+                  {done ? (
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <polyline points="4 11 8 15 16 6" />
+                    </svg>
+                  ) : active ? (
+                    <span
+                      className="h-2 w-2 animate-pulse rounded-full bg-[#171717]"
+                      aria-hidden
+                    />
+                  ) : (
+                    <span>{idx + 1}</span>
+                  )}
+                </span>
+                <span
+                  className={`flex-1 text-left text-[13px] sm:text-[14px] ${
+                    active ? "font-medium" : ""
+                  }`}
+                >
+                  {stage.label}
+                </span>
+                {active && (
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      <div className="mt-4 text-center text-[11px] text-white/70 sm:text-[12px]">
+        {t("ws_eta")}
+      </div>
+    </div>
   );
 }

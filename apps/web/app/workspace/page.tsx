@@ -381,6 +381,30 @@ function Main({
     }
     setFile(f);
     setFilePreview(URL.createObjectURL(f));
+    // 选完文件立刻上传——智能推荐 Tab 需要 assetId 才能调 /api/generation/suggest
+    void (async () => {
+      try {
+        setPhase("uploading");
+        const fd = new FormData();
+        fd.append("file", f);
+        const upRes = await fetch("/api/uploads", { method: "POST", body: fd });
+        if (!upRes.ok) {
+          if (upRes.status === 401) {
+            setPhase("idle"); // user not signed in; defer to generate-time login
+            return;
+          }
+          setFileError(t("ws_err_upload_failed"));
+          setPhase("failed");
+          return;
+        }
+        const data = (await upRes.json()) as { id: string };
+        setUploadedAssetId(data.id);
+        setPhase("idle");
+      } catch (e) {
+        setFileError(String(e));
+        setPhase("failed");
+      }
+    })();
   };
 
   const lampTypeLabel = (raw: string) => {

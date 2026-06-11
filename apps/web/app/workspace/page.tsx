@@ -347,9 +347,15 @@ function Main({
   }, []);
 
   const generating = phase !== "idle" && phase !== "completed" && phase !== "failed";
+  const sceneReady = useMemo(() => {
+    if (sceneKind === "template") return Boolean(templateId);
+    if (sceneKind === "recommended") return suggestions.length > 0 && Boolean(suggestions[recommendedSceneIdx]);
+    if (sceneKind === "custom") return customPrompt.trim().length > 0;
+    return false;
+  }, [sceneKind, templateId, suggestions, recommendedSceneIdx, customPrompt]);
   const canGenerate = useMemo(
-    () => Boolean(file && templateId && !fileError && !generating),
-    [file, templateId, fileError, generating],
+    () => Boolean(file && sceneReady && !fileError && !generating),
+    [file, sceneReady, fileError, generating],
   );
 
   const onPick = (f: File | null) => {
@@ -391,7 +397,7 @@ function Main({
   };
 
   const startPipeline = async () => {
-    if (!canGenerate || !file || !templateId) return;
+    if (!canGenerate || !file) return;
     if (!signedIn) {
       onRequireLogin();
       return;

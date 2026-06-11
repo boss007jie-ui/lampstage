@@ -101,7 +101,7 @@ function BrandLogo() {
   const { lang } = useLang();
   return (
     <div className="flex items-center gap-2">
-      <BrandMark size={26} onLight />
+      <BrandMark size={30} onLight />
       <div className="text-[15px] font-semibold tracking-tight text-[#171717]">
         {lang === "zh" ? `${BRAND.en} · ${BRAND.cn}` : BRAND.en}
       </div>

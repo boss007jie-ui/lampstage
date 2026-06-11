@@ -49,7 +49,7 @@ function NavBar() {
         href="/"
         className="flex items-center gap-2 text-[18px] font-semibold tracking-tight md:text-[22px]"
       >
-        <BrandMark size={22} onLight />
+        <BrandMark size={26} onLight />
         {lang === "zh" ? `${BRAND.en} · ${BRAND.cn}` : BRAND.en}
       </Link>
 

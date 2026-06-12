@@ -24,8 +24,9 @@ const ASPECT_MAP: Record<string, string> = {
 };
 
 function apiKey(): string {
-  const k = process.env.YUNWU_API_KEY;
-  if (!k) throw new Error("YUNWU_API_KEY env not set");
+  // 生图专用 key（设了限额，防恶意刷量）；没配则回退到通用 key
+  const k = process.env.YUNWU_IMAGE_KEY || process.env.YUNWU_API_KEY;
+  if (!k) throw new Error("YUNWU_IMAGE_KEY / YUNWU_API_KEY env not set");
   return k;
 }
 

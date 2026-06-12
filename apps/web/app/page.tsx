@@ -40,7 +40,7 @@ function NavBar() {
     { href: "#showcase", label: t("nav_showcase") },
     { href: "#product", label: t("nav_product") },
     { href: "#styles", label: t("nav_styles") },
-    { href: "#pricing", label: t("nav_pricing") },
+    { href: "/credits", label: t("nav_pricing") },
   ];
 
   return (

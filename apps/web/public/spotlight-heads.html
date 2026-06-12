@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lampstage 射灯光源造型 · 3 个方向</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", "PingFang SC", sans-serif;
+    background: #e9e6df;
+    color: #1a1a1a;
+    padding: 28px 18px 70px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 650; }
+  .sub { color: #6b6b6b; font-size: 13.5px; margin-top: 6px; line-height: 1.5; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 22px; margin-top: 28px; }
+  @media (min-width: 860px) { .grid { grid-template-columns: 1fr 1fr 1fr; } }
+
+  .opt { border-radius: 16px; overflow: hidden; border: 1px solid #d8d4ca; background: #fff; }
+  .opt__hd { padding: 14px 16px; border-bottom: 1px solid #eee; }
+  .opt__tag { font-size: 11px; font-weight: 600; color: #b8862c; letter-spacing: .05em; text-transform: uppercase; }
+  .opt__name { font-size: 15px; font-weight: 600; margin-top: 3px; }
+  .opt__desc { font-size: 12px; color: #777; margin-top: 5px; line-height: 1.5; }
+
+  /* stage canvas — 复刻线上预览区 */
+  .stage {
+    position: relative;
+    height: 340px;
+    overflow: hidden;
+    background: radial-gradient(130% 90% at 50% -10%, #2c2c44 0%, #1c1c2e 45%, #14141f 100%);
+  }
+  .beam {
+    position: absolute; left: 50%; top: 56px;
+    width: 320px; height: 250px; transform: translateX(-50%);
+    background: linear-gradient(to bottom, rgba(255,224,150,.6), rgba(255,214,130,.16) 60%, transparent 92%);
+    clip-path: polygon(50% 0, 50% 0, 92% 100%, 8% 100%);
+    filter: blur(7px);
+    animation: beam 4s ease-in-out infinite;
+  }
+  .pool {
+    position: absolute; left: 50%; bottom: 44px;
+    width: 260px; height: 56px; transform: translateX(-50%);
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 50% 50%, rgba(255,220,150,.5), rgba(255,210,130,.12) 55%, transparent 75%);
+    filter: blur(3px);
+    animation: pool 4s ease-in-out infinite;
+  }
+  .label { position: absolute; left: 0; right: 0; bottom: 70px; text-align: center; color: #cdbf9e; font-size: 12px; letter-spacing: .15em; }
+
+  @keyframes beam { 0%,100%{opacity:.42} 50%{opacity:.72} }
+  @keyframes pool { 0%,100%{opacity:.5;transform:translateX(-50%) scale(.96)} 50%{opacity:.85;transform:translateX(-50%) scale(1.04)} }
+  @keyframes glow { 0%,100%{opacity:.7} 50%{opacity:1} }
+
+  /* ===== A: 圆柱筒灯（track spotlight head）===== */
+  .A-head { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 5; }
+  .A-can {
+    width: 30px; height: 34px; margin: 0 auto;
+    background: linear-gradient(145deg, #3a3a4e, #20202e);
+    border-radius: 8px 8px 6px 6px;
+    border: 1px solid #4a4a60;
+    position: relative;
+  }
+  .A-lens {
+    position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%);
+    width: 22px; height: 10px; border-radius: 50%;
+    background: radial-gradient(ellipse at 50% 30%, #fff6d2, #ffcf66 60%, #d98a26);
+    box-shadow: 0 0 22px 8px rgba(255,205,100,.8);
+    animation: glow 4s ease-in-out infinite;
+  }
+  .A-arm { width: 4px; height: 12px; background: #2a2a3a; margin: 0 auto; border-radius: 2px; }
+
+  /* ===== B: 吊挂筒灯（pendant can, 更像 lamp）===== */
+  .B-head { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 5; text-align:center; }
+  .B-wire { width: 1.5px; height: 16px; background: linear-gradient(#555, #333); margin: 0 auto; }
+  .B-shade {
+    width: 38px; height: 26px; margin: 0 auto;
+    background: linear-gradient(160deg, #44445a, #26263600);
+    background-color: #3a3a4e;
+    border-radius: 6px 6px 20px 20px;
+    position: relative;
+    border-top: 2px solid #52526a;
+  }
+  .B-bulb {
+    position: absolute; left: 50%; bottom: -3px; transform: translateX(-50%);
+    width: 26px; height: 12px; border-radius: 50%;
+    background: radial-gradient(ellipse at 50% 30%, #fff8da, #ffcf66 55%, #d98a26);
+    box-shadow: 0 0 26px 10px rgba(255,205,100,.85);
+    animation: glow 4s ease-in-out infinite;
+  }
+
+  /* ===== C: 极简光环（minimal ring source）===== */
+  .C-head { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); z-index: 5; }
+  .C-ring {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 2.5px solid rgba(255,207,102,.55);
+    display: grid; place-items: center;
+    box-shadow: 0 0 18px 3px rgba(255,205,100,.4);
+  }
+  .C-core {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 40%, #fff6d2, #ffcf66 60%, #d98a26);
+    box-shadow: 0 0 24px 9px rgba(255,205,100,.85);
+    animation: glow 4s ease-in-out infinite;
+  }
+
+  .note { margin-top: 36px; text-align: center; font-size: 12.5px; color: #777; }
+  .note b { color: #1a1a1a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Lampstage 射灯光源造型</h1>
+  <p class="sub">把现在的「纯圆点」换成有造型的射灯灯头。三个方向都接在同一束光锥 + 地面光斑上，背景配色与线上一致。挑一个，我落到工作台代码里。</p>
+
+  <div class="grid">
+    <!-- A -->
+    <div class="opt">
+      <div class="opt__hd">
+        <div class="opt__tag">方向 A · 轨道筒灯</div>
+        <div class="opt__name">Track spotlight</div>
+        <div class="opt__desc">方形筒灯头 + 短支臂，像展厅/舞台轨道射灯。最"专业打光"，呼应产品定位。</div>
+      </div>
+      <div class="stage">
+        <div class="A-head">
+          <div class="A-arm"></div>
+          <div class="A-can"><div class="A-lens"></div></div>
+        </div>
+        <div class="beam"></div>
+        <div class="pool"></div>
+        <div class="label">LAMPSTAGE</div>
+      </div>
+    </div>
+
+    <!-- B -->
+    <div class="opt">
+      <div class="opt__hd">
+        <div class="opt__tag">方向 B · 吊挂筒灯</div>
+        <div class="opt__name">Pendant can</div>
+        <div class="opt__desc">细线吊挂 + 锥形灯罩 + 灯泡口，本身就是一盏"灯具"，最贴合卖灯的主题。</div>
+      </div>
+      <div class="stage">
+        <div class="B-head">
+          <div class="B-wire"></div>
+          <div class="B-shade"><div class="B-bulb"></div></div>
+        </div>
+        <div class="beam"></div>
+        <div class="pool"></div>
+        <div class="label">LAMPSTAGE</div>
+      </div>
+    </div>
+
+    <!-- C -->
+    <div class="opt">
+      <div class="opt__hd">
+        <div class="opt__tag">方向 C · 极简光环</div>
+        <div class="opt__name">Minimal ring</div>
+        <div class="opt__desc">一圈金环 + 中心发光核。最克制、最现代，不那么具象但精致。</div>
+      </div>
+      <div class="stage">
+        <div class="C-head">
+          <div class="C-ring"><div class="C-core"></div></div>
+        </div>
+        <div class="beam"></div>
+        <div class="pool"></div>
+        <div class="label">LAMPSTAGE</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">告诉我选 <b>A / B / C</b>，我把它落到工作台空态（替换现在的纯圆点）。</p>
+</div>
+</body>
+</html>

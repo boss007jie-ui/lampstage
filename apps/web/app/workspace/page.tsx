@@ -1048,7 +1048,7 @@ function PreviewArea({
         <>
           {/* 光柱（体积光）：从光源圆点下边缘迸发，张角参考 logo，往下打开 */}
           <div
-            className="spot-beam pointer-events-none absolute left-1/2 top-[38px]"
+            className="spot-beam pointer-events-none absolute left-1/2 top-[60px]"
             style={{
               width: 360,
               height: 320,
@@ -1060,21 +1060,72 @@ function PreviewArea({
               animation: "spotBeam 4s ease-in-out infinite",
             }}
           />
-          {/* 顶部灯具光源 */}
+          {/* 顶部灯具光源：B3 黑金工业吊灯 */}
           <div
-            className="spot-pulse absolute left-1/2 top-[14px] z-10"
+            className="spot-pulse absolute left-1/2 top-0 z-10 flex flex-col items-center"
             style={{
-              width: 26,
-              height: 26,
               transform: "translateX(-50%)",
-              borderRadius: "50%",
-              background:
-                "radial-gradient(circle at 50% 40%, #fff6d2, #ffcf66 55%, #d98a26 100%)",
-              boxShadow:
-                "0 0 30px 10px rgba(255,205,100,.7), 0 4px 8px rgba(0,0,0,.4)",
               animation: "spotPulse 4s ease-in-out infinite",
             }}
-          />
+          >
+            {/* 天花板固定座 */}
+            <div
+              style={{
+                width: 18,
+                height: 4,
+                background: "#4a4a5c",
+                borderRadius: "0 0 3px 3px",
+              }}
+            />
+            {/* 吊线 */}
+            <div
+              style={{
+                width: 2,
+                height: 22,
+                background: "linear-gradient(#6a6a7a,#3a3a48)",
+              }}
+            />
+            {/* 黑金灯罩 */}
+            <div
+              className="relative"
+              style={{
+                width: 48,
+                height: 30,
+                background: "linear-gradient(165deg, #2a2a30, #16161c)",
+                borderRadius: "24px 24px 6px 6px",
+                boxShadow:
+                  "inset 0 -2px 5px rgba(0,0,0,.5), 0 2px 5px rgba(0,0,0,.35)",
+              }}
+            >
+              {/* 黄铜内圈 */}
+              <div
+                className="absolute left-1/2"
+                style={{
+                  bottom: -1,
+                  transform: "translateX(-50%)",
+                  width: 42,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: "linear-gradient(#e8c074,#b8862c)",
+                  boxShadow: "0 0 6px rgba(232,192,116,.5)",
+                }}
+              />
+              {/* 发光灯泡口 */}
+              <div
+                className="absolute left-1/2"
+                style={{
+                  bottom: -4,
+                  transform: "translateX(-50%)",
+                  width: 30,
+                  height: 13,
+                  borderRadius: "50%",
+                  background:
+                    "radial-gradient(ellipse at 50% 25%, #fffae0, #ffcf66 50%, #e09a30)",
+                  boxShadow: "0 0 30px 12px rgba(255,205,100,.88)",
+                }}
+              />
+            </div>
+          </div>
           {/* 地面光斑（被照亮的椭圆） */}
           <div
             className="spot-pool pointer-events-none absolute left-1/2"

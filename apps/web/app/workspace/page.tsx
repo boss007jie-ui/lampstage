@@ -1046,17 +1046,17 @@ function PreviewArea({
         </div>
       ) : (
         <>
-          {/* 光柱（体积光）：上窄下宽，从顶部打下 */}
+          {/* 光柱（体积光）：从光源那一个点迸发，往下张开成锥 */}
           <div
-            className="spot-beam pointer-events-none absolute left-1/2 top-0"
+            className="spot-beam pointer-events-none absolute left-1/2 top-[20px]"
             style={{
-              width: 320,
-              height: 360,
+              width: 300,
+              height: 330,
               transform: "translateX(-50%)",
               background:
-                "linear-gradient(to bottom, rgba(255,224,150,.55), rgba(255,214,130,.14) 55%, transparent 85%)",
-              clipPath: "polygon(46% 0, 54% 0, 88% 100%, 12% 100%)",
-              filter: "blur(6px)",
+                "linear-gradient(to bottom, rgba(255,224,150,.6), rgba(255,214,130,.16) 60%, transparent 90%)",
+              clipPath: "polygon(50% 0, 50% 0, 82% 100%, 18% 100%)",
+              filter: "blur(7px)",
               animation: "spotBeam 4s ease-in-out infinite",
             }}
           />

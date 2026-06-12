@@ -1,20 +1,16 @@
 <!doctype html><html><head><meta charset="utf-8"/>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#888; padding:40px; }
-  .ico {
-    width:512px; height:512px;
-    background:radial-gradient(125% 115% at 50% -8%, #2c2c44 0%, #1c1c2e 55%, #14141f 100%);
-    display:block;
-  }
+  body { background:transparent; }
+  .ico { width:512px; height:512px; display:block; background:transparent; }
 </style></head><body>
-  <!-- BrandMark B3 spotlight, scaled to 512, on dark rounded tile -->
+  <!-- BrandMark B3 spotlight, 透明底, 放大铺满画布 -->
   <svg class="ico" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#fff5b8" stop-opacity="0.98"/>
-        <stop offset="0.55" stop-color="#f3a93b" stop-opacity="0.7"/>
-        <stop offset="1" stop-color="#f3a93b" stop-opacity="0.08"/>
+        <stop offset="0" stop-color="#ffd86b" stop-opacity="1"/>
+        <stop offset="0.55" stop-color="#f3a93b" stop-opacity="0.85"/>
+        <stop offset="1" stop-color="#f3a93b" stop-opacity="0.25"/>
       </linearGradient>
       <radialGradient id="glow" cx="50%" cy="40%" r="60%">
         <stop offset="0" stop-color="#fff8d8"/>
@@ -22,10 +18,12 @@
         <stop offset="100%" stop-color="#e09a30"/>
       </radialGradient>
     </defs>
-    <!-- 光锥 -->
-    <path d="M15.2 8 L6 27 L26 27 L16.8 8 Z" fill="url(#beam)"/>
-    <!-- 发光源点 + 外发光 -->
-    <circle cx="16" cy="7" r="3.6" fill="#f3a93b" fill-opacity="0.35"/>
-    <circle cx="16" cy="7" r="2.4" fill="url(#glow)"/>
+    <!-- 光锥（放大铺满） -->
+    <path d="M14.6 4 L3 29 L29 29 L17.4 4 Z" fill="url(#beam)"/>
+    <!-- 描边增强（透明底上更立体） -->
+    <path d="M14.6 4 L3 29 L29 29 L17.4 4 Z" fill="none" stroke="#c9852a" stroke-width="0.5" stroke-opacity="0.45"/>
+    <!-- 外发光 + 光源点 -->
+    <circle cx="16" cy="4.5" r="4" fill="#f3a93b" fill-opacity="0.4"/>
+    <circle cx="16" cy="4.5" r="2.6" fill="url(#glow)"/>
   </svg>
 </body></html>

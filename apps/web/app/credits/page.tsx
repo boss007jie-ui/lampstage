@@ -94,30 +94,38 @@ export default function CreditsPage() {
           />
         </section>
 
-        {/* 套餐 */}
+        {/* 充值包 */}
         <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <PlanCard
             nameKey="plan_free_name"
+            priceKey="plan_free_price"
             quotaKey="plan_free_quota"
+            unitKey="plan_free_unit"
             descKey="plan_free_desc"
             isFree
           />
           <PlanCard
             nameKey="plan_basic_name"
+            priceKey="plan_basic_price"
             quotaKey="plan_basic_quota"
+            unitKey="plan_basic_unit"
             descKey="plan_basic_desc"
             onContact={() => setLeadOpen("credits_page_basic")}
           />
           <PlanCard
             nameKey="plan_business_name"
+            priceKey="plan_business_price"
             quotaKey="plan_business_quota"
+            unitKey="plan_business_unit"
             descKey="plan_business_desc"
             onContact={() => setLeadOpen("credits_page_business")}
             highlight
           />
           <PlanCard
             nameKey="plan_factory_name"
+            priceKey="plan_factory_price"
             quotaKey="plan_factory_quota"
+            unitKey="plan_factory_unit"
             descKey="plan_factory_desc"
             onContact={() => setLeadOpen("credits_page_factory")}
           />
@@ -242,14 +250,18 @@ function PlansHero({ title, subtitle }: { title: string; subtitle: string }) {
 
 function PlanCard({
   nameKey,
+  priceKey,
   quotaKey,
+  unitKey,
   descKey,
   onContact,
   isFree,
   highlight,
 }: {
   nameKey: DictKey;
+  priceKey: DictKey;
   quotaKey: DictKey;
+  unitKey: DictKey;
   descKey: DictKey;
   onContact?: () => void;
   isFree?: boolean;
@@ -258,7 +270,7 @@ function PlanCard({
   const { t } = useLang();
   return (
     <div
-      className={`rounded-2xl border p-5 transition-shadow ${
+      className={`relative rounded-2xl border p-5 transition-shadow ${
         highlight
           ? "border-[#533afd] bg-white shadow-[0_18px_50px_rgba(83,58,253,.12)]"
           : "border-[#e5edf5] bg-white"
@@ -267,8 +279,16 @@ function PlanCard({
       <div className="text-[13px] uppercase tracking-[0.18em] text-[#94a3b8]">
         {t(nameKey)}
       </div>
-      <div className="mt-2 text-[26px] font-light tracking-[-0.5px] text-[#061b31]">
-        {t(quotaKey)}
+      {/* 价格 */}
+      <div className="mt-2 flex items-baseline gap-1.5">
+        <span className="text-[32px] font-semibold tracking-[-1px] text-[#061b31]">
+          {t(priceKey)}
+        </span>
+        <span className="text-[14px] text-[#94a3b8]">/ {t(quotaKey)}</span>
+      </div>
+      {/* 单价 */}
+      <div className="mt-1 text-[12px] font-medium text-[#876c3a]">
+        {t(unitKey)}
       </div>
       <p className="mt-2 min-h-[42px] text-[13px] text-[#64748d]">
         {t(descKey)}

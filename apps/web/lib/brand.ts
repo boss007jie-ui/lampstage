@@ -13,6 +13,8 @@ export const BRAND = {
   en: "Lampstage",
   domain: "lampstage.com",
   email: "hello@lampstage.com",
+  wechat: "lampstage",
+  wechatQr: "/contact/wechat-qr.png",
 } as const;
 
 export type Lang = "zh" | "en";
@@ -401,6 +403,13 @@ const D = {
     en: "Leave your WeChat or phone — we'll reach out within 24 hours.",
   },
   lead_label_name: { zh: "称呼（可选）", en: "Name (optional)" },
+  lead_scan_title: { zh: "扫码直接加客服", en: "Scan to add support" },
+  lead_scan_desc: {
+    zh: "微信扫一扫，沟通套餐与充值最快。",
+    en: "Fastest way to discuss plans and top-ups.",
+  },
+  lead_wechat_id: { zh: "微信号", en: "WeChat ID" },
+  lead_or_leave: { zh: "或留下联系方式", en: "or leave your contact" },
   lead_label_wechat: { zh: "微信号", en: "WeChat" },
   lead_label_phone: { zh: "手机号", en: "Phone" },
   lead_label_message: { zh: "需求描述（可选）", en: "Message (optional)" },

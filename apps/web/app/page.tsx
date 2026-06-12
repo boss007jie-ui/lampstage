@@ -345,8 +345,23 @@ function StyleCard({
 function Footer() {
   const { t, lang } = useLang();
   return (
-    <footer className="border-t border-[#e5edf5] px-5 py-6 text-center text-[12px] text-[#64748d] sm:py-8 sm:text-sm">
-      © {new Date().getFullYear()} {lang === "zh" ? `${BRAND.en} · ${BRAND.cn}` : BRAND.en} ·{" "}
+    <footer className="border-t border-[#e5edf5] px-5 py-8 text-center text-[12px] text-[#64748d] sm:text-sm">
+      <div className="mb-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+        <Link href="/privacy" className="hover:text-[#533afd] hover:underline">
+          {lang === "zh" ? "隐私政策" : "Privacy"}
+        </Link>
+        <span className="text-[#d0d7e2]">·</span>
+        <Link href="/terms" className="hover:text-[#533afd] hover:underline">
+          {lang === "zh" ? "用户协议" : "Terms"}
+        </Link>
+        <span className="text-[#d0d7e2]">·</span>
+        <span>
+          {lang === "zh" ? "客服微信：" : "WeChat: "}
+          {BRAND.wechat}
+        </span>
+      </div>
+      © {new Date().getFullYear()}{" "}
+      {lang === "zh" ? `${BRAND.en} · ${BRAND.cn}` : BRAND.en} ·{" "}
       {t("footer_tagline")} · {BRAND.domain}
     </footer>
   );

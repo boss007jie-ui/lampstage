@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLang } from "@/components/i18n/LangProvider";
+import { BRAND } from "@/lib/brand";
 
 export type LeadSource =
   | "workspace_quota_modal"
@@ -90,7 +91,34 @@ export function LeadCaptureModal({ open, source, onClose }: Props) {
             </h2>
             <p className="mt-1 text-[13px] text-[#64748d]">{t("lead_subtitle")}</p>
 
-            <div className="mt-4 space-y-3">
+            {/* 直接扫码加客服 */}
+            <div className="mt-4 flex items-center gap-3 rounded-xl border border-[#eee] bg-[#fafafa] p-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={BRAND.wechatQr}
+                alt="WeChat QR"
+                className="h-24 w-24 flex-none rounded-lg bg-white object-contain"
+              />
+              <div className="text-[13px] leading-relaxed text-[#374151]">
+                <div className="font-semibold text-[#171717]">
+                  {t("lead_scan_title")}
+                </div>
+                <div className="mt-0.5 text-[#64748d]">
+                  {t("lead_scan_desc")}
+                </div>
+                <div className="mt-1 text-[12px] text-[#94a3b8]">
+                  {t("lead_wechat_id")}：{BRAND.wechat}
+                </div>
+              </div>
+            </div>
+
+            <div className="my-4 flex items-center gap-3 text-[12px] text-[#aaa]">
+              <span className="h-px flex-1 bg-[#eee]" />
+              {t("lead_or_leave")}
+              <span className="h-px flex-1 bg-[#eee]" />
+            </div>
+
+            <div className="space-y-3">
               <Field
                 label={t("lead_label_name")}
                 value={name}

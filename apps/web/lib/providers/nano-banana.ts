@@ -10,6 +10,8 @@ import type {
   IGenerationProvider,
 } from "./types";
 import { getObjectBytes } from "@/lib/storage";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 const ENDPOINT_TPL =
   process.env.NANO_BANANA_ENDPOINT ||
@@ -33,6 +35,18 @@ function apiKey(): string {
 async function fetchAsBase64(
   url: string,
 ): Promise<{ mime: string; b64: string }> {
+  // 支持 public 下的相对路径（例如 /templates/foo.jpg），用于场景参考图
+  if (url.startsWith("/")) {
+    const filePath = path.join(process.cwd(), "public", url.replace(/^\/+/, ""));
+    const bytes = await readFile(filePath);
+    const lower = filePath.toLowerCase();
+    const mime = lower.endsWith(".png")
+      ? "image/png"
+      : lower.endsWith(".webp")
+        ? "image/webp"
+        : "image/jpeg";
+    return { mime, b64: Buffer.from(bytes).toString("base64") };
+  }
   const { bytes, mime } = await getObjectBytes(url);
   return { mime, b64: bytes.toString("base64") };
 }
@@ -75,14 +89,23 @@ export const nanoBananaProvider: IGenerationProvider = {
   async generate(input: GenInput): Promise<GenSingleResult> {
     try {
       const ref = await fetchAsBase64(input.referenceImageUrl);
+      const compositionRef = input.compositionReferenceUrl
+        ? await fetchAsBase64(input.compositionReferenceUrl)
+        : null;
+      const parts = [
+        { text: input.prompt },
+        // 图 1：用户上传的灯具产品图，只负责外观/材质/结构
+        { inline_data: { mime_type: ref.mime, data: ref.b64 } },
+        // 图 2：房间/构图参考图，负责空间、家具比例、相机角度
+        ...(compositionRef
+          ? [{ inline_data: { mime_type: compositionRef.mime, data: compositionRef.b64 } }]
+          : []),
+      ];
       const body = {
         contents: [
           {
             role: "user",
-            parts: [
-              { text: input.prompt },
-              { inline_data: { mime_type: ref.mime, data: ref.b64 } },
-            ],
+            parts,
           },
         ],
         generationConfig: {

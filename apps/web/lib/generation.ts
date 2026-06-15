@@ -182,7 +182,7 @@ function buildShotPrompt(
 
   // Keep this prompt short. Nano-banana/Gemini-image listens best to ~80-150 words.
   // The room is the grammatical subject; lamp is one installed fixture inside it.
-  const body = `Photoreal interior design photograph of a complete ${room} in ${audience} style. The main subject is the finished room atmosphere: ${sceneFurniture}, window light, walls, ceiling, floor, rug and decor. Camera: ${composition}. The uploaded lamp is already installed as a real lighting fixture in the ceiling/wall/furniture position, matching perspective, shadows, reflections and ambient light. ${litDesc}. Scale: ${lampSizeRule} ${INDUSTRY_RULES[profile.lamp_type]}`;
+  const body = `Image 1 is the lamp product reference. Image 2 is the room and composition reference. Keep the room layout, furniture scale, camera angle, ceiling height, window light and atmosphere from image 2, refined into ${audience} styling. Replace the existing fixture in image 2 with the lamp from image 1, installed naturally as real hardware. The main subject is the finished ${room}: ${sceneFurniture}, walls, ceiling, floor, rug and decor. Camera: ${composition}. ${litDesc}. Match perspective, shadows, reflections and ambient light. Scale: ${lampSizeRule} ${INDUSTRY_RULES[profile.lamp_type]}`;
 
   return `${body}
 
@@ -271,6 +271,43 @@ const ROOM_FURNITURE: Record<LampType, Record<string, string>> = {
 };
 
 /**
+ * 第二张参考图：负责房间构图、家具比例、相机角度。
+ * 先复用现有 templates，后续可替换成“无灯/弱灯”的专用参考图。
+ */
+const ROOM_REFERENCE_URLS: Record<LampType, Record<string, string>> = {
+  pendant: {
+    "dining room": "/templates/tpl_dining_long_table_pendant.jpg",
+    "living room": "/templates/tpl_living_room_main_light.jpg",
+    entryway: "/templates/tpl_hotel_lobby_pendant.jpg",
+  },
+  ceiling: {
+    "living room": "/templates/tpl_living_room_main_light.jpg",
+    bedroom: "/templates/tpl_bedside_table_lamp.jpg",
+    study: "/templates/tpl_living_room_main_light.jpg",
+  },
+  wall: {
+    "bedside in a bedroom": "/templates/tpl_bedroom_wall_sconce.jpg",
+    "hallway corridor": "/templates/tpl_bedroom_wall_sconce.jpg",
+    "living room accent wall": "/templates/tpl_living_room_main_light.jpg",
+  },
+  table: {
+    "nightstand in a bedroom": "/templates/tpl_bedside_table_lamp.jpg",
+    "study desk": "/templates/tpl_bedside_table_lamp.jpg",
+    "living room side table": "/templates/tpl_living_room_main_light.jpg",
+  },
+  floor: {
+    "living room corner": "/templates/tpl_floor_lamp_beside_sofa.jpg",
+    "reading nook": "/templates/tpl_floor_lamp_beside_sofa.jpg",
+    "bedroom corner": "/templates/tpl_floor_lamp_beside_sofa.jpg",
+  },
+  unknown: {
+    "living room": "/templates/tpl_living_room_main_light.jpg",
+    bedroom: "/templates/tpl_bedside_table_lamp.jpg",
+    "dining room": "/templates/tpl_dining_long_table_pendant.jpg",
+  },
+};
+
+/**
  * 给定档案，决定 3 张图各自的 prompt。
  * 不依赖任何外部状态，可以单独测试。
  */
@@ -278,13 +315,15 @@ export function decideThreeShots(
   profile: LampProfileInput,
   platformStyle: PlatformStyle,
   aspect: AspectRatio,
-): { prompt: string; room: string; lit: boolean }[] {
+): { prompt: string; room: string; lit: boolean; compositionReferenceUrl: string }[] {
   const rooms = ROOM_SETS[profile.lamp_type];
   const litPattern = LIT_PATTERN[profile.lamp_type];
+  const refs = ROOM_REFERENCE_URLS[profile.lamp_type];
   return rooms.map((room, i) => ({
     prompt: buildShotPrompt(profile, room, litPattern[i], platformStyle, aspect, i),
     room,
     lit: litPattern[i],
+    compositionReferenceUrl: refs?.[room] || "/templates/tpl_living_room_main_light.jpg",
   }));
 }
 
@@ -333,6 +372,7 @@ export async function createAndRunGenerationJob(args: {
       // 四路 prompt 拼接
       let finalPrompt = "";
       let promptList: string[] | null = null; // 新流程用：3 张图各自的 prompt
+      let compositionReferenceList: string[] | null = null; // 新流程用：每张图对应一张房间参考图
       let templateId: string | null = null;
 
       if (!args.sceneKind) {
@@ -349,11 +389,12 @@ export async function createAndRunGenerationJob(args: {
         };
         const shots = decideThreeShots(profile, args.platformStyle, args.aspectRatio);
         promptList = shots.map((s) => s.prompt);
-        // 存完整 prompts，便于排查“模型到底吃到了什么”。之前只存 summary，导致无法验证提示词是否真的变化。
+        compositionReferenceList = shots.map((s) => s.compositionReferenceUrl);
+        // 存完整 prompts + room reference，便于排查“模型到底吃到了什么”。
         finalPrompt = shots
           .map(
             (s, i) =>
-              `--- shot ${i + 1}: ${s.room} (${s.lit ? "lit" : "off"}) ---\n${s.prompt}`,
+              `--- shot ${i + 1}: ${s.room} (${s.lit ? "lit" : "off"}) ---\nroom_reference=${s.compositionReferenceUrl}\n${s.prompt}`,
           )
           .join("\n\n");
       } else if (args.sceneKind === "template") {
@@ -414,6 +455,7 @@ export async function createAndRunGenerationJob(args: {
         asset,
         finalPrompt,
         promptList,
+        compositionReferenceList,
         balanceAfter,
       };
     });
@@ -451,6 +493,7 @@ export async function createAndRunGenerationJob(args: {
     userId: args.userId,
     referenceImageUrl: result.asset.image_url,
     prompts,
+    compositionReferenceUrls: result.compositionReferenceList ?? undefined,
     aspectRatio: args.aspectRatio,
   }).catch((err) => {
     console.error("[gen] uncaught error", err);
@@ -485,6 +528,8 @@ async function runGenerationPipeline(args: {
   referenceImageUrl: string;
   /** 每张图独立 prompt（长度应等于 OUTPUT_COUNT）。如果传单字符串则自动复制 OUTPUT_COUNT 次。 */
   prompts: string[] | string;
+  /** 每张图对应的房间/构图参考图。长度可少于 OUTPUT_COUNT，缺失则该张只用灯具图。 */
+  compositionReferenceUrls?: string[];
   aspectRatio: AspectRatio;
 }) {
   const { jobId, userId, referenceImageUrl, aspectRatio } = args;
@@ -510,10 +555,15 @@ async function runGenerationPipeline(args: {
     await setStage(jobId, "generating");
     const provider = getProvider();
     const calls = prompts.map((prompt, idx) => {
-      console.log(`[gen] output ${idx + 1}/${OUTPUT_COUNT} via ${provider.name}`);
+      const compositionReferenceUrl = args.compositionReferenceUrls?.[idx];
+      console.log(
+        `[gen] output ${idx + 1}/${OUTPUT_COUNT} via ${provider.name}` +
+          (compositionReferenceUrl ? ` + roomRef=${compositionReferenceUrl}` : ""),
+      );
       return provider.generate({
         prompt,
         referenceImageUrl,
+        compositionReferenceUrl,
         aspectRatio,
         platformStyle: "domestic_ecommerce", // 已经拼进 prompt 里了，这里塞个占位值
         outputCount: 1,

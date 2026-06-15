@@ -21,6 +21,8 @@ export interface GenInput {
   prompt: string;
   /** 用户上传的灯具参考图 URL（公网可访问） */
   referenceImageUrl: string;
+  /** 可选：场景/房间构图参考图 URL。用于多图参考，让模型保持房间布局和尺度。 */
+  compositionReferenceUrl?: string;
   aspectRatio: AspectRatio;
   platformStyle: PlatformStyle;
   /** MVP 固定 4 */

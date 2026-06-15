@@ -383,8 +383,13 @@ export async function createAndRunGenerationJob(args: {
         };
         const shots = decideThreeShots(profile, args.platformStyle, args.aspectRatio);
         promptList = shots.map((s) => s.prompt);
-        // 在 job.prompt_text 里只存第一张的 prompt 摘要 + 房间清单（用于 admin 排查）
-        finalPrompt = `[profile-driven] type=${profile.lamp_type} size=${profile.size_class}/${profile.size_hint_cm}cm temp=${profile.color_temp} audience=${profile.target_audience}\nrooms: ${shots.map((s) => `${s.room}(${s.lit ? "lit" : "off"})`).join(", ")}`;
+        // 存完整 prompts，便于排查“模型到底吃到了什么”。之前只存 summary，导致无法验证提示词是否真的变化。
+        finalPrompt = shots
+          .map(
+            (s, i) =>
+              `--- shot ${i + 1}: ${s.room} (${s.lit ? "lit" : "off"}) ---\n${s.prompt}`,
+          )
+          .join("\n\n");
       } else if (args.sceneKind === "template") {
         if (!args.templateId) {
           return { kind: "missing_prompt" as const };

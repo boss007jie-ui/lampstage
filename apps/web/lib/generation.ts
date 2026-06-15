@@ -26,6 +26,7 @@ import {
 } from "@/lib/credits";
 import { putGeneratedImage } from "@/lib/storage";
 import { getProvider } from "@/lib/providers";
+import { gptImage2Provider } from "@/lib/providers/gpt-image-2";
 import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
 import type {
   ColorTemp,
@@ -556,18 +557,22 @@ async function runGenerationPipeline(args: {
     await setStage(jobId, "matching");
     await sleep(600);
 
-    // 阶段 3：实际并发调用 provider OUTPUT_COUNT 次（每张图独立 prompt）
+    // 阶段 3：混合生成
+    // - 第 1/2 张：默认 provider（nano-banana），成本低、速度快
+    // - 第 3 张：gpt-image-2，几何和参照理解更强，用作高品质样张
     await setStage(jobId, "generating");
-    const provider = getProvider();
-    const calls = prompts.map((prompt) =>
-      provider.generate({
+    const nanoProvider = getProvider();
+    const calls = prompts.map((prompt, idx) => {
+      const provider = idx === OUTPUT_COUNT - 1 ? gptImage2Provider : nanoProvider;
+      console.log(`[gen] output ${idx + 1}/${OUTPUT_COUNT} via ${provider.name}`);
+      return provider.generate({
         prompt,
         referenceImageUrl,
         aspectRatio,
         platformStyle: "domestic_ecommerce", // 已经拼进 prompt 里了，这里塞个占位值
         outputCount: 1,
-      }),
-    );
+      });
+    });
     const settled = await Promise.allSettled(calls);
     const successes = settled
       .map((r) =>

@@ -276,34 +276,34 @@ const ROOM_FURNITURE: Record<LampType, Record<string, string>> = {
  */
 const ROOM_REFERENCE_URLS: Record<LampType, Record<string, string>> = {
   pendant: {
-    "dining room": "/templates/tpl_dining_long_table_pendant.jpg",
-    "living room": "/templates/tpl_living_room_main_light.jpg",
-    entryway: "/templates/tpl_hotel_lobby_pendant.jpg",
+    "dining room": "/scene-refs/dining_no_lamp.jpg",
+    "living room": "/scene-refs/living_no_lamp.jpg",
+    entryway: "/scene-refs/entryway_no_lamp.jpg",
   },
   ceiling: {
-    "living room": "/templates/tpl_living_room_main_light.jpg",
-    bedroom: "/templates/tpl_bedside_table_lamp.jpg",
-    study: "/templates/tpl_living_room_main_light.jpg",
+    "living room": "/scene-refs/living_no_lamp.jpg",
+    bedroom: "/scene-refs/bedroom_no_lamp.jpg",
+    study: "/scene-refs/study_no_lamp.jpg",
   },
   wall: {
-    "bedside in a bedroom": "/templates/tpl_bedroom_wall_sconce.jpg",
-    "hallway corridor": "/templates/tpl_bedroom_wall_sconce.jpg",
-    "living room accent wall": "/templates/tpl_living_room_main_light.jpg",
+    "bedside in a bedroom": "/scene-refs/bedroom_no_lamp.jpg",
+    "hallway corridor": "/scene-refs/entryway_no_lamp.jpg",
+    "living room accent wall": "/scene-refs/living_no_lamp.jpg",
   },
   table: {
-    "nightstand in a bedroom": "/templates/tpl_bedside_table_lamp.jpg",
-    "study desk": "/templates/tpl_bedside_table_lamp.jpg",
-    "living room side table": "/templates/tpl_living_room_main_light.jpg",
+    "nightstand in a bedroom": "/scene-refs/bedroom_no_lamp.jpg",
+    "study desk": "/scene-refs/study_no_lamp.jpg",
+    "living room side table": "/scene-refs/living_no_lamp.jpg",
   },
   floor: {
-    "living room corner": "/templates/tpl_floor_lamp_beside_sofa.jpg",
-    "reading nook": "/templates/tpl_floor_lamp_beside_sofa.jpg",
-    "bedroom corner": "/templates/tpl_floor_lamp_beside_sofa.jpg",
+    "living room corner": "/scene-refs/corner_no_lamp.jpg",
+    "reading nook": "/scene-refs/corner_no_lamp.jpg",
+    "bedroom corner": "/scene-refs/bedroom_no_lamp.jpg",
   },
   unknown: {
-    "living room": "/templates/tpl_living_room_main_light.jpg",
-    bedroom: "/templates/tpl_bedside_table_lamp.jpg",
-    "dining room": "/templates/tpl_dining_long_table_pendant.jpg",
+    "living room": "/scene-refs/living_no_lamp.jpg",
+    bedroom: "/scene-refs/bedroom_no_lamp.jpg",
+    "dining room": "/scene-refs/dining_no_lamp.jpg",
   },
 };
 

@@ -8,7 +8,10 @@ import {
   LeadCaptureModal,
   type LeadSource,
 } from "@/components/credits/LeadCaptureModal";
+import { RechargeDialog } from "@/components/credits/RechargeDialog";
 import { BRAND, type DictKey } from "@/lib/brand";
+
+type Pack = "basic" | "business" | "factory";
 
 type Tx = {
   id: string;
@@ -26,6 +29,27 @@ export default function CreditsPage() {
   const [loading, setLoading] = useState(true);
   const [unauth, setUnauth] = useState(false);
   const [leadOpen, setLeadOpen] = useState<LeadSource | null>(null);
+  const [rechargePack, setRechargePack] = useState<Pack | null>(null);
+
+  const reloadCredits = () => {
+    fetch("/api/my/credits", { cache: "no-store" })
+      .then(async (r) => {
+        if (r.status === 401) {
+          setUnauth(true);
+          setLoading(false);
+          return;
+        }
+        if (!r.ok) {
+          setLoading(false);
+          return;
+        }
+        const data = await r.json();
+        setBalance(data.credit_balance);
+        setTxs(data.transactions || []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -110,7 +134,7 @@ export default function CreditsPage() {
             quotaKey="plan_basic_quota"
             unitKey="plan_basic_unit"
             descKey="plan_basic_desc"
-            onContact={() => setLeadOpen("credits_page_basic")}
+            onContact={() => setRechargePack("basic")}
           />
           <PlanCard
             nameKey="plan_business_name"
@@ -118,7 +142,7 @@ export default function CreditsPage() {
             quotaKey="plan_business_quota"
             unitKey="plan_business_unit"
             descKey="plan_business_desc"
-            onContact={() => setLeadOpen("credits_page_business")}
+            onContact={() => setRechargePack("business")}
             highlight
           />
           <PlanCard
@@ -127,7 +151,7 @@ export default function CreditsPage() {
             quotaKey="plan_factory_quota"
             unitKey="plan_factory_unit"
             descKey="plan_factory_desc"
-            onContact={() => setLeadOpen("credits_page_factory")}
+            onContact={() => setRechargePack("factory")}
           />
         </section>
 
@@ -185,6 +209,13 @@ export default function CreditsPage() {
         open={leadOpen !== null}
         source={leadOpen ?? "other"}
         onClose={() => setLeadOpen(null)}
+      />
+
+      <RechargeDialog
+        open={rechargePack !== null}
+        pack={rechargePack}
+        onClose={() => setRechargePack(null)}
+        onPaid={reloadCredits}
       />
     </div>
   );

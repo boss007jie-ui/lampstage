@@ -73,6 +73,7 @@ model User {
   credit_txs      CreditTransaction[]
   contact_leads   ContactLead[]
   sessions        Session[]
+  recharge_orders RechargeOrder[]
 }
 
 model Session {
@@ -97,6 +98,12 @@ model UploadedAsset {
   background_type BackgroundType @default(unknown)
   detected_lamp_type String?
   quality_warning String?
+  /// 灯具档案 V1: AI 推断 + 用户确认
+  size_class       String?
+  size_hint_cm     Int?
+  color_temp       String?
+  target_audience  String?
+  ai_inferred_at   DateTime?
   created_at      DateTime       @default(now())
 
   user User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -210,4 +217,41 @@ model VerificationCode {
   created_at DateTime @default(now())
 
   @@index([identifier, type, created_at])
+}
+
+enum RechargeStatus {
+  pending
+  paid
+  failed
+  expired
+}
+
+model RechargeOrder {
+  id              String         @id @default(cuid())
+  /// 我们生成的订单号，发给虎皮椒做 trade_order_id
+  order_no        String         @unique
+  user_id         String
+  /// 充值包标识：basic / business / factory
+  pack            String
+  /// 实际付款金额（元，保留 2 位小数）
+  amount_yuan     Decimal        @db.Decimal(10, 2)
+  /// 充值后增加的额度数（张）
+  credits         Int
+  /// 渠道：wechat / alipay
+  channel         String?
+  status          RechargeStatus @default(pending)
+  /// 虎皮椒侧返回的支付链接
+  pay_url         String?
+  /// 虎皮椒侧的交易号（回调时填）
+  xunhupay_trade_no String?
+  /// 回调原始 payload，便于排查
+  callback_raw    Json?
+  paid_at         DateTime?
+  created_at      DateTime       @default(now())
+  updated_at      DateTime       @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at])
+  @@index([status, created_at])
 }

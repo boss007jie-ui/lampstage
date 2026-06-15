@@ -164,10 +164,13 @@ export type LampProfileInput = {
 
 /**
  * 为单张图拼装一个完整的 prompt：
- *   灯具描述（含人体参照）+ 客群风格 + 房间 + 开关灯 + 行业规范 + 平台风格 + 质量约束
+ *   场景主导 + 灯只占小角色 + 客群风格 + 开关灯 + 行业规范 + 平台风格 + 质量约束
  *
- * 关键：让 nano-banana 把灯当作"室内场景里一件正常尺寸的家具"，
- * 而不是占满画面的主角——所以避免 "visual hero" / "hero shot" 这种短语。
+ * 核心策略（基于 nano-banana 实测调整）：
+ *   - nano-banana 对否定指令（"NOT dominate"）不敏感
+ *   - 改用"场景占主导"的肯定描述：先画好整间屋子的家具，灯只是顶上挂的一件饰品
+ *   - 把灯具描述压缩到 prompt 末尾、用最小篇幅
+ *   - 显式说"camera focuses on the room, lamp is a small accent in the upper third"
  */
 function buildShotPrompt(
   profile: LampProfileInput,
@@ -177,32 +180,31 @@ function buildShotPrompt(
   aspect: AspectRatio,
   shotIndex: number,
 ): string {
-  // 用人体参照锁定相对尺寸——比抽象的 "compact" / "oversized" 强得多
-  const humanRef = humanReference(profile.lamp_type, profile.size_hint_cm);
-  const lamp = `a ${profile.lamp_type} lamp measuring approximately ${profile.size_hint_cm}cm (${humanRef})`;
   const audience = AUDIENCE_KEYWORDS[profile.target_audience];
+  const sceneFurniture = ROOM_FURNITURE[profile.lamp_type]?.[room] || "appropriate furniture";
+  const lampSizeRule = lampSizeConstraint(profile.lamp_type, profile.size_hint_cm);
   const litDesc = lit
-    ? `the lamp's bulb is turned on, emitting ${COLOR_TEMP_DESC[profile.color_temp]}, evening or dusk ambient mood`
-    : `the lamp's bulb is off, showing the product in clean natural daylight`;
-  const angles = [
-    "wide eye-level interior shot showing the full room context",
-    "medium 3/4 angle showing furniture and the lamp in proper proportion",
-    "natural lifestyle composition, the lamp naturally integrated into the room",
+    ? `the lamp's bulb is on, casting ${COLOR_TEMP_DESC[profile.color_temp]}`
+    : `the lamp is unlit; the room is filled with natural daylight`;
+
+  const compositions = [
+    `Wide interior shot, ${room} fully visible, eye-level camera at standing height. Show the entire ${sceneFurniture}, walls, floor, and at least one window. The lamp appears in the upper third of the frame as a small accent.`,
+    `Medium 3/4 angle of the ${room}, camera slightly back so you can see the full ${sceneFurniture}. The lamp hangs/sits in its natural position, occupying less than 15% of the frame.`,
+    `Lifestyle composition of the ${room}, focus on the cozy atmosphere and the ${sceneFurniture}. The lamp is part of the scene, not the subject.`,
   ];
-  const angle = angles[shotIndex % angles.length];
+  const composition = compositions[shotIndex % compositions.length];
 
-  const body = `Editorial e-commerce interior photo of a ${room}. The room contains ${lamp}, integrated naturally with the furniture and architecture.
+  const body = `Editorial e-commerce interior photo of a real ${room} in ${audience} interior style.
 
-Interior style: ${audience}.
+Scene focus: ${sceneFurniture} with proper proportion, plus surrounding architectural details (wall, floor, window).
+
+${composition}
 
 Lighting: ${litDesc}.
 
-Composition: ${angle}. Show the room as a whole; the lamp must occupy a realistic, in-scale position — NOT dominate the frame, NOT exceed its real-world size.
-
 ${INDUSTRY_RULES[profile.lamp_type]}
 
-[Critical scale rule]
-The lamp must be rendered at its real-world size relative to surrounding furniture (sofa, table, person standing nearby). Do not enlarge the lamp for visual impact. A pendant smaller than 30cm must NOT span the width of a dining table.`;
+Lamp specification (small accent, not the main subject): ${lampSizeRule}`;
 
   return `${body}
 
@@ -214,33 +216,66 @@ ${STRICT_QUALITY}`;
 }
 
 /**
- * 给灯具尺寸一个人体可感知的参照说明。
- * AI 看到 "30cm" 是个抽象数字；看到 "smaller than a basketball" 才会真的画小。
+ * 把灯具尺寸翻译成相对周围家具的几何约束。
+ * nano-banana 听几何比例（"1/8 of table width"）远比听形容词（"compact"）有效。
  */
-function humanReference(lampType: LampType, cm: number): string {
-  if (lampType === "pendant" || lampType === "ceiling") {
-    if (cm <= 25) return "smaller than a basketball, fits comfortably in one hand";
-    if (cm <= 40) return "about the size of a basketball";
-    if (cm <= 60) return "about the size of a large pizza tray";
-    return "as wide as an adult's outstretched arm — large statement piece";
+function lampSizeConstraint(lampType: LampType, cm: number): string {
+  if (lampType === "pendant") {
+    if (cm <= 25) return `a single small pendant, around ${cm}cm diameter — width approximately 1/8 to 1/6 of the dining table width. Fits in one hand.`;
+    if (cm <= 40) return `a medium pendant, around ${cm}cm diameter — width approximately 1/4 to 1/3 of the dining table width.`;
+    if (cm <= 60) return `a large pendant, around ${cm}cm diameter — width approximately 1/3 to 1/2 of the dining table width.`;
+    return `a statement pendant, around ${cm}cm diameter — width approximately 1/2 to 2/3 of the dining table width.`;
+  }
+  if (lampType === "ceiling") {
+    if (cm <= 40) return `a small ceiling fixture, around ${cm}cm diameter — about the size of a dinner plate.`;
+    if (cm <= 70) return `a medium ceiling fixture, around ${cm}cm diameter — about the size of a serving tray.`;
+    return `a large ceiling fixture, around ${cm}cm diameter — about the size of an open umbrella.`;
   }
   if (lampType === "table") {
-    if (cm <= 35) return "shorter than a wine bottle";
-    if (cm <= 50) return "roughly the height of a tall water bottle";
-    return "taller than a typical cookbook stand";
+    return `a table lamp around ${cm}cm tall — its base diameter is roughly 1/3 of its height; sits on the table surface like a normal household decor object.`;
   }
   if (lampType === "floor") {
-    if (cm <= 140) return "shorter than an average adult, around shoulder height when seated";
-    if (cm <= 170) return "about the height of an average adult";
-    return "taller than a typical doorway lintel";
+    return `a floor lamp standing ${cm}cm tall — its head reaches roughly the height of a seated adult's eyes; the base diameter is about 30cm.`;
   }
   if (lampType === "wall") {
-    if (cm <= 25) return "projects from the wall less than a hand's length";
-    if (cm <= 40) return "projects about a forearm's length";
-    return "projects nearly an arm's length";
+    return `a wall sconce projecting about ${cm}cm from the wall — about the size of a small wall clock.`;
   }
-  return "in human-realistic proportion to the room";
+  return `a lamp of approximately ${cm}cm in its primary dimension`;
 }
+
+/** 每种灯具类型对应房间里的"场景主体家具"——AI 会把摄影焦点放在这上面 */
+const ROOM_FURNITURE: Record<LampType, Record<string, string>> = {
+  pendant: {
+    "dining room": "a 6-seater dining table with chairs",
+    "living room": "a 3-seater sofa with coffee table",
+    entryway: "an entryway console table with a mirror",
+  },
+  ceiling: {
+    "living room": "a 3-seater sofa with coffee table",
+    bedroom: "a queen bed with two nightstands",
+    study: "a desk with bookshelf",
+  },
+  wall: {
+    "bedside in a bedroom": "a queen bed with linen bedding",
+    "hallway corridor": "a hallway with a runner rug",
+    "living room accent wall": "a sofa against the wall",
+  },
+  table: {
+    "nightstand in a bedroom": "a nightstand beside a queen bed",
+    "study desk": "a desk with a chair and laptop",
+    "living room side table": "a side table next to a sofa",
+  },
+  floor: {
+    "living room corner": "a 3-seater sofa, area rug, coffee table",
+    "reading nook": "a lounge chair, side table, throw blanket",
+    "bedroom corner": "a queen bed and a wardrobe",
+  },
+  unknown: {
+    "living room": "a sofa, coffee table, area rug",
+    bedroom: "a bed and nightstand",
+    "dining room": "a dining table",
+  },
+};
 
 /**
  * 给定档案，决定 3 张图各自的 prompt。

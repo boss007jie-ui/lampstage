@@ -276,34 +276,34 @@ const ROOM_FURNITURE: Record<LampType, Record<string, string>> = {
  */
 const ROOM_REFERENCE_URLS: Record<LampType, Record<string, string>> = {
   pendant: {
-    "dining room": "/scene-refs/dining_no_lamp.jpg",
-    "living room": "/scene-refs/living_no_lamp.jpg",
-    entryway: "/scene-refs/entryway_no_lamp.jpg",
+    "dining room": "/scene-refs-v2/dining_offcenter_no_lamp.jpg",
+    "living room": "/scene-refs-v2/living_offcenter_no_lamp.jpg",
+    entryway: "/scene-refs-v2/entryway_offcenter_no_lamp.jpg",
   },
   ceiling: {
-    "living room": "/scene-refs/living_no_lamp.jpg",
-    bedroom: "/scene-refs/bedroom_no_lamp.jpg",
-    study: "/scene-refs/study_no_lamp.jpg",
+    "living room": "/scene-refs-v2/living_offcenter_no_lamp.jpg",
+    bedroom: "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
+    study: "/scene-refs-v2/study_offcenter_no_lamp.jpg",
   },
   wall: {
-    "bedside in a bedroom": "/scene-refs/bedroom_no_lamp.jpg",
-    "hallway corridor": "/scene-refs/entryway_no_lamp.jpg",
-    "living room accent wall": "/scene-refs/living_no_lamp.jpg",
+    "bedside in a bedroom": "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
+    "hallway corridor": "/scene-refs-v2/entryway_offcenter_no_lamp.jpg",
+    "living room accent wall": "/scene-refs-v2/living_offcenter_no_lamp.jpg",
   },
   table: {
-    "nightstand in a bedroom": "/scene-refs/bedroom_no_lamp.jpg",
-    "study desk": "/scene-refs/study_no_lamp.jpg",
-    "living room side table": "/scene-refs/living_no_lamp.jpg",
+    "nightstand in a bedroom": "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
+    "study desk": "/scene-refs-v2/study_offcenter_no_lamp.jpg",
+    "living room side table": "/scene-refs-v2/living_offcenter_no_lamp.jpg",
   },
   floor: {
-    "living room corner": "/scene-refs/corner_no_lamp.jpg",
-    "reading nook": "/scene-refs/corner_no_lamp.jpg",
-    "bedroom corner": "/scene-refs/bedroom_no_lamp.jpg",
+    "living room corner": "/scene-refs-v2/corner_offcenter_no_lamp.jpg",
+    "reading nook": "/scene-refs-v2/corner_offcenter_no_lamp.jpg",
+    "bedroom corner": "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
   },
   unknown: {
-    "living room": "/scene-refs/living_no_lamp.jpg",
-    bedroom: "/scene-refs/bedroom_no_lamp.jpg",
-    "dining room": "/scene-refs/dining_no_lamp.jpg",
+    "living room": "/scene-refs-v2/living_offcenter_no_lamp.jpg",
+    bedroom: "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
+    "dining room": "/scene-refs-v2/dining_offcenter_no_lamp.jpg",
   },
 };
 

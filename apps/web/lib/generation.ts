@@ -163,14 +163,14 @@ export type LampProfileInput = {
 };
 
 /**
- * 为单张图拼装一个完整的 prompt：
- *   场景主导 + 灯只占小角色 + 客群风格 + 开关灯 + 行业规范 + 平台风格 + 质量约束
+ * 为单张图拼装一个完整的 prompt。
  *
- * 核心策略（基于 nano-banana 实测调整）：
- *   - nano-banana 对否定指令（"NOT dominate"）不敏感
- *   - 改用"场景占主导"的肯定描述：先画好整间屋子的家具，灯只是顶上挂的一件饰品
- *   - 把灯具描述压缩到 prompt 末尾、用最小篇幅
- *   - 显式说"camera focuses on the room, lamp is a small accent in the upper third"
+ * 核心策略（基于多轮 nano-banana 实测调整）：
+ *   1. 灯具尺寸 prompt 全部失效——nano-banana 默认就要画大吊灯
+ *   2. 改用"人物锚点"：画面里加一个不显眼的人体（侧影/局部），
+ *      AI 对人体大小理解非常准，会自动校准灯具比例
+ *   3. 人物用"半身被家具遮挡"或"远景剪影"，不破坏电商专业感
+ *   4. 显式定义画面构图三层：天花板/中段/地面
  */
 function buildShotPrompt(
   profile: LampProfileInput,
@@ -183,28 +183,40 @@ function buildShotPrompt(
   const audience = AUDIENCE_KEYWORDS[profile.target_audience];
   const sceneFurniture = ROOM_FURNITURE[profile.lamp_type]?.[room] || "appropriate furniture";
   const lampSizeRule = lampSizeConstraint(profile.lamp_type, profile.size_hint_cm);
+  const humanAnchor = HUMAN_ANCHOR[profile.lamp_type]?.[shotIndex % 3] || "subtle human presence in the background";
   const litDesc = lit
     ? `the lamp's bulb is on, casting ${COLOR_TEMP_DESC[profile.color_temp]}`
     : `the lamp is unlit; the room is filled with natural daylight`;
 
   const compositions = [
-    `Wide interior shot, ${room} fully visible, eye-level camera at standing height. Show the entire ${sceneFurniture}, walls, floor, and at least one window. The lamp appears in the upper third of the frame as a small accent.`,
-    `Medium 3/4 angle of the ${room}, camera slightly back so you can see the full ${sceneFurniture}. The lamp hangs/sits in its natural position, occupying less than 15% of the frame.`,
-    `Lifestyle composition of the ${room}, focus on the cozy atmosphere and the ${sceneFurniture}. The lamp is part of the scene, not the subject.`,
+    `Wide architectural shot of the entire ${room}. Camera at standing eye-level, slightly far back to capture the full space.`,
+    `Medium 3/4 angle of the ${room}, centered on the ${sceneFurniture}.`,
+    `Lifestyle composition of the ${room}, natural and inviting atmosphere.`,
   ];
   const composition = compositions[shotIndex % compositions.length];
 
-  const body = `Editorial e-commerce interior photo of a real ${room} in ${audience} interior style.
+  // 画面三层结构——nano-banana 听得懂分区描述
+  const frameLayers = `[Frame composition]
+- Top 25% of the frame: ceiling, with the lamp hanging in proper position
+- Middle 50% of the frame: walls, windows, ${sceneFurniture}, ${humanAnchor}
+- Bottom 25% of the frame: floor, rug, lower furniture details`;
 
-Scene focus: ${sceneFurniture} with proper proportion, plus surrounding architectural details (wall, floor, window).
+  const body = `Editorial e-commerce interior photography of a real ${room} in ${audience} interior style.
+
+Scene focus: ${sceneFurniture} as the visual subject of the photo, plus surrounding architectural details.
 
 ${composition}
+
+${frameLayers}
 
 Lighting: ${litDesc}.
 
 ${INDUSTRY_RULES[profile.lamp_type]}
 
-Lamp specification (small accent, not the main subject): ${lampSizeRule}`;
+Lamp specification (the lamp is a small accent in the room, NOT the photographic subject):
+${lampSizeRule}
+
+Reference scale: the human figure mentioned in the scene confirms the lamp's true size — the lamp must look correct in proportion to a real person standing in this room.`;
 
   return `${body}
 
@@ -214,6 +226,43 @@ Render at ${ASPECT_LABEL[aspect]}.
 
 ${STRICT_QUALITY}`;
 }
+
+/**
+ * 不显眼的人物锚点——为不同灯具类型给出"自然且不破坏专业感"的人体描述。
+ * 关键：half-visible / out-of-focus / from behind，让 AI 知道有人但不喧宾夺主。
+ */
+const HUMAN_ANCHOR: Record<LampType, [string, string, string]> = {
+  pendant: [
+    "a person seated at the table from behind, only shoulders visible",
+    "a half-visible silhouette of a person walking past in the background",
+    "an out-of-focus person reading at the table, viewed from a distance",
+  ],
+  ceiling: [
+    "a person sitting on the sofa from a back angle, only the top of their head visible",
+    "a soft silhouette of a person near a window in the background",
+    "a partially visible figure relaxing on the bed, viewed at distance",
+  ],
+  wall: [
+    "a person reading in bed with the wall lamp turned on, viewed from the side at a distance",
+    "a partial figure walking along the hallway in the background",
+    "a person sitting on the sofa, only legs and torso visible from a back angle",
+  ],
+  table: [
+    "a person seated nearby, hand reaching for the lamp, only forearm visible",
+    "an out-of-focus figure sitting at the desk, viewed from behind",
+    "a half-visible silhouette walking past, the table lamp in foreground",
+  ],
+  floor: [
+    "a person seated on the sofa reading, half-visible from a back angle",
+    "an out-of-focus figure standing near the window, the floor lamp in the foreground",
+    "a partial figure curled up in the lounge chair beside the floor lamp",
+  ],
+  unknown: [
+    "a partial human figure in the scene for scale reference",
+    "a half-visible person in the background",
+    "an out-of-focus figure providing scale",
+  ],
+};
 
 /**
  * 把灯具尺寸翻译成相对周围家具的几何约束。

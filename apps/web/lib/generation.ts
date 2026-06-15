@@ -184,7 +184,7 @@ function buildShotPrompt(
 ): string {
   const audience = AUDIENCE_KEYWORDS[profile.target_audience];
   const sceneFurniture = ROOM_FURNITURE[profile.lamp_type]?.[room] || "appropriate furniture";
-  const lampSizeRule = lampSizeConstraint(profile.lamp_type, profile.size_hint_cm);
+  const lampSizeRule = lampSizeConstraint(profile.lamp_type, profile.size_class, profile.size_hint_cm);
   const litDesc = lit
     ? `warm ${COLOR_TEMP_DESC[profile.color_temp]} from the installed fixture, gently illuminating nearby surfaces`
     : `soft natural daylight from windows; the fixture is present but not visually emphasized`;
@@ -231,28 +231,43 @@ ${STRICT_QUALITY}`;
  * 把灯具尺寸翻译成相对周围家具的几何约束。
  * nano-banana 听几何比例（"1/8 of table width"）远比听形容词（"compact"）有效。
  */
-function lampSizeConstraint(lampType: LampType, cm: number): string {
+function lampSizeConstraint(
+  lampType: LampType,
+  sizeClass: SizeClass,
+  cm: number,
+): string {
   if (lampType === "pendant") {
-    if (cm <= 25) return `a single small pendant, around ${cm}cm diameter — width approximately 1/8 to 1/6 of the dining table width. Fits in one hand.`;
-    if (cm <= 40) return `a medium pendant, around ${cm}cm diameter — width approximately 1/4 to 1/3 of the dining table width.`;
-    if (cm <= 60) return `a large pendant, around ${cm}cm diameter — width approximately 1/3 to 1/2 of the dining table width.`;
-    return `a statement pendant, around ${cm}cm diameter — width approximately 1/2 to 2/3 of the dining table width.`;
+    // 关键修复：优先尊重 UI 里的 size_class。
+    // 之前只看 cm：55cm 会被写成 large pendant，导致 AI 一直画大。
+    if (sizeClass === "small") {
+      return `a small pendant fixture, about ${cm}cm diameter, visually around 1/10 to 1/8 of the main furniture width. It should read as a modest ceiling accent, smaller than a dining chair back, not a chandelier.`;
+    }
+    if (sizeClass === "medium") {
+      return `a medium pendant fixture, about ${cm}cm diameter, visually around 1/7 to 1/5 of the main furniture width. It should feel like a normal household pendant, clearly smaller than the coffee table or sofa width.`;
+    }
+    return `a large pendant fixture, about ${cm}cm diameter, visually around 1/4 to 1/3 of the main furniture width. Still proportional to the room, not oversized.`;
   }
   if (lampType === "ceiling") {
-    if (cm <= 40) return `a small ceiling fixture, around ${cm}cm diameter — about the size of a dinner plate.`;
-    if (cm <= 70) return `a medium ceiling fixture, around ${cm}cm diameter — about the size of a serving tray.`;
-    return `a large ceiling fixture, around ${cm}cm diameter — about the size of an open umbrella.`;
+    if (sizeClass === "small") return `a small ceiling fixture, about ${cm}cm diameter — around the size of a dinner plate.`;
+    if (sizeClass === "medium") return `a medium ceiling fixture, about ${cm}cm diameter — around the size of a serving tray.`;
+    return `a large ceiling fixture, about ${cm}cm diameter — broad but still within normal ceiling-light scale.`;
   }
   if (lampType === "table") {
-    return `a table lamp around ${cm}cm tall — its base diameter is roughly 1/3 of its height; sits on the table surface like a normal household decor object.`;
+    if (sizeClass === "small") return `a small table lamp about ${cm}cm tall, visually secondary to the nightstand/desk.`;
+    if (sizeClass === "medium") return `a medium table lamp about ${cm}cm tall, normal household scale on a table surface.`;
+    return `a large table lamp about ${cm}cm tall, still proportional to the furniture surface.`;
   }
   if (lampType === "floor") {
-    return `a floor lamp standing ${cm}cm tall — its head reaches roughly the height of a seated adult's eyes; the base diameter is about 30cm.`;
+    if (sizeClass === "small") return `a compact floor lamp about ${cm}cm tall, lower than standing adult shoulder height.`;
+    if (sizeClass === "medium") return `a medium floor lamp about ${cm}cm tall, roughly adult height, placed near sofa.`;
+    return `a tall floor lamp about ${cm}cm tall, proportionate to sofa and ceiling height.`;
   }
   if (lampType === "wall") {
-    return `a wall sconce projecting about ${cm}cm from the wall — about the size of a small wall clock.`;
+    if (sizeClass === "small") return `a small wall sconce projecting about ${cm}cm from the wall, visually similar to a small wall clock.`;
+    if (sizeClass === "medium") return `a medium wall sconce projecting about ${cm}cm from the wall, normal bedside scale.`;
+    return `a large wall sconce projecting about ${cm}cm from the wall, still proportional to wall and furniture.`;
   }
-  return `a lamp of approximately ${cm}cm in its primary dimension`;
+  return `a ${sizeClass} lamp of approximately ${cm}cm in its primary dimension`;
 }
 
 /** 每种灯具类型对应房间里的"场景主体家具"——AI 会把摄影焦点放在这上面 */

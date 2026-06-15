@@ -80,6 +80,8 @@ export const gptImage2Provider: IGenerationProvider = {
       form.append("background", "auto");
       form.append("moderation", process.env.GPT_IMAGE_MODERATION || "auto");
 
+      // Vercel 当前生成接口 maxDuration=60s；gpt-image-2 偶尔会慢。
+      // 这里主动 45s 超时，避免整条 /api/generation/jobs 被 Vercel 杀掉并返回非 JSON 文本。
       const res = await fetch(ENDPOINT, {
         method: "POST",
         headers: {
@@ -88,6 +90,7 @@ export const gptImage2Provider: IGenerationProvider = {
           // 不要手动设置 Content-Type，fetch 会自动加 boundary
         },
         body: form,
+        signal: AbortSignal.timeout(45_000),
       });
 
       const text = await res.text();

@@ -520,7 +520,14 @@ function Main({
         headers: { "content-type": "application/json" },
         body: JSON.stringify(submitBody),
       });
-      const sub = await subRes.json();
+      const subText = await subRes.text();
+      let sub: { error?: string; job_id?: string; credit_balance?: number } = {};
+      try {
+        sub = subText ? JSON.parse(subText) : {};
+      } catch {
+        // Vercel/Next 500 有时会返回纯文本 "An error occurred..."，不能直接 res.json()
+        sub = { error: subText.slice(0, 180) || "non_json_response" };
+      }
       if (!subRes.ok) {
         if (sub.error === "insufficient_credits") {
           setQuotaExhaustedOpen(true);
@@ -528,6 +535,9 @@ function Main({
           return;
         }
         throw new Error(sub.error || t("ws_err_generic"));
+      }
+      if (!sub.job_id) {
+        throw new Error(sub.error || "missing_job_id");
       }
       const jobId: string = sub.job_id;
 

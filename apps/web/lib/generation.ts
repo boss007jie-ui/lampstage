@@ -184,7 +184,7 @@ function buildShotPrompt(
 
   // Keep this prompt short. Nano-banana/Gemini-image listens best to ~80-150 words.
   // The room is the grammatical subject; lamp is one installed fixture inside it.
-  const body = `Image 1 is the locked room reference. Keep its room layout, furniture scale, camera angle, ceiling height, window daylight, shadows and atmosphere, refined into ${audience} styling. Image 2 is only the lamp appearance reference. Add one unlit installed fixture based on image 2 to the room from image 1. The main subject is the finished ${room}: ${sceneFurniture}, walls, ceiling, floor, rug and decor. ${daylightLogic} Integrate the fixture as real hardware with matching perspective, contact shadow and ambient reflections. Scale: ${lampSizeRule} ${INDUSTRY_RULES[profile.lamp_type]}`;
+  const body = `Image 1 is the locked room reference. Keep its room layout, furniture scale, camera angle, ceiling height, window daylight, shadows and atmosphere, refined into ${audience} styling. Image 2 is only the lamp appearance reference. Add exactly one single unlit installed fixture based on image 2 to the room from image 1. Use one canopy, one cord/chain, one shade and one bulb only. The main subject is the finished ${room}: ${sceneFurniture}, walls, ceiling, floor, rug and decor. ${daylightLogic} Integrate the fixture as real hardware with matching perspective, contact shadow and ambient reflections. Scale: ${lampSizeRule} ${INDUSTRY_RULES[profile.lamp_type]}`;
 
   return `${body}
 
@@ -246,7 +246,7 @@ const ROOM_FURNITURE: Record<LampType, Record<string, string>> = {
     entryway: "an entryway console table with a mirror",
     "bedside pendant": "a bed, nightstand, books and linen bedding",
     "reading nook pendant": "a lounge chair, side table, rug and window corner",
-    "breakfast nook pendant": "a small 2-person round table with two chairs",
+    "breakfast nook pendant": "a small corner breakfast nook with a 2-person round table, two compact chairs, and nearby window",
   },
   ceiling: {
     "living room": "a 3-seater sofa with coffee table",
@@ -286,7 +286,7 @@ const ROOM_REFERENCE_URLS: Record<LampType, Record<string, string>> = {
     entryway: "/scene-refs-v2/entryway_offcenter_no_lamp.jpg",
     "bedside pendant": "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
     "reading nook pendant": "/scene-refs-v2/corner_offcenter_no_lamp.jpg",
-    "breakfast nook pendant": "/scene-refs-v2/dining_offcenter_no_lamp.jpg",
+    "breakfast nook pendant": "/scene-refs-v2/corner_offcenter_no_lamp.jpg",
   },
   ceiling: {
     "living room": "/scene-refs-v2/living_offcenter_no_lamp.jpg",
@@ -325,7 +325,10 @@ export function decideThreeShots(
   aspect: AspectRatio,
 ): { prompt: string; room: string; lit: boolean; compositionReferenceUrl: string }[] {
   const rooms = getRoomsForProfile(profile);
-  const litPattern = LIT_PATTERN[profile.lamp_type];
+  const litPattern =
+    profile.lamp_type === "pendant" && profile.size_class !== "large"
+      ? [false, false, false]
+      : LIT_PATTERN[profile.lamp_type];
   const refs = ROOM_REFERENCE_URLS[profile.lamp_type];
   return rooms.map((room, i) => ({
     prompt: buildShotPrompt(profile, room, litPattern[i], platformStyle, aspect),

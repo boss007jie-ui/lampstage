@@ -185,39 +185,38 @@ function buildShotPrompt(
   const audience = AUDIENCE_KEYWORDS[profile.target_audience];
   const sceneFurniture = ROOM_FURNITURE[profile.lamp_type]?.[room] || "appropriate furniture";
   const lampSizeRule = lampSizeConstraint(profile.lamp_type, profile.size_hint_cm);
-  const humanAnchor = HUMAN_ANCHOR[profile.lamp_type]?.[shotIndex % 3] || "subtle human presence in the background";
   const litDesc = lit
-    ? `the lamp's bulb is on, casting ${COLOR_TEMP_DESC[profile.color_temp]}`
-    : `the lamp is unlit; the room is filled with natural daylight`;
+    ? `warm ${COLOR_TEMP_DESC[profile.color_temp]} from the installed fixture, gently illuminating nearby surfaces`
+    : `soft natural daylight from windows; the fixture is present but not visually emphasized`;
 
   const compositions = [
-    `Wide architectural shot of the entire ${room}. Camera at standing eye-level, slightly far back to capture the full space.`,
-    `Medium 3/4 angle of the ${room}, centered on the ${sceneFurniture}.`,
-    `Lifestyle composition of the ${room}, natural and inviting atmosphere.`,
+    `Wide real-estate style interior photograph, camera backed up enough to show the full room volume, ceiling line, window, main furniture and floor.`,
+    `Architectural 3/4 interior photograph centered on the room layout and furniture arrangement, with realistic ceiling height and fixture placement.`,
+    `Natural home-decor editorial photograph focused on atmosphere, materials, furniture styling, window light and spatial depth.`,
   ];
   const composition = compositions[shotIndex % compositions.length];
 
-  // 画面三层结构——nano-banana 听得懂分区描述
-  const frameLayers = `[Frame composition]
-- Top 25% of the frame: ceiling, with the lamp hanging in proper position
-- Middle 50% of the frame: walls, windows, ${sceneFurniture}, ${humanAnchor}
-- Bottom 25% of the frame: floor, rug, lower furniture details`;
+  // 用“空间结构”而不是“人物”做比例锚点：更像商品场景图，也不会变成生活抓拍。
+  const frameLayers = `[Spatial composition]
+- Ceiling is visible and proportional to the room height; the lighting fixture is attached to / suspended from the ceiling as real hardware.
+- Main visual mass: ${sceneFurniture}, window light, wall surfaces, floor, rug and decor.
+- The fixture sits in the architectural lighting position, aligned with ceiling geometry and furniture layout, with shadows/glow interacting with nearby surfaces.`;
 
-  const body = `Editorial interior lifestyle photography of a real ${room} in ${audience} interior style.
+  const body = `Photoreal interior design photograph of a complete ${room} in ${audience} interior style.
 
-Primary subject: the complete interior scene — ${sceneFurniture}, walls, floor, window light, decor, and atmosphere. The lamp should feel naturally installed as part of the interior design, like a real fixture already belonging to this home.
+The image is about the finished room atmosphere and home styling: ${sceneFurniture}, walls, ceiling, floor, window light, decor objects, material textures and spatial depth.
 
 ${composition}
 
 ${frameLayers}
 
-Lighting: ${litDesc}.
+Lighting behavior: ${litDesc}.
 
+Installation and scale guide:
 ${INDUSTRY_RULES[profile.lamp_type]}
-
-[Scale and integration reference]
 ${lampSizeRule}
-The lamp must be integrated into the architecture and furniture layout, not staged like a product cutout. Use surrounding furniture and the subtle human figure as scale references. The lamp should support the room mood, not become the central object. Keep the fixture physically plausible for this room: correct hanging height, correct distance from furniture, correct real-world size.`;
+
+The uploaded product is an installed lighting fixture within the room design. It should inherit the room's perspective, ceiling attachment, shadows, reflections and ambient light, like it was photographed in-place during an interior shoot. Surrounding furniture and ceiling height define the scale.`;
 
   return `${body}
 
@@ -227,43 +226,6 @@ Render at ${ASPECT_LABEL[aspect]}.
 
 ${STRICT_QUALITY}`;
 }
-
-/**
- * 不显眼的人物锚点——为不同灯具类型给出"自然且不破坏专业感"的人体描述。
- * 关键：half-visible / out-of-focus / from behind，让 AI 知道有人但不喧宾夺主。
- */
-const HUMAN_ANCHOR: Record<LampType, [string, string, string]> = {
-  pendant: [
-    "a person seated at the table from behind, only shoulders visible",
-    "a half-visible silhouette of a person walking past in the background",
-    "an out-of-focus person reading at the table, viewed from a distance",
-  ],
-  ceiling: [
-    "a person sitting on the sofa from a back angle, only the top of their head visible",
-    "a soft silhouette of a person near a window in the background",
-    "a partially visible figure relaxing on the bed, viewed at distance",
-  ],
-  wall: [
-    "a person reading in bed with the wall lamp turned on, viewed from the side at a distance",
-    "a partial figure walking along the hallway in the background",
-    "a person sitting on the sofa, only legs and torso visible from a back angle",
-  ],
-  table: [
-    "a person seated nearby, hand reaching for the lamp, only forearm visible",
-    "an out-of-focus figure sitting at the desk, viewed from behind",
-    "a half-visible silhouette walking past, the table lamp in foreground",
-  ],
-  floor: [
-    "a person seated on the sofa reading, half-visible from a back angle",
-    "an out-of-focus figure standing near the window, the floor lamp in the foreground",
-    "a partial figure curled up in the lounge chair beside the floor lamp",
-  ],
-  unknown: [
-    "a partial human figure in the scene for scale reference",
-    "a half-visible person in the background",
-    "an out-of-focus figure providing scale",
-  ],
-};
 
 /**
  * 把灯具尺寸翻译成相对周围家具的几何约束。

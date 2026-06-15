@@ -161,6 +161,19 @@ const ALLOWED_AUDS = new Set([
   "french",
 ]);
 
+/**
+ * 当 size_class 改变时，给 size_hint_cm 一个对应的"代表值"。
+ * 用户没显式给具体数字时，按这个映射走，确保 prompt 里"compact"和"~25cm"不矛盾。
+ */
+const SIZE_REPRESENTATIVE_CM: Record<string, Record<string, number>> = {
+  pendant: { small: 25, medium: 45, large: 70 },
+  wall: { small: 20, medium: 32, large: 45 },
+  table: { small: 30, medium: 45, large: 60 },
+  floor: { small: 130, medium: 155, large: 180 },
+  ceiling: { small: 35, medium: 55, large: 80 },
+  unknown: { small: 25, medium: 45, large: 70 },
+};
+
 export async function PATCH(
   req: Request,
   { params }: { params: { id: string } },
@@ -185,6 +198,14 @@ export async function PATCH(
   }
   if (typeof body.size_class === "string" && ALLOWED_SIZES.has(body.size_class)) {
     update.size_class = body.size_class;
+    // 如果用户在同一次请求里没显式传 size_hint_cm，根据新 size_class + 当前 lamp_type 联动给一个代表值
+    // 否则 AI 估算的具体数字会和新 size_class 矛盾（"小" + "~55cm"）
+    if (typeof body.size_hint_cm !== "number") {
+      const lampType =
+        (typeof body.lamp_type === "string" ? body.lamp_type : asset.detected_lamp_type) || "unknown";
+      const repCm = SIZE_REPRESENTATIVE_CM[lampType]?.[body.size_class];
+      if (repCm) update.size_hint_cm = repCm;
+    }
   }
   if (typeof body.size_hint_cm === "number" && body.size_hint_cm > 0 && body.size_hint_cm < 500) {
     update.size_hint_cm = Math.round(body.size_hint_cm);

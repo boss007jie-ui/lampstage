@@ -154,12 +154,6 @@ const COLOR_TEMP_DESC: Record<ColorTemp, string> = {
     "warm 2700K bulb glow (this is a tunable lamp; show the warm setting here)",
 };
 
-const SIZE_DESC: Record<SizeClass, string> = {
-  small: "compact",
-  medium: "mid-size",
-  large: "oversized statement",
-};
-
 export type LampProfileInput = {
   lamp_type: LampType;
   size_class: SizeClass;
@@ -170,7 +164,10 @@ export type LampProfileInput = {
 
 /**
  * 为单张图拼装一个完整的 prompt：
- *   灯具描述 + 客群风格 + 房间 + 开关灯 + 行业规范 + 平台风格 + 质量约束
+ *   灯具描述（含人体参照）+ 客群风格 + 房间 + 开关灯 + 行业规范 + 平台风格 + 质量约束
+ *
+ * 关键：让 nano-banana 把灯当作"室内场景里一件正常尺寸的家具"，
+ * 而不是占满画面的主角——所以避免 "visual hero" / "hero shot" 这种短语。
  */
 function buildShotPrompt(
   profile: LampProfileInput,
@@ -180,23 +177,32 @@ function buildShotPrompt(
   aspect: AspectRatio,
   shotIndex: number,
 ): string {
-  const lamp = `a ${SIZE_DESC[profile.size_class]} ${profile.lamp_type} lamp (~${profile.size_hint_cm}cm)`;
+  // 用人体参照锁定相对尺寸——比抽象的 "compact" / "oversized" 强得多
+  const humanRef = humanReference(profile.lamp_type, profile.size_hint_cm);
+  const lamp = `a ${profile.lamp_type} lamp measuring approximately ${profile.size_hint_cm}cm (${humanRef})`;
   const audience = AUDIENCE_KEYWORDS[profile.target_audience];
   const litDesc = lit
-    ? `the lamp is turned ON, casting ${COLOR_TEMP_DESC[profile.color_temp]}, evening or dusk ambient mood`
-    : `the lamp is turned OFF, showing its product silhouette under bright natural daylight`;
-  const angles = ["eye-level wide shot", "slight 3/4 angle medium shot", "low-angle hero shot"];
+    ? `the lamp's bulb is turned on, emitting ${COLOR_TEMP_DESC[profile.color_temp]}, evening or dusk ambient mood`
+    : `the lamp's bulb is off, showing the product in clean natural daylight`;
+  const angles = [
+    "wide eye-level interior shot showing the full room context",
+    "medium 3/4 angle showing furniture and the lamp in proper proportion",
+    "natural lifestyle composition, the lamp naturally integrated into the room",
+  ];
   const angle = angles[shotIndex % angles.length];
 
-  const body = `Editorial e-commerce interior photo: ${lamp} as the visual hero, placed in a ${room}.
+  const body = `Editorial e-commerce interior photo of a ${room}. The room contains ${lamp}, integrated naturally with the furniture and architecture.
 
 Interior style: ${audience}.
 
 Lighting: ${litDesc}.
 
-Composition: ${angle}.
+Composition: ${angle}. Show the room as a whole; the lamp must occupy a realistic, in-scale position — NOT dominate the frame, NOT exceed its real-world size.
 
-${INDUSTRY_RULES[profile.lamp_type]}`;
+${INDUSTRY_RULES[profile.lamp_type]}
+
+[Critical scale rule]
+The lamp must be rendered at its real-world size relative to surrounding furniture (sofa, table, person standing nearby). Do not enlarge the lamp for visual impact. A pendant smaller than 30cm must NOT span the width of a dining table.`;
 
   return `${body}
 
@@ -205,6 +211,35 @@ ${PLATFORM_STYLE_RULES[platformStyle]}
 Render at ${ASPECT_LABEL[aspect]}.
 
 ${STRICT_QUALITY}`;
+}
+
+/**
+ * 给灯具尺寸一个人体可感知的参照说明。
+ * AI 看到 "30cm" 是个抽象数字；看到 "smaller than a basketball" 才会真的画小。
+ */
+function humanReference(lampType: LampType, cm: number): string {
+  if (lampType === "pendant" || lampType === "ceiling") {
+    if (cm <= 25) return "smaller than a basketball, fits comfortably in one hand";
+    if (cm <= 40) return "about the size of a basketball";
+    if (cm <= 60) return "about the size of a large pizza tray";
+    return "as wide as an adult's outstretched arm — large statement piece";
+  }
+  if (lampType === "table") {
+    if (cm <= 35) return "shorter than a wine bottle";
+    if (cm <= 50) return "roughly the height of a tall water bottle";
+    return "taller than a typical cookbook stand";
+  }
+  if (lampType === "floor") {
+    if (cm <= 140) return "shorter than an average adult, around shoulder height when seated";
+    if (cm <= 170) return "about the height of an average adult";
+    return "taller than a typical doorway lintel";
+  }
+  if (lampType === "wall") {
+    if (cm <= 25) return "projects from the wall less than a hand's length";
+    if (cm <= 40) return "projects about a forearm's length";
+    return "projects nearly an arm's length";
+  }
+  return "in human-realistic proportion to the room";
 }
 
 /**

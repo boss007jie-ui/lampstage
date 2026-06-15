@@ -35,7 +35,7 @@ def vapi(method, path, body=None):
     raise RuntimeError("api fail")
 
 KEY = "NEXT_PUBLIC_NEW_LAMP_FLOW_ENABLED"
-VAL = "false"  # 默认 false，启用时改为 "true"
+VAL = "true"  # 启用新流程
 
 s, ex = vapi("GET", f"/v9/projects/{PROJECT_ID}/env?decrypt=false")
 existing = {e["key"]: e["id"] for e in ex.get("envs", [])}

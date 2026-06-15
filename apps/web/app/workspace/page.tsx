@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LoginModal } from "@/components/auth/LoginModal";
 import { LeadCaptureModal } from "@/components/credits/LeadCaptureModal";
+import { LampProfileCard, type ProfileResp } from "@/components/workspace/LampProfileCard";
 import { LangToggle } from "@/components/i18n/LangToggle";
 import { useLang } from "@/components/i18n/LangProvider";
 import { BrandMark } from "@/components/brand/BrandMark";
@@ -309,6 +310,12 @@ function Main({
   const [recommendedSceneIdx, setRecommendedSceneIdx] = useState<number>(0);
   const [customPrompt, setCustomPrompt] = useState<string>("");
 
+  // 灯具档案 V1（NEW_LAMP_FLOW_ENABLED Feature Flag）
+  // true → 用 LampProfileCard，不传 sceneKind，走档案驱动后端
+  // false → 旧 SceneSelector，传 sceneKind 走旧路径
+  const newLampFlow = process.env.NEXT_PUBLIC_NEW_LAMP_FLOW_ENABLED === "true";
+  const [lampProfile, setLampProfile] = useState<ProfileResp | null>(null);
+
   // Pipeline state
   const [phase, setPhase] = useState<
     "idle" | "uploading" | "prechecking" | "submitting" | "polling" | "completed" | "failed"
@@ -348,11 +355,12 @@ function Main({
 
   const generating = phase !== "idle" && phase !== "completed" && phase !== "failed";
   const sceneReady = useMemo(() => {
+    if (newLampFlow) return Boolean(lampProfile);
     if (sceneKind === "template") return Boolean(templateId);
     if (sceneKind === "recommended") return suggestions.length > 0 && Boolean(suggestions[recommendedSceneIdx]);
     if (sceneKind === "custom") return customPrompt.trim().length > 0;
     return false;
-  }, [sceneKind, templateId, suggestions, recommendedSceneIdx, customPrompt]);
+  }, [newLampFlow, lampProfile, sceneKind, templateId, suggestions, recommendedSceneIdx, customPrompt]);
   const canGenerate = useMemo(
     () => Boolean(file && sceneReady && !fileError && !generating),
     [file, sceneReady, fileError, generating],
@@ -480,23 +488,29 @@ function Main({
         }
       }
 
-      // 3) Build submit body based on sceneKind
+      // 3) Build submit body
+      // 新流程（flag=on）：不传 scene_kind，让后端从 asset 档案算 3 个 prompt
+      // 旧流程：按 sceneKind 分支传 template_id / recommended_prompt_en / custom_prompt
       const submitBody: Record<string, unknown> = {
         uploaded_asset_id: assetId,
-        scene_kind: sceneKind,
         platform_style: platformStyle,
         aspect_ratio: aspect,
       };
-      if (sceneKind === "template") {
-        if (!templateId) throw new Error(t("ws_err_pick_template"));
-        submitBody.template_id = templateId;
-      } else if (sceneKind === "recommended") {
-        const scene = suggestions[recommendedSceneIdx];
-        if (!scene) throw new Error(t("ws_err_pick_scene"));
-        submitBody.recommended_prompt_en = scene.prompt_en;
-      } else if (sceneKind === "custom") {
-        if (!customPrompt.trim()) throw new Error(t("ws_err_need_prompt"));
-        submitBody.custom_prompt = customPrompt.trim();
+      if (newLampFlow) {
+        // 档案驱动：什么都不用传，后端读 UploadedAsset.size_class 等字段
+      } else {
+        submitBody.scene_kind = sceneKind;
+        if (sceneKind === "template") {
+          if (!templateId) throw new Error(t("ws_err_pick_template"));
+          submitBody.template_id = templateId;
+        } else if (sceneKind === "recommended") {
+          const scene = suggestions[recommendedSceneIdx];
+          if (!scene) throw new Error(t("ws_err_pick_scene"));
+          submitBody.recommended_prompt_en = scene.prompt_en;
+        } else if (sceneKind === "custom") {
+          if (!customPrompt.trim()) throw new Error(t("ws_err_need_prompt"));
+          submitBody.custom_prompt = customPrompt.trim();
+        }
       }
 
       // 4) Submit job
@@ -573,26 +587,37 @@ function Main({
           </Step>
 
           <Step n={2} label={t("ws_step_scene")}>
-            <SceneSelector
-              file={file}
-              uploadedAssetId={uploadedAssetId}
-              templates={templates}
-              templateId={templateId}
-              setTemplateId={setTemplateId}
-              templatesError={templatesError}
-              sceneKind={sceneKind}
-              setSceneKind={setSceneKind}
-              recommendedSceneIdx={recommendedSceneIdx}
-              setRecommendedSceneIdx={setRecommendedSceneIdx}
-              suggestions={suggestions}
-              setSuggestions={setSuggestions}
-              suggesting={suggesting}
-              setSuggesting={setSuggesting}
-              suggestError={suggestError}
-              setSuggestError={setSuggestError}
-              customPrompt={customPrompt}
-              setCustomPrompt={setCustomPrompt}
-            />
+            {newLampFlow && uploadedAssetId ? (
+              <LampProfileCard
+                assetId={uploadedAssetId}
+                onReady={(p) => setLampProfile(p)}
+              />
+            ) : newLampFlow ? (
+              <div className="rounded-2xl border border-[#e5edf5] bg-[#f8fafc] p-4 text-[13px] text-[#94a3b8]">
+                上传灯具图后将自动识别档案
+              </div>
+            ) : (
+              <SceneSelector
+                file={file}
+                uploadedAssetId={uploadedAssetId}
+                templates={templates}
+                templateId={templateId}
+                setTemplateId={setTemplateId}
+                templatesError={templatesError}
+                sceneKind={sceneKind}
+                setSceneKind={setSceneKind}
+                recommendedSceneIdx={recommendedSceneIdx}
+                setRecommendedSceneIdx={setRecommendedSceneIdx}
+                suggestions={suggestions}
+                setSuggestions={setSuggestions}
+                suggesting={suggesting}
+                setSuggesting={setSuggesting}
+                suggestError={suggestError}
+                setSuggestError={setSuggestError}
+                customPrompt={customPrompt}
+                setCustomPrompt={setCustomPrompt}
+              />
+            )}
           </Step>
 
           <Step n={3} label={t("ws_step_platform")}>

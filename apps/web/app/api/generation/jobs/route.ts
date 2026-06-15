@@ -40,12 +40,17 @@ export async function POST(req: NextRequest) {
   }
   const assetId =
     typeof body.uploaded_asset_id === "string" ? body.uploaded_asset_id : "";
-  const sceneKind =
+  // sceneKind:
+  //   - 不传 / 不识别 → undefined → 走新流程（档案驱动，3 张图 3 个 prompt）
+  //   - "template" / "recommended" / "custom" → 走对应旧路径（向后兼容）
+  const sceneKind: "template" | "recommended" | "custom" | undefined =
     body.scene_kind === "recommended"
       ? "recommended"
       : body.scene_kind === "custom"
         ? "custom"
-        : "template"; // default to template (back-compat)
+        : body.scene_kind === "template"
+          ? "template"
+          : undefined;
   const templateId =
     typeof body.template_id === "string" ? body.template_id : undefined;
   const recommendedPromptEn =

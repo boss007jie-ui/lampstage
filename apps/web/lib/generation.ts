@@ -27,6 +27,12 @@ import {
 import { putGeneratedImage } from "@/lib/storage";
 import { getProvider } from "@/lib/providers";
 import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
+import type {
+  ColorTemp,
+  LampType,
+  SizeClass,
+  TargetAudience,
+} from "@/lib/lamp-profile";
 
 const OUTPUT_COUNT = 3;
 const CREDIT_COST = 3;
@@ -76,10 +82,154 @@ Render at ${ASPECT_LABEL[aspect]}.
 ${STRICT_QUALITY}`;
 }
 
+// ============================================================================
+// 灯具档案驱动的智能 prompt 拼接（V1）
+// 关联 spec: docs/superpowers/specs/2026-06-13-lamp-profile-design.md
+// ============================================================================
+
+/** 行业搭配规范——AI 出图自动遵守，用户不可见 */
+const INDUSTRY_RULES: Record<LampType, string> = {
+  pendant:
+    "Pendant bottom hangs 70-90cm above the table or floor surface. Pendant diameter is approximately 1/2 to 1/3 of the dining table width.",
+  wall:
+    "Wall sconce mounted 1.4-1.6m above floor for bedside, 1.6-1.8m for hallways.",
+  table:
+    "Table lamp height equals nightstand/desk surface plus 35-50cm. Lamp shade bottom near eye level when seated.",
+  floor:
+    "Floor lamp total height 1.5-1.8m. Placed 30-50cm from sofa armrest.",
+  ceiling:
+    "Flush-mount ceiling fixture for rooms with 2.7m+ ceiling height.",
+  unknown:
+    "Place the lamp at a believable, in-scale position for the room.",
+};
+
+/** 3 张图的房间组合（按灯具类型固定） */
+const ROOM_SETS: Record<LampType, [string, string, string]> = {
+  pendant: ["dining room", "living room", "entryway"],
+  ceiling: ["living room", "bedroom", "study"],
+  wall: ["bedside in a bedroom", "hallway corridor", "living room accent wall"],
+  table: ["nightstand in a bedroom", "study desk", "living room side table"],
+  floor: ["living room corner", "reading nook", "bedroom corner"],
+  unknown: ["living room", "bedroom", "dining room"],
+};
+
+/**
+ * 开关灯模式（行业惯例）：
+ * 吊灯/吸顶灯：1 关展示造型 + 2 开氛围
+ * 壁灯/台灯/落地灯：2 开氛围 + 1 关展示
+ */
+const LIT_PATTERN: Record<LampType, [boolean, boolean, boolean]> = {
+  pendant: [false, true, true],
+  ceiling: [false, true, true],
+  wall: [true, true, false],
+  table: [true, true, false],
+  floor: [true, true, false],
+  unknown: [false, true, true],
+};
+
+/** 6 个目标客群对应的视觉关键词（注入 prompt） */
+const AUDIENCE_KEYWORDS: Record<TargetAudience, string> = {
+  modern_luxury:
+    "modern luxury interior, black metal accents, marble surfaces, leather and velvet upholstery, brass details, deep neutrals with gold trim",
+  nordic:
+    "nordic minimalist interior, light oak wood floors, soft white walls, linen and wool textures, abundant natural light, restrained palette",
+  wabi_sabi:
+    "wabi-sabi japanese interior, raw wood, paper screens, gray and off-white tones, hand-crafted ceramics, deliberate emptiness",
+  industrial:
+    "industrial loft interior, exposed black iron beams, polished concrete floor, vintage brass fixtures, leather and dark wood, factory-converted feel",
+  new_chinese:
+    "new chinese interior, solid dark wood frames, ink-wash artwork, indoor plants, restrained ornamentation, cultural minimalism",
+  french:
+    "french elegant interior, ivory walls with arches, gold-trimmed mirrors, soft florals, draped curtains, parquet flooring",
+};
+
+const COLOR_TEMP_DESC: Record<ColorTemp, string> = {
+  warm_3000k:
+    "warm 3000K bulb glow (golden-yellow, cozy)",
+  neutral_4000k:
+    "neutral 4000K bulb glow (clean natural white)",
+  cool_5000k:
+    "cool 5500K bulb glow (crisp daylight white)",
+  tunable:
+    "warm 2700K bulb glow (this is a tunable lamp; show the warm setting here)",
+};
+
+const SIZE_DESC: Record<SizeClass, string> = {
+  small: "compact",
+  medium: "mid-size",
+  large: "oversized statement",
+};
+
+export type LampProfileInput = {
+  lamp_type: LampType;
+  size_class: SizeClass;
+  size_hint_cm: number;
+  color_temp: ColorTemp;
+  target_audience: TargetAudience;
+};
+
+/**
+ * 为单张图拼装一个完整的 prompt：
+ *   灯具描述 + 客群风格 + 房间 + 开关灯 + 行业规范 + 平台风格 + 质量约束
+ */
+function buildShotPrompt(
+  profile: LampProfileInput,
+  room: string,
+  lit: boolean,
+  platformStyle: PlatformStyle,
+  aspect: AspectRatio,
+  shotIndex: number,
+): string {
+  const lamp = `a ${SIZE_DESC[profile.size_class]} ${profile.lamp_type} lamp (~${profile.size_hint_cm}cm)`;
+  const audience = AUDIENCE_KEYWORDS[profile.target_audience];
+  const litDesc = lit
+    ? `the lamp is turned ON, casting ${COLOR_TEMP_DESC[profile.color_temp]}, evening or dusk ambient mood`
+    : `the lamp is turned OFF, showing its product silhouette under bright natural daylight`;
+  const angles = ["eye-level wide shot", "slight 3/4 angle medium shot", "low-angle hero shot"];
+  const angle = angles[shotIndex % angles.length];
+
+  const body = `Editorial e-commerce interior photo: ${lamp} as the visual hero, placed in a ${room}.
+
+Interior style: ${audience}.
+
+Lighting: ${litDesc}.
+
+Composition: ${angle}.
+
+${INDUSTRY_RULES[profile.lamp_type]}`;
+
+  return `${body}
+
+${PLATFORM_STYLE_RULES[platformStyle]}
+
+Render at ${ASPECT_LABEL[aspect]}.
+
+${STRICT_QUALITY}`;
+}
+
+/**
+ * 给定档案，决定 3 张图各自的 prompt。
+ * 不依赖任何外部状态，可以单独测试。
+ */
+export function decideThreeShots(
+  profile: LampProfileInput,
+  platformStyle: PlatformStyle,
+  aspect: AspectRatio,
+): { prompt: string; room: string; lit: boolean }[] {
+  const rooms = ROOM_SETS[profile.lamp_type];
+  const litPattern = LIT_PATTERN[profile.lamp_type];
+  return rooms.map((room, i) => ({
+    prompt: buildShotPrompt(profile, room, litPattern[i], platformStyle, aspect, i),
+    room,
+    lit: litPattern[i],
+  }));
+}
+
 /**
  * 创建生成任务并立即开始执行（不等待完成）。
  *
- * 三路 prompt 来源：
+ * 四路 prompt 来源：
+ *   - sceneKind=undefined（新流程）→ 从 asset 读档案 → decideThreeShots → 3 张图 3 个 prompt
  *   - sceneKind="template" + templateId（旧的快捷模板）
  *   - sceneKind="recommended" + recommendedPromptEn（系统推荐方案的英文 prompt）
  *   - sceneKind="custom" + customPrompt（用户自由描述，中/英文都可）
@@ -87,7 +237,8 @@ ${STRICT_QUALITY}`;
 export async function createAndRunGenerationJob(args: {
   userId: string;
   uploadedAssetId: string;
-  sceneKind: "template" | "recommended" | "custom";
+  /** 不传则走新档案流程；传了走对应旧路径以保持兼容 */
+  sceneKind?: "template" | "recommended" | "custom";
   templateId?: string;
   recommendedPromptEn?: string;
   customPrompt?: string;
@@ -101,7 +252,8 @@ export async function createAndRunGenerationJob(args: {
         | "insufficient_credits"
         | "asset_not_found"
         | "template_not_found"
-        | "missing_prompt";
+        | "missing_prompt"
+        | "profile_not_ready";
     }
 > {
   // Step A: 验证资源 + 扣额度 + 创建 job（一个事务）
@@ -115,11 +267,28 @@ export async function createAndRunGenerationJob(args: {
         return { kind: "asset_missing" as const };
       }
 
-      // 三路 prompt 拼接
+      // 四路 prompt 拼接
       let finalPrompt = "";
+      let promptList: string[] | null = null; // 新流程用：3 张图各自的 prompt
       let templateId: string | null = null;
 
-      if (args.sceneKind === "template") {
+      if (!args.sceneKind) {
+        // 新流程：档案驱动
+        if (!asset.detected_lamp_type || !asset.size_class || !asset.color_temp || !asset.target_audience) {
+          return { kind: "profile_missing" as const };
+        }
+        const profile: LampProfileInput = {
+          lamp_type: asset.detected_lamp_type as LampType,
+          size_class: asset.size_class as SizeClass,
+          size_hint_cm: asset.size_hint_cm ?? 40,
+          color_temp: asset.color_temp as ColorTemp,
+          target_audience: asset.target_audience as TargetAudience,
+        };
+        const shots = decideThreeShots(profile, args.platformStyle, args.aspectRatio);
+        promptList = shots.map((s) => s.prompt);
+        // 在 job.prompt_text 里只存第一张的 prompt 摘要 + 房间清单（用于 admin 排查）
+        finalPrompt = `[profile-driven] type=${profile.lamp_type} size=${profile.size_class}/${profile.size_hint_cm}cm temp=${profile.color_temp} audience=${profile.target_audience}\nrooms: ${shots.map((s) => `${s.room}(${s.lit ? "lit" : "off"})`).join(", ")}`;
+      } else if (args.sceneKind === "template") {
         if (!args.templateId) {
           return { kind: "missing_prompt" as const };
         }
@@ -148,7 +317,7 @@ export async function createAndRunGenerationJob(args: {
           user_id: args.userId,
           uploaded_asset_id: asset.id,
           template_id: templateId,
-          scene_kind: args.sceneKind,
+          scene_kind: args.sceneKind ?? "profile",
           prompt_text: finalPrompt,
           platform_style: args.platformStyle,
           aspect_ratio:
@@ -176,6 +345,7 @@ export async function createAndRunGenerationJob(args: {
         job,
         asset,
         finalPrompt,
+        promptList,
         balanceAfter,
       };
     });
@@ -195,14 +365,24 @@ export async function createAndRunGenerationJob(args: {
   if (result.kind === "missing_prompt") {
     return { ok: false, reason: "missing_prompt" };
   }
+  if (result.kind === "profile_missing") {
+    return { ok: false, reason: "profile_not_ready" };
+  }
 
   // Step B: 同步 await 整个生成（serverless 不能用 fire-and-forget）
   // 等所有图生成完才返回，前端轮询 GET /api/generation/jobs/[id] 看进度
+  // 新流程：promptList 里已经是 3 个完整 prompt（含规范+平台+质量约束），不再走 buildPrompt
+  // 旧流程：finalPrompt 是模板/推荐/自定义的 prompt，走 buildPrompt 套上标准框架，复制 3 次
+  const prompts: string[] = result.promptList
+    ? result.promptList
+    : Array.from({ length: OUTPUT_COUNT }, () =>
+        buildPrompt(result.finalPrompt, args.platformStyle, args.aspectRatio),
+      );
   await runGenerationPipeline({
     jobId: result.job.id,
     userId: args.userId,
     referenceImageUrl: result.asset.image_url,
-    prompt: buildPrompt(result.finalPrompt, args.platformStyle, args.aspectRatio),
+    prompts,
     aspectRatio: args.aspectRatio,
   }).catch((err) => {
     console.error("[gen] uncaught error", err);
@@ -235,10 +415,19 @@ async function runGenerationPipeline(args: {
   jobId: string;
   userId: string;
   referenceImageUrl: string;
-  prompt: string;
+  /** 每张图独立 prompt（长度应等于 OUTPUT_COUNT）。如果传单字符串则自动复制 OUTPUT_COUNT 次。 */
+  prompts: string[] | string;
   aspectRatio: AspectRatio;
 }) {
-  const { jobId, userId, referenceImageUrl, prompt, aspectRatio } = args;
+  const { jobId, userId, referenceImageUrl, aspectRatio } = args;
+  const prompts: string[] = Array.isArray(args.prompts)
+    ? args.prompts
+    : Array.from({ length: OUTPUT_COUNT }, () => args.prompts as string);
+  if (prompts.length !== OUTPUT_COUNT) {
+    throw new Error(
+      `runGenerationPipeline: expected ${OUTPUT_COUNT} prompts, got ${prompts.length}`,
+    );
+  }
   try {
     // 阶段 1
     await setStage(jobId, "analyzing");
@@ -248,10 +437,10 @@ async function runGenerationPipeline(args: {
     await setStage(jobId, "matching");
     await sleep(600);
 
-    // 阶段 3：实际并发调用 provider 4 次
+    // 阶段 3：实际并发调用 provider OUTPUT_COUNT 次（每张图独立 prompt）
     await setStage(jobId, "generating");
     const provider = getProvider();
-    const calls = Array.from({ length: OUTPUT_COUNT }, () =>
+    const calls = prompts.map((prompt) =>
       provider.generate({
         prompt,
         referenceImageUrl,

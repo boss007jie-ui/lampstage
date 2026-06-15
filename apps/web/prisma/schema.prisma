@@ -39,6 +39,7 @@ enum SceneKind {
   recommended
   template
   custom
+  profile
 }
 
 enum JobStatus {

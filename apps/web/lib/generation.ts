@@ -164,25 +164,17 @@ function buildShotPrompt(
   lit: boolean,
   platformStyle: PlatformStyle,
   aspect: AspectRatio,
-  shotIndex: number,
 ): string {
   const audience = AUDIENCE_KEYWORDS[profile.target_audience];
   const sceneFurniture = ROOM_FURNITURE[profile.lamp_type]?.[room] || "appropriate furniture";
   const lampSizeRule = lampSizeConstraint(profile.lamp_type, profile.size_class, profile.size_hint_cm);
-  const litDesc = lit
-    ? `${COLOR_TEMP_DESC[profile.color_temp]} from the installed fixture`
-    : `soft daylight from the windows, fixture visible but not emphasized`;
-
-  const compositions = [
-    `wide room photograph showing ceiling, window, full ${sceneFurniture}, floor and surrounding decor`,
-    `architectural 3/4 view centered on the ${sceneFurniture} and room layout`,
-    `home-decor editorial view focused on atmosphere, material texture and spatial depth`,
-  ];
-  const composition = compositions[shotIndex % compositions.length];
+  const daylightLogic = lit
+    ? `For this lit/evening version, use a very subtle ${COLOR_TEMP_DESC[profile.color_temp]} from the installed fixture while preserving the room atmosphere.`
+    : `For this daytime version, the fixture is OFF: no glow, no emitted light, only natural window daylight.`;
 
   // Keep this prompt short. Nano-banana/Gemini-image listens best to ~80-150 words.
   // The room is the grammatical subject; lamp is one installed fixture inside it.
-  const body = `Image 1 is the lamp product reference. Image 2 is the room and composition reference. Keep the room layout, furniture scale, camera angle, ceiling height, window light and atmosphere from image 2, refined into ${audience} styling. Replace the existing fixture in image 2 with the lamp from image 1, installed naturally as real hardware. The main subject is the finished ${room}: ${sceneFurniture}, walls, ceiling, floor, rug and decor. Camera: ${composition}. ${litDesc}. Match perspective, shadows, reflections and ambient light. Scale: ${lampSizeRule} ${INDUSTRY_RULES[profile.lamp_type]}`;
+  const body = `Image 1 is the locked room reference. Keep its room layout, furniture scale, camera angle, ceiling height, window daylight, shadows and atmosphere, refined into ${audience} styling. Image 2 is only the lamp appearance reference. Add one unlit installed fixture based on image 2 to the room from image 1. The main subject is the finished ${room}: ${sceneFurniture}, walls, ceiling, floor, rug and decor. ${daylightLogic} Integrate the fixture as real hardware with matching perspective, contact shadow and ambient reflections. Scale: ${lampSizeRule} ${INDUSTRY_RULES[profile.lamp_type]}`;
 
   return `${body}
 
@@ -320,7 +312,7 @@ export function decideThreeShots(
   const litPattern = LIT_PATTERN[profile.lamp_type];
   const refs = ROOM_REFERENCE_URLS[profile.lamp_type];
   return rooms.map((room, i) => ({
-    prompt: buildShotPrompt(profile, room, litPattern[i], platformStyle, aspect, i),
+    prompt: buildShotPrompt(profile, room, litPattern[i], platformStyle, aspect),
     room,
     lit: litPattern[i],
     compositionReferenceUrl: refs?.[room] || "/templates/tpl_living_room_main_light.jpg",

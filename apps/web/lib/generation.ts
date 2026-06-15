@@ -90,7 +90,10 @@ const INDUSTRY_RULES: Record<LampType, string> = {
 };
 
 /** 3 张图的房间组合（按灯具类型固定） */
-const ROOM_SETS: Record<LampType, [string, string, string]> = {
+const ROOM_SETS: Record<LampType, string[]> = {
+  // pendant 的实际场景不能一刀切。
+  // small/medium 装饰吊灯如果放 dining/living/entryway，会触发模型“主吊灯居中”的强先验。
+  // 所以默认表仍保留 large/通用主灯场景；具体小/中号会在 getRoomsForProfile() 里改成 accent 场景。
   pendant: ["dining room", "living room", "entryway"],
   ceiling: ["living room", "bedroom", "study"],
   wall: ["bedside in a bedroom", "hallway corridor", "living room accent wall"],
@@ -98,6 +101,13 @@ const ROOM_SETS: Record<LampType, [string, string, string]> = {
   floor: ["living room corner", "reading nook", "bedroom corner"],
   unknown: ["living room", "bedroom", "dining room"],
 };
+
+function getRoomsForProfile(profile: LampProfileInput): string[] {
+  if (profile.lamp_type === "pendant" && profile.size_class !== "large") {
+    return ["bedside pendant", "reading nook pendant", "breakfast nook pendant"];
+  }
+  return ROOM_SETS[profile.lamp_type];
+}
 
 /**
  * 开关灯模式（行业惯例）：
@@ -234,6 +244,9 @@ const ROOM_FURNITURE: Record<LampType, Record<string, string>> = {
     "dining room": "a 6-seater dining table with chairs",
     "living room": "a 3-seater sofa with coffee table",
     entryway: "an entryway console table with a mirror",
+    "bedside pendant": "a bed, nightstand, books and linen bedding",
+    "reading nook pendant": "a lounge chair, side table, rug and window corner",
+    "breakfast nook pendant": "a small 2-person round table with two chairs",
   },
   ceiling: {
     "living room": "a 3-seater sofa with coffee table",
@@ -271,6 +284,9 @@ const ROOM_REFERENCE_URLS: Record<LampType, Record<string, string>> = {
     "dining room": "/scene-refs-v2/dining_offcenter_no_lamp.jpg",
     "living room": "/scene-refs-v2/living_offcenter_no_lamp.jpg",
     entryway: "/scene-refs-v2/entryway_offcenter_no_lamp.jpg",
+    "bedside pendant": "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
+    "reading nook pendant": "/scene-refs-v2/corner_offcenter_no_lamp.jpg",
+    "breakfast nook pendant": "/scene-refs-v2/dining_offcenter_no_lamp.jpg",
   },
   ceiling: {
     "living room": "/scene-refs-v2/living_offcenter_no_lamp.jpg",
@@ -308,7 +324,7 @@ export function decideThreeShots(
   platformStyle: PlatformStyle,
   aspect: AspectRatio,
 ): { prompt: string; room: string; lit: boolean; compositionReferenceUrl: string }[] {
-  const rooms = ROOM_SETS[profile.lamp_type];
+  const rooms = getRoomsForProfile(profile);
   const litPattern = LIT_PATTERN[profile.lamp_type];
   const refs = ROOM_REFERENCE_URLS[profile.lamp_type];
   return rooms.map((room, i) => ({

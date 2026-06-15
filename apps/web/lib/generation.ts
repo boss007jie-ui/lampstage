@@ -39,9 +39,9 @@ const CREDIT_COST = 3;
 
 const PLATFORM_STYLE_RULES: Record<PlatformStyle, string> = {
   domestic_ecommerce:
-    "Marketplace style for Tmall/1688/Taobao: bright, clean, product is the visual hero, slightly punched colors but still photoreal.",
+    "Clean Chinese e-commerce lifestyle image: bright, tidy, realistic home scene, clear enough to understand the lamp, but the room atmosphere is the main selling point.",
   brand_site:
-    "Brand-site style for Shopify/DTC: natural light, lifestyle feel, premium magazine editorial mood, subtle composition.",
+    "Premium DTC/Shopify lifestyle image: natural light, calm editorial mood, realistic home styling, subtle composition.",
 };
 
 const ASPECT_LABEL: Record<AspectRatio, string> = {
@@ -51,23 +51,7 @@ const ASPECT_LABEL: Record<AspectRatio, string> = {
 };
 
 const STRICT_QUALITY = `
-[Lamp identity preservation]
-- Keep the original product structure, colors, materials and number of shades.
-- Do NOT add extra heads, arms, wires or parts. Do NOT change the material.
-- Warm lamps must NOT become RGB / neon / stage / disco lights.
-- Product scale must match real interior proportion.
-- The lamp is a real installed fixture inside the room, not a product hero render, not a cutout, not a close-up product shot.
-- The photo should primarily sell the interior atmosphere; the lamp contributes to the mood while staying physically plausible in size and placement.
-
-[Installation realism]
-- Pendants need a visible cord/chain/rod (no floating).
-- Wall lamps must mount flush against a wall.
-- Table lamps rest on a desk/console/nightstand.
-- Floor lamps stand on the floor with a believable base.
-
-[Output]
-- Photo-real interior, clean composition, magazine quality.
-- No watermark, no caption, no UI overlay, no garbled text.
+Keep the uploaded lamp's structure, material, color and shade count. Install it as a real fixture with visible ceiling/wall/table/floor connection. Match the room perspective, shadows, reflections and ambient light. Photoreal interior magazine quality, clean composition, no text or watermark.
 `.trim();
 
 function buildPrompt(
@@ -186,37 +170,19 @@ function buildShotPrompt(
   const sceneFurniture = ROOM_FURNITURE[profile.lamp_type]?.[room] || "appropriate furniture";
   const lampSizeRule = lampSizeConstraint(profile.lamp_type, profile.size_class, profile.size_hint_cm);
   const litDesc = lit
-    ? `warm ${COLOR_TEMP_DESC[profile.color_temp]} from the installed fixture, gently illuminating nearby surfaces`
-    : `soft natural daylight from windows; the fixture is present but not visually emphasized`;
+    ? `${COLOR_TEMP_DESC[profile.color_temp]} from the installed fixture`
+    : `soft daylight from the windows, fixture visible but not emphasized`;
 
   const compositions = [
-    `Wide real-estate style interior photograph, camera backed up enough to show the full room volume, ceiling line, window, main furniture and floor.`,
-    `Architectural 3/4 interior photograph centered on the room layout and furniture arrangement, with realistic ceiling height and fixture placement.`,
-    `Natural home-decor editorial photograph focused on atmosphere, materials, furniture styling, window light and spatial depth.`,
+    `wide room photograph showing ceiling, window, full ${sceneFurniture}, floor and surrounding decor`,
+    `architectural 3/4 view centered on the ${sceneFurniture} and room layout`,
+    `home-decor editorial view focused on atmosphere, material texture and spatial depth`,
   ];
   const composition = compositions[shotIndex % compositions.length];
 
-  // 用“空间结构”而不是“人物”做比例锚点：更像商品场景图，也不会变成生活抓拍。
-  const frameLayers = `[Spatial composition]
-- Ceiling is visible and proportional to the room height; the lighting fixture is attached to / suspended from the ceiling as real hardware.
-- Main visual mass: ${sceneFurniture}, window light, wall surfaces, floor, rug and decor.
-- The fixture sits in the architectural lighting position, aligned with ceiling geometry and furniture layout, with shadows/glow interacting with nearby surfaces.`;
-
-  const body = `Photoreal interior design photograph of a complete ${room} in ${audience} interior style.
-
-The image is about the finished room atmosphere and home styling: ${sceneFurniture}, walls, ceiling, floor, window light, decor objects, material textures and spatial depth.
-
-${composition}
-
-${frameLayers}
-
-Lighting behavior: ${litDesc}.
-
-Installation and scale guide:
-${INDUSTRY_RULES[profile.lamp_type]}
-${lampSizeRule}
-
-The uploaded product is an installed lighting fixture within the room design. It should inherit the room's perspective, ceiling attachment, shadows, reflections and ambient light, like it was photographed in-place during an interior shoot. Surrounding furniture and ceiling height define the scale.`;
+  // Keep this prompt short. Nano-banana/Gemini-image listens best to ~80-150 words.
+  // The room is the grammatical subject; lamp is one installed fixture inside it.
+  const body = `Photoreal interior design photograph of a complete ${room} in ${audience} style. The main subject is the finished room atmosphere: ${sceneFurniture}, window light, walls, ceiling, floor, rug and decor. Camera: ${composition}. The uploaded lamp is already installed as a real lighting fixture in the ceiling/wall/furniture position, matching perspective, shadows, reflections and ambient light. ${litDesc}. Scale: ${lampSizeRule} ${INDUSTRY_RULES[profile.lamp_type]}`;
 
   return `${body}
 

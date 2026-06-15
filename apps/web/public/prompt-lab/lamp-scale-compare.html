@@ -1,0 +1,12 @@
+
+<!doctype html><meta charset='utf-8'><title>Lamp prompt lab</title>
+<style>
+body{font-family:Inter,Arial,sans-serif;background:#f6f4ef;margin:0;padding:24px;color:#111}h1{font-size:22px} .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.card{background:white;border:1px solid #ddd;border-radius:14px;padding:12px;box-shadow:0 8px 24px #0001}.card img{width:100%;border-radius:10px;display:block}.name{font-weight:700;margin:8px 0}.prompt{font-size:12px;line-height:1.45;color:#555;white-space:pre-wrap}.refs{display:flex;gap:12px;margin-bottom:20px}.refs img{height:180px;border-radius:10px;background:white;border:1px solid #ddd}</style>
+<h1>Prompt Lab: multi-reference lamp integration</h1>
+<p>固定同一张灯具图 + 同一张无主灯客厅参考图。看哪版最能让灯不居中、不巨大、自然融入场景。</p>
+<div class='refs'><div><b>Image 1 灯具</b><br><img src='https://pub-752b0987bd5c4fef9e3ee3087457dcb1.r2.dev/uploads/cmq93fzs20000jr04u6ja4mf1/1739086f-3ebc-411d-9803-76b669c370a0.png'></div><div><b>Image 2 房间参考</b><br><img src='/scene-refs-v2/living_offcenter_no_lamp.jpg'></div></div>
+<div class='grid'>
+<div class='card'><img src='/prompt-lab/A-room-subject.png'><div class='name'>A-room-subject</div><div class='prompt'>Image 1 is the lamp reference. Image 2 is the exact room reference. Keep image 2 composition, camera angle, furniture scale, sofa, table, window light and ceiling. Add the lamp from image 1 as a small installed ceiling fixture in the upper-right ceiling area. The room remains the subject; furniture stays unchanged. Photoreal interior photography, 4:5.</div></div>
+<div class='card'><img src='/prompt-lab/B-inpaint-language.png'><div class='name'>B-inpaint-language</div><div class='prompt'>Edit image 2 only: install the lamp from image 1 onto the empty upper-right ceiling area. Preserve image 2 room layout, sofa, coffee table, rug, window, perspective and lighting. The lamp should be a modest real fixture, smaller than the coffee table width, integrated with ceiling shadows and ambient light. Do not rebuild the room. Photoreal.</div></div>
+<div class='card'><img src='/prompt-lab/C-strict-composition.png'><div class='name'>C-strict-composition</div><div class='prompt'>Use image 2 as a locked composition reference. Keep the same room, furniture positions and camera framing. Use image 1 only for lamp shape/material. Place one pendant in the top-right 20% of the frame, attached to the ceiling, not on the center vertical axis. Furniture and atmosphere are the visual focus. Realistic installed fixture, correct scale, 4:5.</div></div>
+</div>

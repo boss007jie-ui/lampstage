@@ -57,6 +57,8 @@ const STRICT_QUALITY = `
 - Do NOT add extra heads, arms, wires or parts. Do NOT change the material.
 - Warm lamps must NOT become RGB / neon / stage / disco lights.
 - Product scale must match real interior proportion.
+- The lamp is a real installed fixture inside the room, not a product hero render, not a cutout, not a close-up product shot.
+- The photo should primarily sell the interior atmosphere; the lamp contributes to the mood while staying physically plausible in size and placement.
 
 [Installation realism]
 - Pendants need a visible cord/chain/rod (no floating).
@@ -202,9 +204,9 @@ function buildShotPrompt(
 - Middle 50% of the frame: walls, windows, ${sceneFurniture}, ${humanAnchor}
 - Bottom 25% of the frame: floor, rug, lower furniture details`;
 
-  const body = `Editorial e-commerce interior photography of a real ${room} in ${audience} interior style.
+  const body = `Editorial interior lifestyle photography of a real ${room} in ${audience} interior style.
 
-Scene focus: ${sceneFurniture} as the visual subject of the photo, plus surrounding architectural details.
+Primary subject: the complete interior scene — ${sceneFurniture}, walls, floor, window light, decor, and atmosphere. The lamp should feel naturally installed as part of the interior design, like a real fixture already belonging to this home.
 
 ${composition}
 
@@ -214,10 +216,9 @@ Lighting: ${litDesc}.
 
 ${INDUSTRY_RULES[profile.lamp_type]}
 
-Lamp specification (the lamp is a small accent in the room, NOT the photographic subject):
+[Scale and integration reference]
 ${lampSizeRule}
-
-Reference scale: the human figure mentioned in the scene confirms the lamp's true size — the lamp must look correct in proportion to a real person standing in this room.`;
+The lamp must be integrated into the architecture and furniture layout, not staged like a product cutout. Use surrounding furniture and the subtle human figure as scale references. The lamp should support the room mood, not become the central object. Keep the fixture physically plausible for this room: correct hanging height, correct distance from furniture, correct real-world size.`;
 
   return `${body}
 

@@ -1,0 +1,215 @@
+/**
+ * Prompt Planner
+ *
+ * 作用：不要再用固定模板硬拼生图 prompt。
+ * 让 GPT 根据产品卡 + 业务目标 + 可用场景参考图，输出 3 个 nano-banana 图生图 shot。
+ *
+ * 注意：planner 只负责写 prompt，不负责生图。失败时 generation.ts 会 fallback 到旧规则。
+ */
+import type {
+  ColorTemp,
+  LampType,
+  SizeClass,
+  TargetAudience,
+} from "@/lib/lamp-profile";
+import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
+
+const ENDPOINT = "https://yunwu.ai/v1/chat/completions";
+const MODEL = process.env.PROMPT_PLANNER_MODEL || "gpt-5-mini";
+const PLANNER_TIMEOUT_MS = Number(process.env.PROMPT_PLANNER_TIMEOUT_MS || 12000);
+
+export type ProductProfileForPlanner = {
+  lamp_type: LampType;
+  size_class: SizeClass;
+  size_hint_cm: number;
+  color_temp: ColorTemp;
+  target_audience: TargetAudience;
+};
+
+export type PlannedShot = {
+  scene_type: string;
+  room_reference: string;
+  time_of_day: "daylight" | "dusk" | "night";
+  light_state: "off" | "on";
+  placement: string;
+  scale_anchor: string;
+  composition_subject: string;
+  prompt: string;
+};
+
+export type PromptPlan = {
+  usage_role: "main_pendant" | "accent_pendant" | "ambient_decor" | "product_showcase";
+  reasoning: string;
+  shots: PlannedShot[];
+};
+
+const SCENE_REFS = [
+  "/scene-refs-v2/dining_offcenter_no_lamp.jpg",
+  "/scene-refs-v2/living_offcenter_no_lamp.jpg",
+  "/scene-refs-v2/entryway_offcenter_no_lamp.jpg",
+  "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
+  "/scene-refs-v2/study_offcenter_no_lamp.jpg",
+  "/scene-refs-v2/corner_offcenter_no_lamp.jpg",
+];
+
+const SYSTEM_PROMPT = `You are a senior interior-photography prompt planner for a lighting e-commerce SaaS.
+
+Your job is NOT to generate an image. Your job is to write concise image-edit prompts for nano-banana / Gemini image.
+
+The image model will receive TWO images in this exact order:
+Image 1 = room/composition reference. It controls layout, furniture scale, camera angle, ceiling height, daylight and shadows.
+Image 2 = lamp product reference. It controls only lamp appearance/material/shape.
+
+Hard rules:
+- The output must look like a real room where the lamp is installed, not a product pasted on top.
+- The room atmosphere and furniture are the subject; the lamp is a normal installed fixture.
+- Daylight scenes: lamp is OFF. No glow, no warm halo, no emitted light.
+- Only night/dusk scenes may turn the lamp ON.
+- For small/medium pendant products, avoid main centered dining/living room chandelier compositions unless explicitly necessary.
+- Use side/edge/secondary placements for accent pendants: bedside, reading corner, side table, breakfast nook, entry console.
+- Exactly one fixture unless the product itself clearly contains multiple shades.
+- Preserve the room reference composition; do not rebuild the room around the lamp.
+- Prompt should be 80-130 English words per shot.
+
+Return STRICT JSON only. No markdown.
+
+JSON schema:
+{
+  "usage_role": "main_pendant|accent_pendant|ambient_decor|product_showcase",
+  "reasoning": "short reason",
+  "shots": [
+    {
+      "scene_type": "string",
+      "room_reference": "one of provided refs",
+      "time_of_day": "daylight|dusk|night",
+      "light_state": "off|on",
+      "placement": "string",
+      "scale_anchor": "string",
+      "composition_subject": "string",
+      "prompt": "final nano-banana prompt"
+    }
+  ]
+}
+
+Return exactly 3 shots.`;
+
+function stripFence(s: string): string {
+  return s.replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
+}
+
+function isRef(v: unknown): v is string {
+  return typeof v === "string" && SCENE_REFS.includes(v);
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function normalizePlan(raw: unknown): PromptPlan | null {
+  if (!isRecord(raw) || !Array.isArray(raw.shots)) return null;
+  const shots: PlannedShot[] = raw.shots
+    .filter(isRecord)
+    .map((s): PlannedShot => ({
+      scene_type: String(s.scene_type || "interior scene").slice(0, 80),
+      room_reference: isRef(s.room_reference) ? s.room_reference : "/scene-refs-v2/living_offcenter_no_lamp.jpg",
+      time_of_day:
+        s.time_of_day === "dusk" || s.time_of_day === "night" ? s.time_of_day : "daylight",
+      light_state: s.light_state === "on" ? "on" : "off",
+      placement: String(s.placement || "secondary ceiling position").slice(0, 160),
+      scale_anchor: String(s.scale_anchor || "secondary to furniture scale").slice(0, 160),
+      composition_subject: String(s.composition_subject || "room atmosphere and furniture").slice(0, 160),
+      prompt: String(s.prompt || "").trim(),
+    }))
+    .filter((s) => s.prompt.length > 40)
+    .slice(0, 3);
+  if (shots.length !== 3) return null;
+  const usage =
+    raw.usage_role === "main_pendant" ||
+    raw.usage_role === "accent_pendant" ||
+    raw.usage_role === "ambient_decor" ||
+    raw.usage_role === "product_showcase"
+      ? raw.usage_role
+      : "accent_pendant";
+  return {
+    usage_role: usage,
+    reasoning: String(raw.reasoning || "planned by prompt planner").slice(0, 300),
+    shots,
+  };
+}
+
+export async function planImagePrompts(args: {
+  profile: ProductProfileForPlanner;
+  platformStyle: PlatformStyle;
+  aspectRatio: AspectRatio;
+  userIntent?: string;
+}): Promise<PromptPlan | null> {
+  const apiKey = process.env.YUNWU_API_KEY;
+  if (!apiKey) {
+    console.warn("[prompt-planner] YUNWU_API_KEY missing");
+    return null;
+  }
+
+  const userText = `Product card:
+${JSON.stringify(args.profile, null, 2)}
+
+Business/user intent:
+${args.userIntent || "Generate real usage scene images for a lighting e-commerce product. The lamp must blend into the room, not become a huge centered hero object."}
+
+Platform style: ${args.platformStyle}
+Aspect ratio: ${args.aspectRatio}
+
+Available room references:
+${SCENE_REFS.map((x) => `- ${x}`).join("\n")}
+
+Write 3 planned image-edit shots. Remember Image 1 is room reference and Image 2 is lamp reference.`;
+
+  const body = {
+    model: MODEL,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userText },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.2,
+  };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PLANNER_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    console.warn("[prompt-planner] network/timeout error", e);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    console.warn(`[prompt-planner] HTTP ${res.status}: ${text.slice(0, 300)}`);
+    return null;
+  }
+
+  try {
+    const data: unknown = await res.json();
+    if (!isRecord(data) || !Array.isArray(data.choices)) return null;
+    const first = data.choices[0];
+    const message = isRecord(first) ? first.message : undefined;
+    const text = isRecord(message) ? message.content : undefined;
+    if (typeof text !== "string") return null;
+    return normalizePlan(JSON.parse(stripFence(text)));
+  } catch (e) {
+    console.warn("[prompt-planner] parse error", e);
+      return null;
+  }
+}

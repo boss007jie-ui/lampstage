@@ -33,6 +33,10 @@ import type {
   SizeClass,
   TargetAudience,
 } from "@/lib/lamp-profile";
+import {
+  planImagePrompts,
+  type PromptPlan,
+} from "@/lib/prompt-planner";
 
 const OUTPUT_COUNT = 3;
 const CREDIT_COST = 3;
@@ -369,6 +373,45 @@ export async function createAndRunGenerationJob(args: {
         | "profile_not_ready";
     }
 > {
+  let plannedPromptPlan: PromptPlan | null = null;
+
+  if (!args.sceneKind) {
+    const assetForPlanning = await prisma.uploadedAsset.findUnique({
+      where: { id: args.uploadedAssetId },
+      select: {
+        user_id: true,
+        detected_lamp_type: true,
+        size_class: true,
+        size_hint_cm: true,
+        color_temp: true,
+        target_audience: true,
+      },
+    });
+    if (!assetForPlanning || assetForPlanning.user_id !== args.userId) {
+      return { ok: false, reason: "asset_not_found" };
+    }
+    if (
+      !assetForPlanning.detected_lamp_type ||
+      !assetForPlanning.size_class ||
+      !assetForPlanning.color_temp ||
+      !assetForPlanning.target_audience
+    ) {
+      return { ok: false, reason: "profile_not_ready" };
+    }
+
+    plannedPromptPlan = await planImagePrompts({
+      profile: {
+        lamp_type: assetForPlanning.detected_lamp_type as LampType,
+        size_class: assetForPlanning.size_class as SizeClass,
+        size_hint_cm: assetForPlanning.size_hint_cm ?? 40,
+        color_temp: assetForPlanning.color_temp as ColorTemp,
+        target_audience: assetForPlanning.target_audience as TargetAudience,
+      },
+      platformStyle: args.platformStyle,
+      aspectRatio: args.aspectRatio,
+    });
+  }
+
   // Step A: 验证资源 + 扣额度 + 创建 job（一个事务）
   let result;
   try {
@@ -398,16 +441,29 @@ export async function createAndRunGenerationJob(args: {
           color_temp: asset.color_temp as ColorTemp,
           target_audience: asset.target_audience as TargetAudience,
         };
-        const shots = decideThreeShots(profile, args.platformStyle, args.aspectRatio);
+        const fallbackShots = decideThreeShots(profile, args.platformStyle, args.aspectRatio);
+        const plannedShots = plannedPromptPlan?.shots;
+        const shots = plannedShots
+          ? plannedShots.map((shot) => ({
+              prompt: `${shot.prompt}\n\n${PLATFORM_STYLE_RULES[args.platformStyle]}\n\nRender at ${ASPECT_LABEL[args.aspectRatio]}.\n\n${STRICT_QUALITY}`,
+              room: shot.scene_type,
+              lit: shot.light_state === "on",
+              compositionReferenceUrl: shot.room_reference,
+              plannerMeta: shot,
+            }))
+          : fallbackShots.map((shot) => ({ ...shot, plannerMeta: null }));
         promptList = shots.map((s) => s.prompt);
         compositionReferenceList = shots.map((s) => s.compositionReferenceUrl);
         // 存完整 prompts + room reference，便于排查“模型到底吃到了什么”。
-        finalPrompt = shots
-          .map(
+        finalPrompt = [
+          plannedPromptPlan
+            ? `prompt_planner=used\nusage_role=${plannedPromptPlan.usage_role}\nreasoning=${plannedPromptPlan.reasoning}`
+            : "prompt_planner=fallback_local_rules",
+          ...shots.map(
             (s, i) =>
-              `--- shot ${i + 1}: ${s.room} (${s.lit ? "lit" : "off"}) ---\nroom_reference=${s.compositionReferenceUrl}\n${s.prompt}`,
-          )
-          .join("\n\n");
+              `--- shot ${i + 1}: ${s.room} (${s.lit ? "lit" : "off"}) ---\nroom_reference=${s.compositionReferenceUrl}\nplanner_meta=${JSON.stringify(s.plannerMeta)}\n${s.prompt}`,
+          ),
+        ].join("\n\n");
       } else if (args.sceneKind === "template") {
         if (!args.templateId) {
           return { kind: "missing_prompt" as const };

@@ -174,7 +174,7 @@ function buildShotPrompt(
         : `medium (~${profile.size_hint_cm}cm)`;
 
   // Room-first: full scene first, lamp added last as a ceiling detail.
-  const body = `${audience}. A ${room} with ${sceneFurniture}. ${litLine} One ${profile.lamp_type} lamp matching the reference image — ${sizePhrase} — hangs at ceiling height, small relative to the furniture below.`;
+  const body = `${audience}. A ${ROOM_DISPLAY[room] ?? room} with ${sceneFurniture}. ${litLine} One ${profile.lamp_type} lamp matching the reference image — ${sizePhrase} — hangs at ceiling height, small relative to the furniture below.`;
 
   return `${body}
 
@@ -184,6 +184,13 @@ Render at ${ASPECT_LABEL[aspect]}.
 
 ${STRICT_QUALITY}`;
 }
+
+/** 内部房间 key → 自然语言房间描述（用于 prompt 文字，避免 "bedside pendant" 这类不自然措辞） */
+const ROOM_DISPLAY: Record<string, string> = {
+  "bedside pendant": "bedroom bedside corner",
+  "reading nook pendant": "reading nook",
+  "breakfast nook pendant": "breakfast nook",
+};
 
 /** 每种灯具类型对应房间里的"场景主体家具"——AI 会把摄影焦点放在这上面 */
 const ROOM_FURNITURE: Record<LampType, Record<string, string>> = {

@@ -54,9 +54,7 @@ const ASPECT_LABEL: Record<AspectRatio, string> = {
   "16_9": "16:9 wide aspect ratio",
 };
 
-const STRICT_QUALITY = `
-Keep the uploaded lamp's structure, material, color and shade count. Install it as a real fixture with visible ceiling/wall/table/floor connection. Match the room perspective, shadows, reflections and ambient light. Photoreal interior magazine quality, clean composition, no text or watermark.
-`.trim();
+const STRICT_QUALITY = `Photoreal interior photography. Lamp appearance (material, color, shade shape) matches the reference image. Correct ceiling perspective and ambient lighting. No text or watermark.`.trim();
 
 function buildPrompt(
   templatePrompt: string,
@@ -76,22 +74,6 @@ ${STRICT_QUALITY}`;
 // 灯具档案驱动的智能 prompt 拼接（V1）
 // 关联 spec: docs/superpowers/specs/2026-06-13-lamp-profile-design.md
 // ============================================================================
-
-/** 行业搭配规范——AI 出图自动遵守，用户不可见 */
-const INDUSTRY_RULES: Record<LampType, string> = {
-  pendant:
-    "Pendant bottom hangs 70-90cm above the table or floor surface. Pendant diameter is approximately 1/2 to 1/3 of the dining table width.",
-  wall:
-    "Wall sconce mounted 1.4-1.6m above floor for bedside, 1.6-1.8m for hallways.",
-  table:
-    "Table lamp height equals nightstand/desk surface plus 35-50cm. Lamp shade bottom near eye level when seated.",
-  floor:
-    "Floor lamp total height 1.5-1.8m. Placed 30-50cm from sofa armrest.",
-  ceiling:
-    "Flush-mount ceiling fixture for rooms with 2.7m+ ceiling height.",
-  unknown:
-    "Place the lamp at a believable, in-scale position for the room.",
-};
 
 /** 3 张图的房间组合（按灯具类型固定） */
 const ROOM_SETS: Record<LampType, string[]> = {
@@ -181,13 +163,18 @@ function buildShotPrompt(
 ): string {
   const audience = AUDIENCE_KEYWORDS[profile.target_audience];
   const sceneFurniture = ROOM_FURNITURE[profile.lamp_type]?.[room] || "appropriate furniture";
-  const lampSizeRule = lampSizeConstraint(profile.lamp_type, profile.size_class, profile.size_hint_cm);
-  const daylightLogic = lit
-    ? `For this lit/evening version, use a very subtle ${COLOR_TEMP_DESC[profile.color_temp]} from the installed fixture while preserving the room atmosphere.`
-    : `For this daytime version, the fixture is OFF: no glow, no emitted light, only natural window daylight.`;
+  const litLine = lit
+    ? `Soft ${COLOR_TEMP_DESC[profile.color_temp]} evening ambiance.`
+    : "Daytime, natural window light, lamp switched off.";
+  const sizePhrase =
+    profile.size_class === "small"
+      ? `small (~${profile.size_hint_cm}cm)`
+      : profile.size_class === "large"
+        ? `large (~${profile.size_hint_cm}cm)`
+        : `medium (~${profile.size_hint_cm}cm)`;
 
-  // Single-image i2i: lamp photo is the only reference; model generates the full scene from text.
-  const body = `Interior photo of a ${room} styled as ${audience}. The uploaded image is the lamp product — install exactly one of it as a ${profile.lamp_type} fixture in this scene. Main subject is the room: ${sceneFurniture}. ${daylightLogic} Proper perspective, contact shadow and ambient reflections. Scale: ${lampSizeRule} ${INDUSTRY_RULES[profile.lamp_type]}`;
+  // Room-first: full scene first, lamp added last as a ceiling detail.
+  const body = `${audience}. A ${room} with ${sceneFurniture}. ${litLine} One ${profile.lamp_type} lamp matching the reference image — ${sizePhrase} — hangs at ceiling height, small relative to the furniture below.`;
 
   return `${body}
 
@@ -196,49 +183,6 @@ ${PLATFORM_STYLE_RULES[platformStyle]}
 Render at ${ASPECT_LABEL[aspect]}.
 
 ${STRICT_QUALITY}`;
-}
-
-/**
- * 把灯具尺寸翻译成相对周围家具的几何约束。
- * nano-banana 听几何比例（"1/8 of table width"）远比听形容词（"compact"）有效。
- */
-function lampSizeConstraint(
-  lampType: LampType,
-  sizeClass: SizeClass,
-  cm: number,
-): string {
-  if (lampType === "pendant") {
-    // 关键修复：优先尊重 UI 里的 size_class。
-    // 之前只看 cm：55cm 会被写成 large pendant，导致 AI 一直画大。
-    if (sizeClass === "small") {
-      return `a small pendant fixture, about ${cm}cm diameter, visually around 1/10 to 1/8 of the main furniture width. It should read as a modest ceiling accent, smaller than a dining chair back, not a chandelier.`;
-    }
-    if (sizeClass === "medium") {
-      return `a medium pendant fixture, about ${cm}cm diameter, visually around 1/7 to 1/5 of the main furniture width. It should feel like a normal household pendant, clearly smaller than the coffee table or sofa width.`;
-    }
-    return `a large pendant fixture, about ${cm}cm diameter, visually around 1/4 to 1/3 of the main furniture width. Still proportional to the room, not oversized.`;
-  }
-  if (lampType === "ceiling") {
-    if (sizeClass === "small") return `a small ceiling fixture, about ${cm}cm diameter — around the size of a dinner plate.`;
-    if (sizeClass === "medium") return `a medium ceiling fixture, about ${cm}cm diameter — around the size of a serving tray.`;
-    return `a large ceiling fixture, about ${cm}cm diameter — broad but still within normal ceiling-light scale.`;
-  }
-  if (lampType === "table") {
-    if (sizeClass === "small") return `a small table lamp about ${cm}cm tall, visually secondary to the nightstand/desk.`;
-    if (sizeClass === "medium") return `a medium table lamp about ${cm}cm tall, normal household scale on a table surface.`;
-    return `a large table lamp about ${cm}cm tall, still proportional to the furniture surface.`;
-  }
-  if (lampType === "floor") {
-    if (sizeClass === "small") return `a compact floor lamp about ${cm}cm tall, lower than standing adult shoulder height.`;
-    if (sizeClass === "medium") return `a medium floor lamp about ${cm}cm tall, roughly adult height, placed near sofa.`;
-    return `a tall floor lamp about ${cm}cm tall, proportionate to sofa and ceiling height.`;
-  }
-  if (lampType === "wall") {
-    if (sizeClass === "small") return `a small wall sconce projecting about ${cm}cm from the wall, visually similar to a small wall clock.`;
-    if (sizeClass === "medium") return `a medium wall sconce projecting about ${cm}cm from the wall, normal bedside scale.`;
-    return `a large wall sconce projecting about ${cm}cm from the wall, still proportional to wall and furniture.`;
-  }
-  return `a ${sizeClass} lamp of approximately ${cm}cm in its primary dimension`;
 }
 
 /** 每种灯具类型对应房间里的"场景主体家具"——AI 会把摄影焦点放在这上面 */

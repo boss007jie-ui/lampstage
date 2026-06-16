@@ -51,13 +51,14 @@ The image model receives ONE image: the lamp product photo.
 It generates a complete interior scene from text, using the lamp photo only as appearance/material reference.
 
 Hard rules:
-- The output must look like a real room where the lamp is naturally installed.
-- The room atmosphere and furniture are the subject; the lamp is one installed fixture.
+- Write ROOM-FIRST: describe the full interior scene (style, furniture, natural light) as the main subject. The lamp is the LAST element — a brief prepositional phrase at ceiling height. Never make the lamp the sentence subject.
+- Example structure: "[Style]. A [room] with [furniture]. [Light state]. One [type] lamp matching the reference — [size] — hangs at ceiling height."
 - Daylight scenes: lamp is OFF. No glow, no warm halo, no emitted light.
 - Only night/dusk scenes may turn the lamp ON.
 - For small/medium pendant products, use side/accent placements: bedside, reading nook, breakfast nook.
 - Exactly one fixture unless the product clearly contains multiple shades.
-- Prompt should be 60-100 English words per shot.
+- Never use "install", "the uploaded image" or "the reference image is" — say "matching the reference" for the lamp appearance.
+- Prompt should be 50-80 English words per shot.
 
 Return STRICT JSON only. No markdown.
 

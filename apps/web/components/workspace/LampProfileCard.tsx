@@ -61,6 +61,18 @@ const SIZE_RANGE: Record<
   unknown: { small: "小", medium: "中", large: "大" },
 };
 
+const SIZE_REPRESENTATIVE_CM: Record<
+  ProfileResp["lamp_type"],
+  Record<ProfileResp["size_class"], number>
+> = {
+  pendant: { small: 25, medium: 45, large: 70 },
+  wall: { small: 20, medium: 32, large: 45 },
+  table: { small: 30, medium: 45, large: 60 },
+  floor: { small: 130, medium: 155, large: 180 },
+  ceiling: { small: 35, medium: 55, large: 80 },
+  unknown: { small: 25, medium: 45, large: 70 },
+};
+
 const TEMP_LABEL: Record<ProfileResp["color_temp"], string> = {
   warm_3000k: "暖光 3000K",
   neutral_4000k: "中性 4000K",
@@ -173,14 +185,28 @@ export function LampProfileCard({ assetId, onReady }: Props) {
   // 更新字段（防抖 PATCH）
   const update = <K extends keyof ProfileResp>(key: K, value: ProfileResp[K]) => {
     if (!profile) return;
+    const patchBody: Partial<ProfileResp> = { [key]: value } as Partial<ProfileResp>;
     const next = { ...profile, [key]: value };
+
+    // 尺寸类别变化时，本地立即联动估算 cm；后端 PATCH 也做同样兜底。
+    // 否则用户点“小”，界面还显示“约55cm”，生成 prompt 也可能出现矛盾。
+    if (key === "size_class") {
+      const repCm = SIZE_REPRESENTATIVE_CM[profile.lamp_type]?.[
+        value as ProfileResp["size_class"]
+      ];
+      if (repCm) {
+        next.size_hint_cm = repCm;
+        patchBody.size_hint_cm = repCm;
+      }
+    }
+
     setProfile(next);
     if (patchTimer.current) window.clearTimeout(patchTimer.current);
     patchTimer.current = window.setTimeout(() => {
       fetch(`/api/uploads/${assetId}/profile`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ [key]: value }),
+        body: JSON.stringify(patchBody),
       }).catch(() => {
         // 不阻断 UI，DB 失败下次生成时会因 profile 不全导致 generate 报错——可接受
       });

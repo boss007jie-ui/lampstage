@@ -186,9 +186,8 @@ function buildShotPrompt(
     ? `For this lit/evening version, use a very subtle ${COLOR_TEMP_DESC[profile.color_temp]} from the installed fixture while preserving the room atmosphere.`
     : `For this daytime version, the fixture is OFF: no glow, no emitted light, only natural window daylight.`;
 
-  // Keep this prompt short. Nano-banana/Gemini-image listens best to ~80-150 words.
-  // The room is the grammatical subject; lamp is one installed fixture inside it.
-  const body = `Image 1 is the locked room reference. Keep its room layout, furniture scale, camera angle, ceiling height, window daylight, shadows and atmosphere, refined into ${audience} styling. Image 2 is only the lamp appearance reference. Add exactly one single unlit installed fixture based on image 2 to the room from image 1. Use one canopy, one cord/chain, one shade and one bulb only. The main subject is the finished ${room}: ${sceneFurniture}, walls, ceiling, floor, rug and decor. ${daylightLogic} Integrate the fixture as real hardware with matching perspective, contact shadow and ambient reflections. Scale: ${lampSizeRule} ${INDUSTRY_RULES[profile.lamp_type]}`;
+  // Single-image i2i: lamp photo is the only reference; model generates the full scene from text.
+  const body = `Interior photo of a ${room} styled as ${audience}. The uploaded image is the lamp product — install exactly one of it as a ${profile.lamp_type} fixture in this scene. Main subject is the room: ${sceneFurniture}. ${daylightLogic} Proper perspective, contact shadow and ambient reflections. Scale: ${lampSizeRule} ${INDUSTRY_RULES[profile.lamp_type]}`;
 
   return `${body}
 

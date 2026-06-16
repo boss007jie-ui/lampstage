@@ -43,33 +43,21 @@ export type PromptPlan = {
   shots: PlannedShot[];
 };
 
-const SCENE_REFS = [
-  "/scene-refs-v2/dining_offcenter_no_lamp.jpg",
-  "/scene-refs-v2/living_offcenter_no_lamp.jpg",
-  "/scene-refs-v2/entryway_offcenter_no_lamp.jpg",
-  "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
-  "/scene-refs-v2/study_offcenter_no_lamp.jpg",
-  "/scene-refs-v2/corner_offcenter_no_lamp.jpg",
-];
-
 const SYSTEM_PROMPT = `You are a senior interior-photography prompt planner for a lighting e-commerce SaaS.
 
 Your job is NOT to generate an image. Your job is to write concise image-edit prompts for nano-banana / Gemini image.
 
-The image model will receive TWO images in this exact order:
-Image 1 = room/composition reference. It controls layout, furniture scale, camera angle, ceiling height, daylight and shadows.
-Image 2 = lamp product reference. It controls only lamp appearance/material/shape.
+The image model receives ONE image: the lamp product photo.
+It generates a complete interior scene from text, using the lamp photo only as appearance/material reference.
 
 Hard rules:
-- The output must look like a real room where the lamp is installed, not a product pasted on top.
-- The room atmosphere and furniture are the subject; the lamp is a normal installed fixture.
+- The output must look like a real room where the lamp is naturally installed.
+- The room atmosphere and furniture are the subject; the lamp is one installed fixture.
 - Daylight scenes: lamp is OFF. No glow, no warm halo, no emitted light.
 - Only night/dusk scenes may turn the lamp ON.
-- For small/medium pendant products, avoid main centered dining/living room chandelier compositions unless explicitly necessary.
-- Use side/edge/secondary placements for accent pendants: bedside, reading corner, side table, breakfast nook, entry console.
-- Exactly one fixture unless the product itself clearly contains multiple shades.
-- Preserve the room reference composition; do not rebuild the room around the lamp.
-- Prompt should be 80-130 English words per shot.
+- For small/medium pendant products, use side/accent placements: bedside, reading nook, breakfast nook.
+- Exactly one fixture unless the product clearly contains multiple shades.
+- Prompt should be 60-100 English words per shot.
 
 Return STRICT JSON only. No markdown.
 
@@ -97,10 +85,6 @@ function stripFence(s: string): string {
   return s.replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
 }
 
-function isRef(v: unknown): v is string {
-  return typeof v === "string" && SCENE_REFS.includes(v);
-}
-
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
@@ -111,7 +95,7 @@ function normalizePlan(raw: unknown): PromptPlan | null {
     .filter(isRecord)
     .map((s): PlannedShot => ({
       scene_type: String(s.scene_type || "interior scene").slice(0, 80),
-      room_reference: isRef(s.room_reference) ? s.room_reference : "/scene-refs-v2/living_offcenter_no_lamp.jpg",
+      room_reference: "",
       time_of_day:
         s.time_of_day === "dusk" || s.time_of_day === "night" ? s.time_of_day : "daylight",
       light_state: s.light_state === "on" ? "on" : "off",
@@ -158,10 +142,7 @@ ${args.userIntent || "Generate real usage scene images for a lighting e-commerce
 Platform style: ${args.platformStyle}
 Aspect ratio: ${args.aspectRatio}
 
-Available room references:
-${SCENE_REFS.map((x) => `- ${x}`).join("\n")}
-
-Write 3 planned image-edit shots. Remember Image 1 is room reference and Image 2 is lamp reference.`;
+Write 3 planned image-edit shots. Only ONE image (the lamp product photo) is sent to the model.`;
 
   const body = {
     model: MODEL,

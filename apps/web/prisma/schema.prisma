@@ -104,6 +104,7 @@ model UploadedAsset {
   size_hint_cm     Int?
   color_temp       String?
   target_audience  String?
+  material_keywords String?   // comma-separated, e.g. "rattan,flat disc,black chain"
   ai_inferred_at   DateTime?
   created_at      DateTime       @default(now())
 

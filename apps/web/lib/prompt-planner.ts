@@ -24,6 +24,7 @@ export type ProductProfileForPlanner = {
   size_hint_cm: number;
   color_temp: ColorTemp;
   target_audience: TargetAudience;
+  material_keywords: string[];
 };
 
 export type PlannedShot = {

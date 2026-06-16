@@ -25,7 +25,7 @@ import {
   refundCredits,
 } from "@/lib/credits";
 import { putGeneratedImage } from "@/lib/storage";
-import { getProvider } from "@/lib/providers";
+import { getProviderForIndex } from "@/lib/providers";
 import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
 import type {
   ColorTemp,
@@ -142,6 +142,7 @@ export type LampProfileInput = {
   size_hint_cm: number;
   color_temp: ColorTemp;
   target_audience: TargetAudience;
+  material_keywords: string[];
 };
 
 /**
@@ -173,8 +174,30 @@ function buildShotPrompt(
         ? `large (~${profile.size_hint_cm}cm)`
         : `medium (~${profile.size_hint_cm}cm)`;
 
-  // Room-first: full scene first, lamp added last as a ceiling detail.
-  const body = `${audience}. A ${ROOM_DISPLAY[room] ?? room} with ${sceneFurniture}. ${litLine} One ${profile.lamp_type} lamp matching the reference image — ${sizePhrase} — hangs at ceiling height, small relative to the furniture below.`;
+  // Room-first + material detail: full scene first, lamp described with specifics last.
+  const materialDesc = profile.material_keywords.length > 0
+    ? profile.material_keywords.join(", ")
+    : profile.lamp_type;
+  const installNote =
+    profile.lamp_type === "pendant" || profile.lamp_type === "ceiling"
+      ? "suspended from ceiling, cord/chain leads to canopy"
+      : profile.lamp_type === "wall"
+        ? "wall-mounted with visible backplate"
+        : profile.lamp_type === "table"
+          ? "sitting on the surface"
+          : "standing on the floor";
+  const frameShare =
+    profile.size_class === "small" ? "upper 10–15% of frame"
+    : profile.size_class === "large" ? "upper 20–25% of frame"
+    : "upper 15–20% of frame";
+  const body = [
+    `${audience}.`,
+    `Realistic interior photo of a ${ROOM_DISPLAY[room] ?? room}: ${sceneFurniture}.`,
+    `${litLine}`,
+    `Installed: one ${materialDesc} ${profile.lamp_type} (${sizePhrase}), ${installNote}.`,
+    `The lamp occupies the ${frameShare}, blends with the room's palette and proportions.`,
+    `Room and furniture fill the frame; the lamp is one architectural detail, not the focal subject.`,
+  ].join(" ");
 
   return `${body}
 
@@ -335,6 +358,7 @@ export async function createAndRunGenerationJob(args: {
         size_hint_cm: true,
         color_temp: true,
         target_audience: true,
+        material_keywords: true,
       },
     });
     if (!assetForPlanning || assetForPlanning.user_id !== args.userId) {
@@ -356,6 +380,7 @@ export async function createAndRunGenerationJob(args: {
         size_hint_cm: assetForPlanning.size_hint_cm ?? 40,
         color_temp: assetForPlanning.color_temp as ColorTemp,
         target_audience: assetForPlanning.target_audience as TargetAudience,
+        material_keywords: (assetForPlanning.material_keywords ?? "").split(",").filter(Boolean),
       },
       platformStyle: args.platformStyle,
       aspectRatio: args.aspectRatio,
@@ -390,6 +415,7 @@ export async function createAndRunGenerationJob(args: {
           size_hint_cm: asset.size_hint_cm ?? 40,
           color_temp: asset.color_temp as ColorTemp,
           target_audience: asset.target_audience as TargetAudience,
+          material_keywords: (asset.material_keywords ?? "").split(",").filter(Boolean),
         };
         const fallbackShots = decideThreeShots(profile, args.platformStyle, args.aspectRatio);
         const plannedShots = plannedPromptPlan?.shots;
@@ -570,8 +596,8 @@ async function runGenerationPipeline(args: {
     // 阶段 3：实时生成保持稳定：3 张都走默认 provider（nano-banana）
     // gpt-image-2 能用，但较慢，后续作为"高质量重绘"单独按钮异步调用，避免拖垮 60s 同步接口。
     await setStage(jobId, "generating");
-    const provider = getProvider();
     const calls = prompts.map((prompt, idx) => {
+      const provider = getProviderForIndex(idx);
       const compositionReferenceUrl = args.compositionReferenceUrls?.[idx];
       console.log(
         `[gen] output ${idx + 1}/${OUTPUT_COUNT} via ${provider.name}` +

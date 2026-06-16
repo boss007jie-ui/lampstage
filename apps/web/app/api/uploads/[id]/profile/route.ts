@@ -28,6 +28,7 @@ type AssetSnapshot = {
   size_hint_cm: number | null;
   color_temp: string | null;
   target_audience: string | null;
+  material_keywords: string | null;
   ai_inferred_at: Date | null;
 };
 
@@ -43,6 +44,7 @@ async function loadAsset(id: string): Promise<AssetSnapshot | null> {
       size_hint_cm: true,
       color_temp: true,
       target_audience: true,
+      material_keywords: true,
       ai_inferred_at: true,
     },
   });
@@ -119,6 +121,7 @@ export async function POST(
       size_hint_cm: profile.size_hint_cm,
       color_temp: profile.color_temp,
       target_audience: profile.target_audience,
+      material_keywords: profile.material_keywords.slice(0,5).join(","),
       ai_inferred_at: new Date(),
     },
     select: {
@@ -130,6 +133,7 @@ export async function POST(
       size_hint_cm: true,
       color_temp: true,
       target_audience: true,
+      material_keywords: true,
       ai_inferred_at: true,
     },
   });
@@ -233,6 +237,7 @@ export async function PATCH(
       size_hint_cm: true,
       color_temp: true,
       target_audience: true,
+      material_keywords: true,
       ai_inferred_at: true,
     },
   });

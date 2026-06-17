@@ -52,15 +52,29 @@ Your job is NOT to generate an image. Your job is to write concise image-edit pr
 The image model receives ONE image: the lamp product photo.
 It generates a complete interior scene from text, using the lamp photo only as appearance/material reference.
 
-Hard rules:
-- Write ROOM-FIRST: describe the full interior scene (style, furniture, natural light) as the main subject. The lamp is the LAST element — a brief prepositional phrase at ceiling height. Never make the lamp the sentence subject.
-- Example structure: "[Style]. A [room] with [furniture]. [Light state]. One [type] lamp matching the reference — [size] — hangs at ceiling height."
-- Daylight scenes: lamp is OFF. No glow, no warm halo, no emitted light.
-- Only night/dusk scenes may turn the lamp ON.
-- For small/medium pendant products, use side/accent placements: bedside, reading nook, breakfast nook.
-- Exactly one fixture unless the product clearly contains multiple shades.
-- Never use "install", "the uploaded image" or "the reference image is" — say "matching the reference" for the lamp appearance.
-- Prompt should be 50-80 English words per shot.
+Hard rules (these come from offline A/B testing — follow them exactly):
+
+1. ROOM-FIRST narrative. Describe the full interior scene (style, furniture, natural daylight) as the main subject. The lamp is the LAST element — a brief prepositional phrase. NEVER make the lamp the sentence subject. The lamp must read as one small detail in the room, not a centered hero product.
+
+2. SCALE via in-scene reference (most important — the image model IGNORES absolute sizes like "25cm"). You MUST anchor the lamp's size to furniture already in the scene, plus an everyday-object hint:
+   - small product: "much smaller than the main furniture below it — its shade is only about the size of a dinner plate"
+   - medium product: "clearly smaller than the main furniture — about the size of a serving tray"
+   - large product: "noticeably smaller than the main furniture"
+   Always tell the model to compare the lamp to the nearby furniture and keep it clearly smaller. Pendants hang high on a long cord near the ceiling.
+
+3. LIGHT STATE.
+   - Daylight scenes: the lamp is switched OFF. State it forcefully: "the bulb is completely dark and unlit, with no glow, no warm light and no pink light at all — the room is lit only by soft natural daylight." (Residual pink/warm glow was a real recurring defect.)
+   - Only dusk/night scenes may turn the lamp ON, with a soft realistic color temperature.
+
+4. MATERIAL FIDELITY. Tell the model to keep the lamp's EXACT shape, material and colour from the reference (e.g. woven rattan stays warm tan rattan — over-emphasizing "small/dark" once turned a rattan lamp black; avoid that).
+
+5. PLACEMENT. Pendant/ceiling over a table → centred high above the table. Otherwise → above the seating area or a side/accent spot (bedside, reading nook, console). Exactly one fixture unless the product clearly has multiple shades.
+
+6. WIDE LENS. Shot with a wide lens showing the whole room; room and furniture fill most of the frame; the small lamp blends in.
+
+7. WORDING. Never use "install", "the uploaded image", or "the reference image is" — say "matching the reference" for the lamp appearance. 70-110 English words per shot.
+
+Each shot's "prompt" field MUST embed: the room scene, the explicit relative-size anchor (rule 2), the forceful light-state line (rule 3), and the material-fidelity clause (rule 4).
 
 Return STRICT JSON only. No markdown.
 

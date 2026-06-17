@@ -174,29 +174,37 @@ function buildShotPrompt(
         ? `large (~${profile.size_hint_cm}cm)`
         : `medium (~${profile.size_hint_cm}cm)`;
 
-  // Room-first + material detail: full scene first, lamp described with specifics last.
   const materialDesc = profile.material_keywords.length > 0
     ? profile.material_keywords.join(", ")
     : profile.lamp_type;
-  const installNote =
+
+  // 位置 + 安装方式：吊灯/吸顶强调"贴天花板 + 短吊杆 + 偏离画面中心"，
+  // 这是线下实测让灯"融入而非居中放大"的关键。
+  const placement =
     profile.lamp_type === "pendant" || profile.lamp_type === "ceiling"
-      ? "suspended from ceiling, cord/chain leads to canopy"
+      ? "hanging from a SHORT drop very close to the ceiling, positioned off-center toward an upper corner of the frame (never dead-center)"
       : profile.lamp_type === "wall"
-        ? "wall-mounted with visible backplate"
+        ? "wall-mounted with a visible backplate, off to one side of the frame"
         : profile.lamp_type === "table"
-          ? "sitting on the surface"
-          : "standing on the floor";
+          ? "sitting on the furniture surface to one side of the frame"
+          : "standing on the floor against a side wall";
+
+  // 尺寸用画面占比表达（实测比 cm 有效），整体压小，强化"配饰非主角"。
   const frameShare =
-    profile.size_class === "small" ? "upper 10–15% of frame"
-    : profile.size_class === "large" ? "upper 20–25% of frame"
-    : "upper 15–20% of frame";
+    profile.size_class === "small" ? "only the top ~10% of the frame"
+    : profile.size_class === "large" ? "about the top ~18% of the frame"
+    : "only the top ~13% of the frame";
+
+  // V2 策略（线下实测有效）：
+  // 1. "wide-angle real estate photograph" + "camera pulled back" → 房间占主导，灯变配饰
+  // 2. off-center + short drop → 灯不再居中、不再吊到半空
+  // 3. frameShare → 尺寸压下来
   const body = [
-    `${audience}.`,
-    `Realistic interior photo of a ${ROOM_DISPLAY[room] ?? room}: ${sceneFurniture}.`,
+    `Wide-angle real estate interior photograph of a ${ROOM_DISPLAY[room] ?? room}, ${audience}: ${sceneFurniture}.`,
+    `The camera is pulled back to show the whole room; the room and furniture are the main subject and fill most of the frame.`,
     `${litLine}`,
-    `Installed: one ${materialDesc} ${profile.lamp_type} (${sizePhrase}), ${installNote}.`,
-    `The lamp occupies the ${frameShare}, blends with the room's palette and proportions.`,
-    `Room and furniture fill the frame; the lamp is one architectural detail, not the focal subject.`,
+    `A single ${materialDesc} ${profile.lamp_type} (${sizePhrase}, matching the reference image) is ${placement}.`,
+    `It occupies ${frameShare}, clearly smaller than the furniture below, blending naturally into the room as one architectural detail — not the focal subject.`,
   ].join(" ");
 
   return `${body}
@@ -348,7 +356,9 @@ export async function createAndRunGenerationJob(args: {
 > {
   let plannedPromptPlan: PromptPlan | null = null;
 
-  if (!args.sceneKind) {
+  // PROMPT_PLANNER_ENABLED=true 时才走 LLM planner；默认关闭，用线下验证过的本地规则
+  // （buildShotPrompt：wide-angle real estate + 贴天花板 + off-center + 小尺寸占比）。
+  if (!args.sceneKind && process.env.PROMPT_PLANNER_ENABLED === "true") {
     const assetForPlanning = await prisma.uploadedAsset.findUnique({
       where: { id: args.uploadedAssetId },
       select: {

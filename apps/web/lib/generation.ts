@@ -278,27 +278,25 @@ function buildShotPrompt(
     profile.lamp_type === "pendant" || profile.lamp_type === "ceiling";
   const tableCentric = isPendantType && TABLE_CENTRIC_SPACES.has(room);
 
-  // 相对尺寸锚点（线下实测关键）：flash 模型忽略"约25cm"这类绝对数字，
-  // 但会遵守"是桌宽的1/3、像个餐盘那么大"这种画面内参照物比较。size_class 决定比例。
-  // 吊灯/吸顶用宽度比，台灯/落地用高度比。
-  const refObject =
-    tableCentric ? "the table"
-    : isPendantType ? "the sofa / seating below"
-    : profile.lamp_type === "wall" ? "the furniture beside it"
-    : profile.lamp_type === "table" ? "the surface it sits on"
-    : "a person standing next to it";
+  // 相对尺寸锚点（方案A：不写死具体参照物，让模型自己在场景里找主家具做参照）。
+  // flash 模型忽略"约25cm"这类绝对数字，但会遵守"明显小于画面里的主要家具、像个小点缀"
+  // 这种画面内相对比较。size_class 只决定"小到什么程度"。
+  // everyday-object 比喻给模型一个直觉尺度，但不锁定到某件特定家具。
   const sizeFraction =
-    profile.size_class === "small" ? "only about one-quarter the width of"
-    : profile.size_class === "large" ? "about half the width of"
-    : "only about one-third the width of";
-  const plateHint =
-    profile.size_class === "small" ? ", roughly the size of a dinner plate"
-    : profile.size_class === "large" ? ""
-    : ", roughly the size of a serving tray";
-  const scaleLine =
-    isPendantType
-      ? `IMPORTANT SCALE: the lamp shade is small and narrow — ${sizeFraction} ${refObject}${plateHint}, clearly much smaller than ${refObject}; it hangs on its cord high up near the ceiling so it reads as a small modest accent, NOT an oversized statement piece.`
-      : `IMPORTANT SCALE: the lamp is modestly sized and clearly smaller than ${refObject}, reading as one small accent in the room, not an oversized hero object.`;
+    profile.size_class === "small"
+      ? "much smaller than"
+      : profile.size_class === "large"
+        ? "noticeably smaller than"
+        : "clearly smaller than";
+  const everydayHint =
+    profile.size_class === "small"
+      ? " — its shade is only about the size of a dinner plate"
+      : profile.size_class === "large"
+        ? ""
+        : " — its shade is only about the size of a serving tray";
+  const scaleLine = isPendantType
+    ? `IMPORTANT SCALE: the lamp is a small, modest accent, ${sizeFraction} the main furniture below it${everydayHint}. It hangs high on its cord near the ceiling and reads as one small detail in the room, NOT an oversized hero piece — compare it to whatever furniture sits beneath it and keep it clearly smaller.`
+    : `IMPORTANT SCALE: the lamp is ${sizeFraction} the main furniture next to it${everydayHint}, reading as one small modest accent in the room, not an oversized hero object — compare it to the nearby furniture and keep it clearly smaller.`;
 
   // 位置：用自然语序把灯具"摆进"场景——居中对桌 / 家具区上方 / 靠墙 / 台面 / 落地。
   let placement: string;

@@ -91,10 +91,18 @@ export const nanoBananaProvider: IGenerationProvider = {
     const startedAt = Date.now();
     try {
       const ref = await fetchAsBase64(input.referenceImageUrl);
-      const parts = [
-        { text: input.prompt },
-        { inline_data: { mime_type: ref.mime, data: ref.b64 } },
-      ];
+      // 房间优先双图法：有房间参考图时，Image1=房间(锁定布局/尺度/光线)，Image2=灯具外观。
+      // 模型只需把灯放进固定房间，尺度和构图稳定性远高于纯文字脑补整个房间。
+      // 无房间图时退回单图行为（仅灯具）。
+      const parts: Array<
+        | { text: string }
+        | { inline_data: { mime_type: string; data: string } }
+      > = [{ text: input.prompt }];
+      if (input.compositionReferenceUrl) {
+        const room = await fetchAsBase64(input.compositionReferenceUrl);
+        parts.push({ inline_data: { mime_type: room.mime, data: room.b64 } });
+      }
+      parts.push({ inline_data: { mime_type: ref.mime, data: ref.b64 } });
       const body = {
         contents: [
           {

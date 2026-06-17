@@ -186,6 +186,80 @@ function spaceDisplay(key: string): string {
 }
 
 /**
+ * 房间优先双图法：SPACE_POOL key → public/scene-refs-v2 下的真实空房间图。
+ * 命中的空间走"锁定房间+放灯"双图法；未命中的空间退回纯文字生图。
+ */
+const ROOM_REF_MAP: Record<string, string> = {
+  dining_room: "/scene-refs-v2/dining_offcenter_no_lamp.jpg",
+  kitchen_island: "/scene-refs-v2/dining_offcenter_no_lamp.jpg",
+  breakfast_nook: "/scene-refs-v2/corner_offcenter_no_lamp.jpg",
+  living_room: "/scene-refs-v2/living_offcenter_no_lamp.jpg",
+  living_side_table: "/scene-refs-v2/living_offcenter_no_lamp.jpg",
+  entryway: "/scene-refs-v2/entryway_offcenter_no_lamp.jpg",
+  hallway: "/scene-refs-v2/entryway_offcenter_no_lamp.jpg",
+  bedroom: "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
+  bedside: "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
+  study: "/scene-refs-v2/study_offcenter_no_lamp.jpg",
+  reading_nook: "/scene-refs-v2/corner_offcenter_no_lamp.jpg",
+};
+
+function resolveRoomRef(spaceKey: string): string {
+  return ROOM_REF_MAP[spaceKey] ?? "";
+}
+
+/** 按灯型决定灯具在房间里的安装位置措辞 */
+const PLACEMENT_BY_TYPE: Record<LampType, string> = {
+  pendant: "hanging high on a cord, centered above the main table or seating area",
+  ceiling: "mounted flush/high on the ceiling above the main seating or table",
+  wall: "mounted on the wall beside the main seating or above a console",
+  table: "placed on a side table, console or nightstand within the scene",
+  floor: "standing on the floor beside the sofa or a reading corner",
+  unknown: "placed naturally as a secondary fixture within the scene",
+};
+
+/** 按尺寸档决定相对家具的尺度上限措辞 */
+const SCALE_BY_SIZE: Record<SizeClass, string> = {
+  small:
+    "about the size of a dinner plate, at most one-quarter the width of the furniture below it",
+  medium:
+    "about the size of a serving tray, at most one-third the width of the furniture below it",
+  large:
+    "a statement piece but still clearly smaller than the furniture below it, at most half its width",
+};
+
+/**
+ * 房间优先双图法的精简提示词：房间由 Image1 锁定，模型只需把 Image2 的灯放进去。
+ * 刻意避免堆叠否定句和重复 lamp 词（线下验证：纯文字脑补房间才是尺度/构图失控的根源）。
+ */
+function buildRoomFirstPrompt(
+  profile: LampProfileInput,
+  lit: boolean,
+  platformStyle: PlatformStyle,
+  aspect: AspectRatio,
+): string {
+  const material =
+    profile.material_keywords.length > 0
+      ? profile.material_keywords.join(", ")
+      : "the same";
+  const lightLine = lit
+    ? "The lamp is switched ON with a soft, realistic warm glow; the rest of the room stays calm and natural, keeping the daylight already in the reference."
+    : "The lamp is switched OFF — dark, unlit bulb with no glow; the room stays lit only by the natural daylight already in the reference image.";
+  const body = [
+    "Image 1 is the locked room reference. Keep its exact room layout, furniture, wall colour, flooring, window daylight, camera angle, ceiling and shadows UNCHANGED.",
+    `Image 2 is only the lamp's appearance reference. Add exactly ONE ${material} ${spaceDisplay(profile.lamp_type)} lamp from Image 2 (keep its exact shape, material and colour), ${PLACEMENT_BY_TYPE[profile.lamp_type]}.`,
+    `Match the room's perspective, daylight and shadow direction so the lamp looks truly photographed in the room, not pasted on. Keep the lamp ${SCALE_BY_SIZE[profile.size_class]}; it reads as one small installed fixture, secondary to the room.`,
+    lightLine,
+  ].join(" ");
+  return `${body}
+
+${PLATFORM_STYLE_RULES[platformStyle]}
+
+Render at ${ASPECT_LABEL[aspect]}.
+
+${STRICT_QUALITY}`;
+}
+
+/**
  * 决定 3 个空间。优先用 AI 判断的 space_fit（风格气质驱动），
  * 不足 3 个用灯型默认空间补齐。pool 里没有的自定义空间也允许（自由发挥）。
  */
@@ -548,15 +622,31 @@ export async function createAndRunGenerationJob(args: {
               plannerMeta: null as object | null,
               is_variant: false,
             }));
+        // 房间优先双图法：命中 scene-refs-v2 的空间，改用"锁定房间+放灯"精简提示词 + 房间参考图。
+        // 未命中的自定义空间退回原纯文字提示词（compositionReferenceUrl 留空）。
+        const enriched = candidates.map((c) => {
+          const roomRef = resolveRoomRef(c.room);
+          if (!roomRef) return c;
+          return {
+            ...c,
+            prompt: buildRoomFirstPrompt(
+              profile,
+              c.lit,
+              args.platformStyle,
+              args.aspectRatio,
+            ),
+            compositionReferenceUrl: roomRef,
+          };
+        });
         // 适合空间数 = 非变体候选数；variant 下标 = 第一个 is_variant 的位置
-        const mainCount = candidates.filter((c) => !c.is_variant).length;
-        const variantIdx = candidates.findIndex((c) => c.is_variant);
+        const mainCount = enriched.filter((c) => !c.is_variant).length;
+        const variantIdx = enriched.findIndex((c) => c.is_variant);
         const pickedIdx = distributeShots(
           imageCount,
           mainCount,
           variantIdx >= 0 ? variantIdx : null,
         );
-        const shots = pickedIdx.map((i) => candidates[i]);
+        const shots = pickedIdx.map((i) => enriched[i]);
         promptList = shots.map((s) => s.prompt);
         compositionReferenceList = shots.map((s) => s.compositionReferenceUrl);
         // 存完整 prompts + room reference，便于排查“模型到底吃到了什么”。

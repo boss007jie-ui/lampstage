@@ -17,7 +17,7 @@ const ENDPOINT_TPL =
   process.env.NANO_BANANA_ENDPOINT ||
   "https://yunwu.ai/v1beta/models/{model}:generateContent";
 const GEN_MODEL =
-  process.env.NANO_BANANA_MODEL || "gemini-3.1-flash-image-preview";
+  process.env.NANO_BANANA_MODEL || "gemini-3.1-flash-image";
 
 const ASPECT_MAP: Record<string, string> = {
   "1_1": "1:1",

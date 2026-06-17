@@ -8,7 +8,7 @@ import path from "node:path";
 import { promises as fs } from "node:fs";
 
 const ENDPOINT = "https://yunwu.ai/v1/chat/completions";
-const MODEL = process.env.SCENE_SUGGEST_MODEL || "gpt-5-mini";
+const MODEL = process.env.SCENE_SUGGEST_MODEL || "gpt-5.5";
 
 export type Scene = {
   /** 场景标签（中/英文短名），≤6 字 */

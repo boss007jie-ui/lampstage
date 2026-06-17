@@ -15,7 +15,7 @@ import type {
 import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
 
 const ENDPOINT = "https://yunwu.ai/v1/chat/completions";
-const MODEL = process.env.PROMPT_PLANNER_MODEL || "gpt-5-mini";
+const MODEL = process.env.PROMPT_PLANNER_MODEL || "gpt-5.5";
 const PLANNER_TIMEOUT_MS = Number(process.env.PROMPT_PLANNER_TIMEOUT_MS || 12000);
 
 export type ProductProfileForPlanner = {

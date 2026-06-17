@@ -13,7 +13,7 @@
 import { getObjectBytes } from "@/lib/storage";
 
 const ENDPOINT = "https://yunwu.ai/v1/chat/completions";
-const MODEL = process.env.LAMP_PROFILE_MODEL || "gpt-5-mini";
+const MODEL = process.env.LAMP_PROFILE_MODEL || "gpt-5.5";
 
 export type LampType =
   | "pendant"

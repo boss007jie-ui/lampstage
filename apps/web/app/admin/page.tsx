@@ -42,7 +42,23 @@ type Lead = {
   email: string | null;
 };
 
-type Tab = "overview" | "users" | "jobs" | "leads";
+type ToolLog = {
+  id: string;
+  tool: string;
+  model: string | null;
+  job_id: string | null;
+  status: string;
+  http_status: number | null;
+  duration_ms: number | null;
+  error: string | null;
+  created_at: string;
+};
+type ToolSummary = Record<
+  string,
+  { total: number; ok: number; failed: number; avgMs: number }
+>;
+
+type Tab = "overview" | "users" | "jobs" | "leads" | "logs";
 
 const fmt = (s: string) => new Date(s).toLocaleString("zh-CN", { hour12: false });
 
@@ -78,6 +94,7 @@ export default function AdminPage() {
                 ["users", "用户"],
                 ["jobs", "任务"],
                 ["leads", "留资"],
+                ["logs", "调用日志"],
               ] as [Tab, string][]
             ).map(([k, label]) => (
               <button
@@ -98,6 +115,7 @@ export default function AdminPage() {
           {tab === "users" && <UsersTab onForbidden={() => setForbidden(true)} />}
           {tab === "jobs" && <JobsTab onForbidden={() => setForbidden(true)} />}
           {tab === "leads" && <LeadsTab onForbidden={() => setForbidden(true)} />}
+          {tab === "logs" && <LogsTab onForbidden={() => setForbidden(true)} />}
         </>
       )}
     </main>
@@ -394,6 +412,165 @@ function LeadsTab({ onForbidden }: { onForbidden: () => void }) {
           )}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+const TOOL_LABELS: Record<string, string> = {
+  lamp_profile: "识图（产品卡）",
+  prompt_planner: "提示词规划",
+  "nano-banana": "生图（gemini）",
+  "gpt-image-2": "生图（gpt-image）",
+};
+
+function LogsTab({ onForbidden }: { onForbidden: () => void }) {
+  const [logs, setLogs] = useState<ToolLog[]>([]);
+  const [summary, setSummary] = useState<ToolSummary>({});
+  const [tool, setTool] = useState("all");
+  const [status, setStatus] = useState("all");
+
+  const load = useCallback(() => {
+    fetch(`/api/admin/tool-logs?tool=${tool}&status=${status}`)
+      .then((r) => {
+        if (r.status === 403) {
+          onForbidden();
+          return null;
+        }
+        return r.json();
+      })
+      .then((d) => {
+        if (!d) return;
+        setLogs(d.logs || []);
+        setSummary(d.summary24h || {});
+      })
+      .catch(() => undefined);
+  }, [tool, status, onForbidden]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return (
+    <div>
+      {/* 最近 24h 健康度汇总 */}
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {Object.entries(summary).map(([t, st]) => {
+          const rate = st.total ? Math.round((st.ok / st.total) * 100) : 0;
+          return (
+            <div key={t} className="rounded-xl border border-[#eee] p-4">
+              <div className="text-[12px] text-[#888]">
+                {TOOL_LABELS[t] || t}
+              </div>
+              <div className="mt-1 text-[20px] font-semibold tracking-tight">
+                {rate}%
+                <span className="ml-1 text-[12px] font-normal text-[#aaa]">
+                  成功
+                </span>
+              </div>
+              <div className="mt-1 text-[12px] text-[#888]">
+                {st.total} 次 · 失败 {st.failed} · 均 {st.avgMs}ms
+              </div>
+            </div>
+          );
+        })}
+        {Object.keys(summary).length === 0 && (
+          <div className="col-span-full rounded-xl border border-dashed border-[#eee] p-6 text-center text-[13px] text-[#aaa]">
+            最近 24 小时暂无调用记录
+          </div>
+        )}
+      </div>
+
+      {/* 筛选 */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {[
+          ["all", "全部工具"],
+          ["lamp_profile", "识图"],
+          ["prompt_planner", "规划"],
+          ["nano-banana", "生图gemini"],
+          ["gpt-image-2", "生图gpt"],
+        ].map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setTool(k)}
+            className={`rounded-md px-3 py-1.5 text-[13px] ${
+              tool === k ? "bg-[#533afd] text-white" : "bg-[#f3f3f3] text-[#666]"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        <span className="mx-1 w-px bg-[#eee]" />
+        {[
+          ["all", "全部状态"],
+          ["ok", "成功"],
+          ["failed", "失败"],
+        ].map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setStatus(k)}
+            className={`rounded-md px-3 py-1.5 text-[13px] ${
+              status === k
+                ? "bg-[#533afd] text-white"
+                : "bg-[#f3f3f3] text-[#666]"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-[#eee]">
+        <table className="w-full text-[13px]">
+          <thead className="bg-[#fafafa] text-left text-[#888]">
+            <tr>
+              <th className="px-4 py-3">工具</th>
+              <th className="px-4 py-3">模型</th>
+              <th className="px-4 py-3">状态</th>
+              <th className="px-4 py-3">HTTP</th>
+              <th className="px-4 py-3">耗时</th>
+              <th className="px-4 py-3">错误</th>
+              <th className="px-4 py-3">时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            {logs.map((l) => (
+              <tr key={l.id} className="border-t border-[#f0f0f0]">
+                <td className="px-4 py-3">{TOOL_LABELS[l.tool] || l.tool}</td>
+                <td className="px-4 py-3 text-[#888]">{l.model || "—"}</td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`rounded px-2 py-0.5 text-[12px] ${
+                      l.status === "ok"
+                        ? "bg-green-50 text-green-700"
+                        : "bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {l.status}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-[#888]">{l.http_status ?? "—"}</td>
+                <td className="px-4 py-3 text-[#888]">
+                  {l.duration_ms != null ? `${l.duration_ms}ms` : "—"}
+                </td>
+                <td
+                  className="max-w-[280px] truncate px-4 py-3 text-[#c00]"
+                  title={l.error || ""}
+                >
+                  {l.error || "—"}
+                </td>
+                <td className="px-4 py-3 text-[#888]">{fmt(l.created_at)}</td>
+              </tr>
+            ))}
+            {logs.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-[#aaa]">
+                  无调用记录
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

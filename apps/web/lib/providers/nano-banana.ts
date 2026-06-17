@@ -12,6 +12,7 @@ import type {
 import { getObjectBytes } from "@/lib/storage";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { logToolCall } from "@/lib/tool-log";
 
 const ENDPOINT_TPL =
   process.env.NANO_BANANA_ENDPOINT ||
@@ -87,6 +88,7 @@ export const nanoBananaProvider: IGenerationProvider = {
   name: "nano-banana",
 
   async generate(input: GenInput): Promise<GenSingleResult> {
+    const startedAt = Date.now();
     try {
       const ref = await fetchAsBase64(input.referenceImageUrl);
       const parts = [
@@ -120,6 +122,15 @@ export const nanoBananaProvider: IGenerationProvider = {
 
       if (!res.ok) {
         const errText = await res.text();
+        void logToolCall({
+          tool: "nano-banana",
+          model: GEN_MODEL,
+          jobId: input.jobId,
+          status: "failed",
+          httpStatus: res.status,
+          durationMs: Date.now() - startedAt,
+          error: errText.slice(0, 240),
+        });
         return {
           ok: false,
           error: `nano-banana ${res.status}: ${errText.slice(0, 240)}`,
@@ -129,14 +140,39 @@ export const nanoBananaProvider: IGenerationProvider = {
       const json = await res.json();
       const img = extractFirstImage(json);
       if (!img) {
+        void logToolCall({
+          tool: "nano-banana",
+          model: GEN_MODEL,
+          jobId: input.jobId,
+          status: "failed",
+          httpStatus: res.status,
+          durationMs: Date.now() - startedAt,
+          error: "returned no image in response",
+        });
         return { ok: false, error: "nano-banana returned no image in response" };
       }
+      void logToolCall({
+        tool: "nano-banana",
+        model: GEN_MODEL,
+        jobId: input.jobId,
+        status: "ok",
+        httpStatus: res.status,
+        durationMs: Date.now() - startedAt,
+      });
       return {
         ok: true,
         bytes: Buffer.from(img.b64, "base64"),
         mime: img.mime,
       };
     } catch (e) {
+      void logToolCall({
+        tool: "nano-banana",
+        model: GEN_MODEL,
+        jobId: input.jobId,
+        status: "failed",
+        durationMs: Date.now() - startedAt,
+        error: String(e),
+      });
       return { ok: false, error: `nano-banana exception: ${String(e)}` };
     }
   },

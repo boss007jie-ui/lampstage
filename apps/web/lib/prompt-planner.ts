@@ -13,6 +13,7 @@ import type {
   TargetAudience,
 } from "@/lib/lamp-profile";
 import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
+import { logToolCall } from "@/lib/tool-log";
 
 const ENDPOINT = "https://yunwu.ai/v1/chat/completions";
 const MODEL = process.env.PROMPT_PLANNER_MODEL || "gpt-5.5";
@@ -129,6 +130,7 @@ export async function planImagePrompts(args: {
   aspectRatio: AspectRatio;
   userIntent?: string;
 }): Promise<PromptPlan | null> {
+  const startedAt = Date.now();
   const apiKey = process.env.YUNWU_API_KEY;
   if (!apiKey) {
     console.warn("[prompt-planner] YUNWU_API_KEY missing");
@@ -172,6 +174,13 @@ Write 3 planned image-edit shots. Only ONE image (the lamp product photo) is sen
     });
   } catch (e) {
     console.warn("[prompt-planner] network/timeout error", e);
+    void logToolCall({
+      tool: "prompt_planner",
+      model: MODEL,
+      status: "failed",
+      durationMs: Date.now() - startedAt,
+      error: `network/timeout: ${String(e)}`,
+    });
     return null;
   } finally {
     clearTimeout(timeout);
@@ -180,6 +189,14 @@ Write 3 planned image-edit shots. Only ONE image (the lamp product photo) is sen
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     console.warn(`[prompt-planner] HTTP ${res.status}: ${text.slice(0, 300)}`);
+    void logToolCall({
+      tool: "prompt_planner",
+      model: MODEL,
+      status: "failed",
+      httpStatus: res.status,
+      durationMs: Date.now() - startedAt,
+      error: text.slice(0, 240),
+    });
     return null;
   }
 
@@ -190,9 +207,26 @@ Write 3 planned image-edit shots. Only ONE image (the lamp product photo) is sen
     const message = isRecord(first) ? first.message : undefined;
     const text = isRecord(message) ? message.content : undefined;
     if (typeof text !== "string") return null;
-    return normalizePlan(JSON.parse(stripFence(text)));
+    const plan = normalizePlan(JSON.parse(stripFence(text)));
+    void logToolCall({
+      tool: "prompt_planner",
+      model: MODEL,
+      status: plan ? "ok" : "failed",
+      httpStatus: res.status,
+      durationMs: Date.now() - startedAt,
+      error: plan ? null : "normalizePlan returned null",
+    });
+    return plan;
   } catch (e) {
     console.warn("[prompt-planner] parse error", e);
-      return null;
+    void logToolCall({
+      tool: "prompt_planner",
+      model: MODEL,
+      status: "failed",
+      httpStatus: res.status,
+      durationMs: Date.now() - startedAt,
+      error: `parse error: ${String(e)}`,
+    });
+    return null;
   }
 }

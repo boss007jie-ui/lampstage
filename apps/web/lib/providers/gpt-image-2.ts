@@ -17,6 +17,7 @@ import type {
   IGenerationProvider,
 } from "./types";
 import { getObjectBytes } from "@/lib/storage";
+import { logToolCall } from "@/lib/tool-log";
 
 const ENDPOINT = process.env.GPT_IMAGE_ENDPOINT || "https://yunwu.ai/v1/images/edits";
 const MODEL = process.env.GPT_IMAGE_MODEL || "gpt-image-2";
@@ -64,7 +65,11 @@ export const gptImage2Provider: IGenerationProvider = {
   name: "gpt-image-2",
 
   async generate(input: GenInput): Promise<GenSingleResult> {
-    try {
+    const startedAt = Date.now();
+    let httpStatus: number | undefined;
+
+    const run = async (): Promise<GenSingleResult> => {
+      try {
       const ref = await fetchRef(input.referenceImageUrl);
       const form = new FormData();
       form.append(
@@ -92,6 +97,7 @@ export const gptImage2Provider: IGenerationProvider = {
         body: form,
         signal: AbortSignal.timeout(45_000),
       });
+      httpStatus = res.status;
 
       const text = await res.text();
       if (!res.ok) {
@@ -121,5 +127,18 @@ export const gptImage2Provider: IGenerationProvider = {
     } catch (e) {
       return { ok: false, error: `gpt-image-2 exception: ${String(e)}` };
     }
+    };
+
+    const result = await run();
+    void logToolCall({
+      tool: "gpt-image-2",
+      model: MODEL,
+      jobId: input.jobId,
+      status: result.ok ? "ok" : "failed",
+      httpStatus: httpStatus ?? null,
+      durationMs: Date.now() - startedAt,
+      error: result.ok ? null : result.error ?? null,
+    });
+    return result;
   },
 };

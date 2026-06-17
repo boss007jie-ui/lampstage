@@ -656,6 +656,7 @@ async function runGenerationPipeline(args: {
         aspectRatio,
         platformStyle: "domestic_ecommerce", // 已经拼进 prompt 里了，这里塞个占位值
         outputCount: 1,
+        jobId,
       });
     });
     const settled = await Promise.allSettled(calls);

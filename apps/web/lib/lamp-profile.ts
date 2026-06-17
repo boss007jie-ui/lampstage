@@ -11,6 +11,7 @@
  * 走 yunwu 的 OpenAI 兼容接口。失败时返回默认值（不让前端阻塞）。
  */
 import { getObjectBytes } from "@/lib/storage";
+import { logToolCall } from "@/lib/tool-log";
 
 const ENDPOINT = "https://yunwu.ai/v1/chat/completions";
 const MODEL = process.env.LAMP_PROFILE_MODEL || "gpt-5.5";
@@ -178,6 +179,7 @@ function normalize(raw: Record<string, unknown>): LampProfile {
 export async function inferLampProfile(
   refUrlOrPath: string,
 ): Promise<LampProfile> {
+  const startedAt = Date.now();
   const apiKey = process.env.YUNWU_API_KEY;
   if (!apiKey) {
     console.warn("[lamp-profile] YUNWU_API_KEY missing, using default");
@@ -225,12 +227,27 @@ export async function inferLampProfile(
     });
   } catch (e) {
     console.warn("[lamp-profile] network error:", e);
+    void logToolCall({
+      tool: "lamp_profile",
+      model: MODEL,
+      status: "failed",
+      durationMs: Date.now() - startedAt,
+      error: `network error: ${String(e)}`,
+    });
     return { ...DEFAULT_PROFILE };
   }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     console.warn(`[lamp-profile] HTTP ${res.status}: ${text.slice(0, 200)}`);
+    void logToolCall({
+      tool: "lamp_profile",
+      model: MODEL,
+      status: "failed",
+      httpStatus: res.status,
+      durationMs: Date.now() - startedAt,
+      error: text.slice(0, 240),
+    });
     return { ...DEFAULT_PROFILE };
   }
 
@@ -241,12 +258,28 @@ export async function inferLampProfile(
     };
   } catch (e) {
     console.warn("[lamp-profile] non-json response:", e);
+    void logToolCall({
+      tool: "lamp_profile",
+      model: MODEL,
+      status: "failed",
+      httpStatus: res.status,
+      durationMs: Date.now() - startedAt,
+      error: `non-json response: ${String(e)}`,
+    });
     return { ...DEFAULT_PROFILE };
   }
 
   const content = data.choices?.[0]?.message?.content || "";
   if (!content) {
     console.warn("[lamp-profile] empty content");
+    void logToolCall({
+      tool: "lamp_profile",
+      model: MODEL,
+      status: "failed",
+      httpStatus: res.status,
+      durationMs: Date.now() - startedAt,
+      error: "empty content",
+    });
     return { ...DEFAULT_PROFILE };
   }
 
@@ -260,8 +293,23 @@ export async function inferLampProfile(
       "content:",
       content.slice(0, 200),
     );
+    void logToolCall({
+      tool: "lamp_profile",
+      model: MODEL,
+      status: "failed",
+      httpStatus: res.status,
+      durationMs: Date.now() - startedAt,
+      error: `parse failed: ${String(e)}`,
+    });
     return { ...DEFAULT_PROFILE };
   }
 
+  void logToolCall({
+    tool: "lamp_profile",
+    model: MODEL,
+    status: "ok",
+    httpStatus: res.status,
+    durationMs: Date.now() - startedAt,
+  });
   return normalize(parsed);
 }

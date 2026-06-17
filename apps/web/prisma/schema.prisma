@@ -258,3 +258,30 @@ model RechargeOrder {
   @@index([user_id, created_at])
   @@index([status, created_at])
 }
+
+
+/// 外部 AI 工具调用日志（识图 / 提示词规划 / 生图）。便于后台排查成功率、耗时、失败原因。
+model ToolCallLog {
+  id          String   @id @default(cuid())
+  /// 调用类型：lamp_profile / prompt_planner / nano-banana / gpt-image-2
+  tool        String
+  /// 实际使用的模型名（如 gpt-5.5 / gemini-3.1-flash-image）
+  model       String?
+  /// 关联的生成任务（生图时有；识图/规划时可能为空）
+  job_id      String?
+  /// 关联的上传素材（识图时有）
+  asset_id    String?
+  /// ok / failed
+  status      String
+  /// 外部 API 的 HTTP 状态码
+  http_status Int?
+  /// 调用耗时（毫秒）
+  duration_ms Int?
+  /// 失败原因（截断保存）
+  error       String?
+  created_at  DateTime @default(now())
+
+  @@index([created_at])
+  @@index([tool, created_at])
+  @@index([status, created_at])
+}

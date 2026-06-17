@@ -27,6 +27,8 @@ export interface GenInput {
   platformStyle: PlatformStyle;
   /** MVP 固定 4 */
   outputCount: number;
+  /** 可选：关联的生成任务 id，仅用于调用日志（ToolCallLog） */
+  jobId?: string;
 }
 
 /** 单次调用结果：要么拿到 1 张图，要么失败。 */

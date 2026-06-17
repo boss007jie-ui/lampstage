@@ -155,6 +155,9 @@ const DEFAULT_SPACES_BY_TYPE: Record<LampType, string[]> = {
   unknown: ["living_room", "dining_room", "bedroom"],
 };
 
+/** 这些空间的吊灯应居中对准桌面（餐厅/厨房中岛/早餐角），而不是偏置。 */
+const TABLE_CENTRIC_SPACES = new Set(["dining_room", "kitchen_island", "breakfast_nook"]);
+
 function spaceDisplay(key: string): string {
   return SPACE_POOL[key]?.display ?? key.replace(/_/g, " ");
 }
@@ -249,9 +252,12 @@ function buildShotPrompt(
 ): string {
   const audience = AUDIENCE_KEYWORDS[profile.target_audience];
   const sceneFurniture = spaceFurniture(room);
+
+  // 开/关灯：关灯必须用"多重强约束"，单句 "switched off" 压不住 flash 模型给藤编暖光灯点亮的强先验。
   const litLine = lit
-    ? `Soft ${COLOR_TEMP_DESC[profile.color_temp]} evening ambiance.`
-    : "Daytime, natural window light, lamp switched off.";
+    ? `It is evening: the lamp is ON, emitting a soft ${COLOR_TEMP_DESC[profile.color_temp]}, while the room stays calm and realistic.`
+    : "It is daytime with bright natural window light. The lamp is COMPLETELY OFF and UNLIT: the bulb is dark, no light emitted, no glow, no warm halo, no illumination from the lamp at all — just an unlit decorative object.";
+
   const sizePhrase =
     profile.size_class === "small"
       ? `small (~${profile.size_hint_cm}cm)`
@@ -263,32 +269,36 @@ function buildShotPrompt(
     ? profile.material_keywords.join(", ")
     : profile.lamp_type;
 
-  // 位置 + 安装方式：吊灯/吸顶强调"贴天花板 + 短吊杆 + 偏离画面中心"，
-  // 这是线下实测让灯"融入而非居中放大"的关键。
-  const placement =
-    profile.lamp_type === "pendant" || profile.lamp_type === "ceiling"
-      ? "hanging from a SHORT drop very close to the ceiling, positioned off-center toward an upper corner of the frame (never dead-center)"
+  // 位置：按空间定位，而不是一刀切 off-center。
+  // 餐厅/厨房/早餐角的吊灯必须居中对准桌子（这是正确装法）；其他空间才偏。
+  const isTableCentricPendant =
+    (profile.lamp_type === "pendant" || profile.lamp_type === "ceiling") &&
+    TABLE_CENTRIC_SPACES.has(room);
+  const placement = isTableCentricPendant
+    ? "hanging from a short drop close to the ceiling, centered directly above the middle of the table below"
+    : profile.lamp_type === "pendant" || profile.lamp_type === "ceiling"
+      ? "hanging from a short drop close to the ceiling, above the seating/furniture area, not floating in the dead center of an empty room"
       : profile.lamp_type === "wall"
-        ? "wall-mounted with a visible backplate, off to one side of the frame"
+        ? "wall-mounted with a visible backplate, at a believable height beside the furniture"
         : profile.lamp_type === "table"
           ? "sitting on the furniture surface to one side of the frame"
-          : "standing on the floor against a side wall";
+          : "standing on the floor beside the seating";
 
   // 尺寸用画面占比表达（实测比 cm 有效），整体压小，强化"配饰非主角"。
   const frameShare =
     profile.size_class === "small" ? "only the top ~10% of the frame"
     : profile.size_class === "large" ? "about the top ~18% of the frame"
-    : "only the top ~13% of the frame";
+    : "only the top ~14% of the frame";
 
-  // V2 策略（线下实测有效）：
-  // 1. "wide-angle real estate photograph" + "camera pulled back" → 房间占主导，灯变配饰
-  // 2. off-center + short drop → 灯不再居中、不再吊到半空
-  // 3. frameShare → 尺寸压下来
+  // V3 策略（线下实测有效）：
+  // 1. wide-angle real estate + camera pulled back → 房间占主导，灯变配饰
+  // 2. 关灯多重强约束 → 压住"暖光灯点亮"先验
+  // 3. 餐厅吊灯居中对准桌子、其他空间在家具区上方 → 位置合理
   const body = [
     `Wide-angle real estate interior photograph of a ${spaceDisplay(room)}, ${audience}: ${sceneFurniture}.`,
     `The camera is pulled back to show the whole room; the room and furniture are the main subject and fill most of the frame.`,
     `${litLine}`,
-    `A single ${materialDesc} ${profile.lamp_type} (${sizePhrase}, matching the reference image) is ${placement}.`,
+    `A single ${materialDesc} ${profile.lamp_type} (${sizePhrase}, matching the reference image's shape/material/color) is ${placement}.`,
     `It occupies ${frameShare}, clearly smaller than the furniture below, blending naturally into the room as one architectural detail — not the focal subject.`,
   ].join(" ");
 

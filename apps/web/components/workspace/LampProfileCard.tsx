@@ -26,6 +26,7 @@ export type ProfileResp = {
     | "industrial"
     | "new_chinese"
     | "french";
+  space_fit: string[];
   ai_inferred_at: string | null;
 };
 
@@ -112,6 +113,37 @@ const AUD_OPTIONS: ProfileResp["target_audience"][] = [
   "french",
 ];
 
+// 标准空间池（与后端 generation.ts SPACE_POOL 对齐）
+const SPACE_LABEL: Record<string, string> = {
+  dining_room: "餐厅",
+  living_room: "客厅",
+  entryway: "玄关",
+  staircase: "楼梯挑空",
+  kitchen_island: "厨房中岛",
+  bedroom: "卧室",
+  bedside: "床头",
+  study: "书房",
+  reading_nook: "阅读角",
+  hallway: "走廊",
+  breakfast_nook: "早餐角",
+  living_side_table: "客厅边几",
+};
+const SPACE_OPTIONS: string[] = [
+  "dining_room",
+  "living_room",
+  "entryway",
+  "staircase",
+  "kitchen_island",
+  "bedroom",
+  "bedside",
+  "study",
+  "reading_nook",
+  "hallway",
+  "breakfast_nook",
+  "living_side_table",
+];
+const MAX_SPACES = 3;
+
 export function LampProfileCard({ assetId, onReady }: Props) {
   const [profile, setProfile] = useState<ProfileResp | null>(null);
   const [loading, setLoading] = useState(true);
@@ -147,6 +179,7 @@ export function LampProfileCard({ assetId, onReady }: Props) {
             size_hint_cm: 40,
             color_temp: "warm_3000k",
             target_audience: "modern_luxury",
+            space_fit: [],
             ai_inferred_at: null,
           });
         } else {
@@ -168,6 +201,7 @@ export function LampProfileCard({ assetId, onReady }: Props) {
           size_hint_cm: 40,
           color_temp: "warm_3000k",
           target_audience: "modern_luxury",
+          space_fit: [],
           ai_inferred_at: null,
         });
         setLoading(false);
@@ -210,6 +244,28 @@ export function LampProfileCard({ assetId, onReady }: Props) {
       }).catch(() => {
         // 不阻断 UI，DB 失败下次生成时会因 profile 不全导致 generate 报错——可接受
       });
+    }, 600) as unknown as number;
+  };
+
+  // 空间多选 toggle：点击切换，最多 MAX_SPACES 个，保持点击顺序（顺序=适合度）
+  const toggleSpace = (space: string) => {
+    if (!profile) return;
+    const current = profile.space_fit ?? [];
+    let next: string[];
+    if (current.includes(space)) {
+      next = current.filter((s) => s !== space);
+    } else {
+      if (current.length >= MAX_SPACES) return;
+      next = [...current, space];
+    }
+    setProfile({ ...profile, space_fit: next });
+    if (patchTimer.current) window.clearTimeout(patchTimer.current);
+    patchTimer.current = window.setTimeout(() => {
+      fetch(`/api/uploads/${assetId}/profile`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ space_fit: next }),
+      }).catch(() => {});
     }, 600) as unknown as number;
   };
 
@@ -319,6 +375,41 @@ export function LampProfileCard({ assetId, onReady }: Props) {
               {AUD_LABEL[a]}
             </Chip>
           ))}
+        </div>
+      </Field>
+
+      {/* 适合空间 */}
+      <Field label={`适合空间（按适合度排序，最多选 ${MAX_SPACES} 个）`}>
+        <div className="flex flex-wrap gap-1.5">
+          {SPACE_OPTIONS.map((sp) => {
+            const order = (profile.space_fit ?? []).indexOf(sp);
+            const active = order >= 0;
+            const atLimit = (profile.space_fit ?? []).length >= MAX_SPACES;
+            return (
+              <button
+                key={sp}
+                onClick={() => toggleSpace(sp)}
+                disabled={!active && atLimit}
+                className={`relative rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
+                  active
+                    ? "bg-[#171717] text-white"
+                    : atLimit
+                      ? "cursor-not-allowed border border-[#eef2f6] bg-[#f8fafc] text-[#cbd5e1]"
+                      : "border border-[#e5edf5] bg-white text-[#374151] hover:bg-[#f8fafc]"
+                }`}
+              >
+                {active && (
+                  <span className="mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-[#171717]">
+                    {order + 1}
+                  </span>
+                )}
+                {SPACE_LABEL[sp] ?? sp}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-2 text-[11px] text-[#94a3b8]">
+          AI 按灯的风格判断最适合的空间。第 1 个最优先，生成图会用这些空间。
         </div>
       </Field>
     </div>

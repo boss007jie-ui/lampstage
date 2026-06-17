@@ -29,6 +29,7 @@ type AssetSnapshot = {
   color_temp: string | null;
   target_audience: string | null;
   material_keywords: string | null;
+  space_fit: string | null;
   ai_inferred_at: Date | null;
 };
 
@@ -45,6 +46,7 @@ async function loadAsset(id: string): Promise<AssetSnapshot | null> {
       color_temp: true,
       target_audience: true,
       material_keywords: true,
+      space_fit: true,
       ai_inferred_at: true,
     },
   });
@@ -58,6 +60,7 @@ function toClient(a: AssetSnapshot) {
     size_hint_cm: a.size_hint_cm ?? 40,
     color_temp: a.color_temp ?? "warm_3000k",
     target_audience: a.target_audience ?? "modern_luxury",
+    space_fit: (a.space_fit ?? "").split(",").filter((s) => s.length > 0),
     ai_inferred_at: a.ai_inferred_at,
   };
 }
@@ -122,6 +125,7 @@ export async function POST(
       color_temp: profile.color_temp,
       target_audience: profile.target_audience,
       material_keywords: profile.material_keywords.slice(0,5).join(","),
+      space_fit: profile.space_fit.slice(0,3).join(","),
       ai_inferred_at: new Date(),
     },
     select: {
@@ -134,6 +138,7 @@ export async function POST(
       color_temp: true,
       target_audience: true,
       material_keywords: true,
+      space_fit: true,
       ai_inferred_at: true,
     },
   });
@@ -220,6 +225,13 @@ export async function PATCH(
   if (typeof body.target_audience === "string" && ALLOWED_AUDS.has(body.target_audience)) {
     update.target_audience = body.target_audience;
   }
+  if (Array.isArray(body.space_fit)) {
+    const cleaned = body.space_fit
+      .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+      .map((x) => x.trim().toLowerCase().replace(/\s+/g, "_"))
+      .slice(0, 3);
+    update.space_fit = cleaned.join(",");
+  }
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: "no_valid_fields" }, { status: 400 });
@@ -238,6 +250,7 @@ export async function PATCH(
       color_temp: true,
       target_audience: true,
       material_keywords: true,
+      space_fit: true,
       ai_inferred_at: true,
     },
   });

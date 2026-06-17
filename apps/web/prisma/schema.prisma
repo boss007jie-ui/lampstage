@@ -105,6 +105,7 @@ model UploadedAsset {
   color_temp       String?
   target_audience  String?
   material_keywords String?   // comma-separated, e.g. "rattan,flat disc,black chain"
+  space_fit        String?   // comma-separated SPACE_POOL keys, ranked, e.g. "dining_room,living_room,entryway"
   ai_inferred_at   DateTime?
   created_at      DateTime       @default(now())
 

@@ -46,6 +46,8 @@ export type LampProfile = {
   color_temp: ColorTemp;
   target_audience: TargetAudience;
   material_keywords: string[];
+  /** 按风格气质判断的适合空间（SPACE_POOL key，排序）。 */
+  space_fit: string[];
   reasoning: string;
 };
 
@@ -56,6 +58,7 @@ export const DEFAULT_PROFILE: LampProfile = {
   color_temp: "warm_3000k",
   target_audience: "modern_luxury",
   material_keywords: [],
+  space_fit: [],
   reasoning: "default fallback",
 };
 
@@ -90,7 +93,11 @@ Rules:
   new_chinese=solid wood + ink wash + greenery + cultural minimalism
   french=ivory + arches + gold trim + florals + femme elegant
 - material_keywords: 1-3 short tags in English describing what you see (e.g. "black metal", "linen shade", "amber glass")
-- reasoning: ≤30 words explaining the audience inference
+- space_fit: pick the 3 BEST-FITTING interior spaces for THIS specific lamp, ranked best-first, judged mainly by the lamp's STYLE / MATERIAL / SHAPE / temperament (not only by mounting type). Choose from this fixed pool of keys:
+  dining_room, living_room, entryway, staircase, kitchen_island, bedroom, bedside, study, reading_nook, hallway, breakfast_nook, living_side_table
+  Guidance: a decorative/statement piece (woven rattan, boho, sculptural, crystal, oversized) belongs in show-off spaces like dining_room / living_room / entryway / staircase, NOT a bedroom. A calm/minimal piece fits study / bedroom / reading_nook. Respect the mounting type (a table lamp can't go on a staircase void). If none of the pool keys fits well, you may output ONE short custom snake_case space name, but prefer pool keys.
+  Return space_fit as a JSON array of 3 strings.
+- reasoning: ≤30 words explaining the audience AND space_fit inference
 
 Output ONLY a single JSON object. No prose, no markdown fence.`;
 
@@ -155,6 +162,12 @@ function normalize(raw: Record<string, unknown>): LampProfile {
     out.material_keywords = raw.material_keywords
       .filter((x): x is string => typeof x === "string")
       .slice(0, 5);
+  }
+  if (Array.isArray(raw.space_fit)) {
+    out.space_fit = raw.space_fit
+      .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+      .map((x) => x.trim().toLowerCase().replace(/\s+/g, "_"))
+      .slice(0, 3);
   }
   if (typeof raw.reasoning === "string") {
     out.reasoning = raw.reasoning.slice(0, 200);

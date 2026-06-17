@@ -75,24 +75,107 @@ ${STRICT_QUALITY}`;
 // 关联 spec: docs/superpowers/specs/2026-06-13-lamp-profile-design.md
 // ============================================================================
 
-/** 3 张图的房间组合（按灯具类型固定） */
-const ROOM_SETS: Record<LampType, string[]> = {
-  // pendant 的实际场景不能一刀切。
-  // small/medium 装饰吊灯如果放 dining/living/entryway，会触发模型“主吊灯居中”的强先验。
-  // 所以默认表仍保留 large/通用主灯场景；具体小/中号会在 getRoomsForProfile() 里改成 accent 场景。
-  pendant: ["dining room", "living room", "entryway"],
-  ceiling: ["living room", "bedroom", "study"],
-  wall: ["bedside in a bedroom", "hallway corridor", "living room accent wall"],
-  table: ["nightstand in a bedroom", "study desk", "living room side table"],
-  floor: ["living room corner", "reading nook", "bedroom corner"],
-  unknown: ["living room", "bedroom", "dining room"],
+/**
+ * 标准空间池。AI 推断时按"灯的风格气质"从这里挑 3 个空间（space_fit），
+ * 生成时优先用 AI 判断；AI 没给才回退到 DEFAULT_SPACES_BY_TYPE 的灯型映射。
+ * 每个空间配好：display（prompt 用的自然语言名）、furniture（场景主体家具）、lampTypes（哪些灯型适配，给回退用）。
+ */
+type SpaceDef = { display: string; furniture: string; lampTypes: LampType[] };
+
+const SPACE_POOL: Record<string, SpaceDef> = {
+  dining_room: {
+    display: "dining room",
+    furniture: "a 6-seater dining table with chairs",
+    lampTypes: ["pendant", "ceiling"],
+  },
+  living_room: {
+    display: "living room",
+    furniture: "a 3-seater sofa, coffee table and area rug",
+    lampTypes: ["pendant", "ceiling", "floor", "table"],
+  },
+  entryway: {
+    display: "entryway",
+    furniture: "an entryway console table with a mirror and a vase",
+    lampTypes: ["pendant", "ceiling", "wall"],
+  },
+  staircase: {
+    display: "staircase void",
+    furniture: "a stairwell with a railing and a tall blank wall",
+    lampTypes: ["pendant"],
+  },
+  kitchen_island: {
+    display: "kitchen with an island",
+    furniture: "a kitchen island with bar stools",
+    lampTypes: ["pendant"],
+  },
+  bedroom: {
+    display: "bedroom",
+    furniture: "a queen bed with linen bedding and two nightstands",
+    lampTypes: ["ceiling", "pendant", "wall", "table"],
+  },
+  bedside: {
+    display: "bedroom bedside corner",
+    furniture: "a bed with linen bedding, a nightstand, books and a cup",
+    lampTypes: ["wall", "table", "pendant"],
+  },
+  study: {
+    display: "study",
+    furniture: "a desk with a chair and a bookshelf",
+    lampTypes: ["pendant", "ceiling", "table", "floor"],
+  },
+  reading_nook: {
+    display: "reading nook",
+    furniture: "a lounge chair, side table, rug and a bright window corner",
+    lampTypes: ["floor", "pendant", "wall"],
+  },
+  hallway: {
+    display: "hallway corridor",
+    furniture: "a hallway with a runner rug and a console table",
+    lampTypes: ["wall", "ceiling", "pendant"],
+  },
+  breakfast_nook: {
+    display: "breakfast nook",
+    furniture: "a corner breakfast nook with a round table and two chairs near a window",
+    lampTypes: ["pendant"],
+  },
+  living_side_table: {
+    display: "living room side table",
+    furniture: "a side table next to a sofa",
+    lampTypes: ["table"],
+  },
 };
 
+/** 回退：AI 没给 space_fit 时，按灯型给一组默认空间 */
+const DEFAULT_SPACES_BY_TYPE: Record<LampType, string[]> = {
+  pendant: ["dining_room", "living_room", "entryway"],
+  ceiling: ["living_room", "bedroom", "study"],
+  wall: ["bedside", "hallway", "living_room"],
+  table: ["bedside", "study", "living_side_table"],
+  floor: ["living_room", "reading_nook", "bedroom"],
+  unknown: ["living_room", "dining_room", "bedroom"],
+};
+
+function spaceDisplay(key: string): string {
+  return SPACE_POOL[key]?.display ?? key.replace(/_/g, " ");
+}
+function spaceFurniture(key: string): string {
+  return SPACE_POOL[key]?.furniture ?? "appropriate furniture for the room";
+}
+
+/**
+ * 决定 3 个空间。优先用 AI 判断的 space_fit（风格气质驱动），
+ * 不足 3 个用灯型默认空间补齐。pool 里没有的自定义空间也允许（自由发挥）。
+ */
 function getRoomsForProfile(profile: LampProfileInput): string[] {
-  if (profile.lamp_type === "pendant" && profile.size_class !== "large") {
-    return ["bedside pendant", "reading nook pendant", "breakfast nook pendant"];
+  const fallback = DEFAULT_SPACES_BY_TYPE[profile.lamp_type] ?? DEFAULT_SPACES_BY_TYPE.unknown;
+  const aiSpaces = (profile.space_fit ?? []).filter((s) => s && s.trim().length > 0);
+  if (aiSpaces.length === 0) return fallback;
+  const merged = [...aiSpaces];
+  for (const f of fallback) {
+    if (merged.length >= 3) break;
+    if (!merged.includes(f)) merged.push(f);
   }
-  return ROOM_SETS[profile.lamp_type];
+  return merged.slice(0, 3);
 }
 
 /**
@@ -143,6 +226,8 @@ export type LampProfileInput = {
   color_temp: ColorTemp;
   target_audience: TargetAudience;
   material_keywords: string[];
+  /** AI 判断的适合空间（SPACE_POOL 的 key，按适合度排序）。空数组则回退灯型默认。 */
+  space_fit: string[];
 };
 
 /**
@@ -163,7 +248,7 @@ function buildShotPrompt(
   aspect: AspectRatio,
 ): string {
   const audience = AUDIENCE_KEYWORDS[profile.target_audience];
-  const sceneFurniture = ROOM_FURNITURE[profile.lamp_type]?.[room] || "appropriate furniture";
+  const sceneFurniture = spaceFurniture(room);
   const litLine = lit
     ? `Soft ${COLOR_TEMP_DESC[profile.color_temp]} evening ambiance.`
     : "Daytime, natural window light, lamp switched off.";
@@ -200,7 +285,7 @@ function buildShotPrompt(
   // 2. off-center + short drop → 灯不再居中、不再吊到半空
   // 3. frameShare → 尺寸压下来
   const body = [
-    `Wide-angle real estate interior photograph of a ${ROOM_DISPLAY[room] ?? room}, ${audience}: ${sceneFurniture}.`,
+    `Wide-angle real estate interior photograph of a ${spaceDisplay(room)}, ${audience}: ${sceneFurniture}.`,
     `The camera is pulled back to show the whole room; the room and furniture are the main subject and fill most of the frame.`,
     `${litLine}`,
     `A single ${materialDesc} ${profile.lamp_type} (${sizePhrase}, matching the reference image) is ${placement}.`,
@@ -216,90 +301,6 @@ Render at ${ASPECT_LABEL[aspect]}.
 ${STRICT_QUALITY}`;
 }
 
-/** 内部房间 key → 自然语言房间描述（用于 prompt 文字，避免 "bedside pendant" 这类不自然措辞） */
-const ROOM_DISPLAY: Record<string, string> = {
-  "bedside pendant": "bedroom bedside corner",
-  "reading nook pendant": "reading nook",
-  "breakfast nook pendant": "breakfast nook",
-};
-
-/** 每种灯具类型对应房间里的"场景主体家具"——AI 会把摄影焦点放在这上面 */
-const ROOM_FURNITURE: Record<LampType, Record<string, string>> = {
-  pendant: {
-    "dining room": "a 6-seater dining table with chairs",
-    "living room": "a 3-seater sofa with coffee table",
-    entryway: "an entryway console table with a mirror",
-    "bedside pendant": "a bed, nightstand, books and linen bedding",
-    "reading nook pendant": "a lounge chair, side table, rug and window corner",
-    "breakfast nook pendant": "a small corner breakfast nook with a 2-person round table, two compact chairs, and nearby window",
-  },
-  ceiling: {
-    "living room": "a 3-seater sofa with coffee table",
-    bedroom: "a queen bed with two nightstands",
-    study: "a desk with bookshelf",
-  },
-  wall: {
-    "bedside in a bedroom": "a queen bed with linen bedding",
-    "hallway corridor": "a hallway with a runner rug",
-    "living room accent wall": "a sofa against the wall",
-  },
-  table: {
-    "nightstand in a bedroom": "a nightstand beside a queen bed",
-    "study desk": "a desk with a chair and laptop",
-    "living room side table": "a side table next to a sofa",
-  },
-  floor: {
-    "living room corner": "a 3-seater sofa, area rug, coffee table",
-    "reading nook": "a lounge chair, side table, throw blanket",
-    "bedroom corner": "a queen bed and a wardrobe",
-  },
-  unknown: {
-    "living room": "a sofa, coffee table, area rug",
-    bedroom: "a bed and nightstand",
-    "dining room": "a dining table",
-  },
-};
-
-/**
- * 第二张参考图：负责房间构图、家具比例、相机角度。
- * 先复用现有 templates，后续可替换成“无灯/弱灯”的专用参考图。
- */
-const ROOM_REFERENCE_URLS: Record<LampType, Record<string, string>> = {
-  pendant: {
-    "dining room": "/scene-refs-v2/dining_offcenter_no_lamp.jpg",
-    "living room": "/scene-refs-v2/living_offcenter_no_lamp.jpg",
-    entryway: "/scene-refs-v2/entryway_offcenter_no_lamp.jpg",
-    "bedside pendant": "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
-    "reading nook pendant": "/scene-refs-v2/corner_offcenter_no_lamp.jpg",
-    "breakfast nook pendant": "/scene-refs-v2/corner_offcenter_no_lamp.jpg",
-  },
-  ceiling: {
-    "living room": "/scene-refs-v2/living_offcenter_no_lamp.jpg",
-    bedroom: "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
-    study: "/scene-refs-v2/study_offcenter_no_lamp.jpg",
-  },
-  wall: {
-    "bedside in a bedroom": "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
-    "hallway corridor": "/scene-refs-v2/entryway_offcenter_no_lamp.jpg",
-    "living room accent wall": "/scene-refs-v2/living_offcenter_no_lamp.jpg",
-  },
-  table: {
-    "nightstand in a bedroom": "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
-    "study desk": "/scene-refs-v2/study_offcenter_no_lamp.jpg",
-    "living room side table": "/scene-refs-v2/living_offcenter_no_lamp.jpg",
-  },
-  floor: {
-    "living room corner": "/scene-refs-v2/corner_offcenter_no_lamp.jpg",
-    "reading nook": "/scene-refs-v2/corner_offcenter_no_lamp.jpg",
-    "bedroom corner": "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
-  },
-  unknown: {
-    "living room": "/scene-refs-v2/living_offcenter_no_lamp.jpg",
-    bedroom: "/scene-refs-v2/bedroom_offcenter_no_lamp.jpg",
-    "dining room": "/scene-refs-v2/dining_offcenter_no_lamp.jpg",
-  },
-};
-
 /**
  * 给定档案，决定 3 张图各自的 prompt。
  * 不依赖任何外部状态，可以单独测试。
@@ -314,12 +315,12 @@ export function decideThreeShots(
     profile.lamp_type === "pendant" && profile.size_class !== "large"
       ? [false, false, false]
       : LIT_PATTERN[profile.lamp_type];
-  const refs = ROOM_REFERENCE_URLS[profile.lamp_type];
   return rooms.map((room, i) => ({
     prompt: buildShotPrompt(profile, room, litPattern[i], platformStyle, aspect),
     room,
     lit: litPattern[i],
-    compositionReferenceUrl: refs?.[room] || "/templates/tpl_living_room_main_light.jpg",
+    // 单图图生图不再用房间参考图，保留字段兼容上层（始终空串）
+    compositionReferenceUrl: "",
   }));
 }
 
@@ -426,6 +427,7 @@ export async function createAndRunGenerationJob(args: {
           color_temp: asset.color_temp as ColorTemp,
           target_audience: asset.target_audience as TargetAudience,
           material_keywords: (asset.material_keywords ?? "").split(",").filter(Boolean),
+          space_fit: (asset.space_fit ?? "").split(",").filter(Boolean),
         };
         const fallbackShots = decideThreeShots(profile, args.platformStyle, args.aspectRatio);
         const plannedShots = plannedPromptPlan?.shots;

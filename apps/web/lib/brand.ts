@@ -164,10 +164,17 @@ const D = {
   ws_aspect_4_5: { zh: "4:5 详情", en: "4:5 Portrait" },
   ws_aspect_16_9: { zh: "16:9 横图", en: "16:9 Wide" },
 
-  ws_btn_generate: { zh: "生成 3 张预览图", en: "Generate 3 previews" },
-  ws_btn_generate_loginfirst: { zh: "登录后生成 3 张预览图", en: "Sign in to generate 3 previews" },
-  ws_btn_generating: { zh: "生成中…", en: "Generating…" },
-  ws_cost_hint: { zh: "一次生成 3 张图，消耗 3 次额度", en: "Each run uses 3 credits and outputs 3 images" },
+  ws_btn_generate: { zh: "场景构思", en: "Plan scenes" },
+  ws_btn_generate_loginfirst: { zh: "登录后开始场景构思", en: "Sign in to plan scenes" },
+  ws_btn_generating: { zh: "构思中…", en: "Planning…" },
+  ws_cost_hint: { zh: "先构思场景，再选择出图数量（每张 1 次额度）", en: "Plan scenes first, then choose how many images (1 credit each)" },
+
+  ws_stage_planning: { zh: "正在构思场景方案…", en: "Planning scenes…" },
+  ws_count_title: { zh: "选择出图数量", en: "How many images?" },
+  ws_count_hint: { zh: "每张消耗 1 次额度，最适合的空间会优先呈现", en: "1 credit each. The best-fitting space is shown first." },
+  ws_count_confirm: { zh: "开始生成", en: "Generate" },
+  ws_count_unit: { zh: "张", en: "" },
+  ws_expand_settings: { zh: "展开设置", en: "Edit settings" },
 
   ws_credits_title_signed: { zh: "本月剩余额度", en: "Credits this month" },
   ws_credits_title_unsigned: { zh: "免费额度（登录后可用）", en: "Free credits (sign in to use)" },

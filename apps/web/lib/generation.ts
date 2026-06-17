@@ -33,13 +33,16 @@ import type {
   SizeClass,
   TargetAudience,
 } from "@/lib/lamp-profile";
-import {
-  planImagePrompts,
-  type PromptPlan,
-} from "@/lib/prompt-planner";
+import type { PromptPlan } from "@/lib/prompt-planner";
 
-const OUTPUT_COUNT = 3;
-const CREDIT_COST = 3;
+const OUTPUT_COUNT = 3; // 旧流程默认张数 / 历史兼容
+const MIN_IMAGE_COUNT = 1;
+const MAX_IMAGE_COUNT = 4;
+const CREDIT_PER_IMAGE = 1; // 按张扣费：选 N 张扣 N 个额度
+function clampImageCount(n: number | undefined): number {
+  if (!n || !Number.isFinite(n)) return OUTPUT_COUNT;
+  return Math.max(MIN_IMAGE_COUNT, Math.min(MAX_IMAGE_COUNT, Math.floor(n)));
+}
 
 const PLATFORM_STYLE_RULES: Record<PlatformStyle, string> = {
   domestic_ecommerce:
@@ -367,6 +370,93 @@ export function decideThreeShots(
  *   - sceneKind="recommended" + recommendedPromptEn（系统推荐方案的英文 prompt）
  *   - sceneKind="custom" + customPrompt（用户自由描述，中/英文都可）
  */
+/**
+ * 按"出图数量 N vs 适合空间"把镜头分配出来，返回长度 = N 的索引序列（指向 0..len-1）。
+ * 规则（用户确认）：
+ *   - 最适合空间（rank 0）永远出。
+ *   - N < 空间数：第一名必出，其余从其他空间随机抽（不重复）。
+ *   - N = 空间数：每空间一张。
+ *   - N > 空间数：每空间一张后，多出的张数补给最适合空间（用 variant / 复制第一名）。
+ * @param mainCount   非变体镜头数（= 适合空间数；planner=3，fallback=3）
+ * @param variantIdx  最适合空间的"另一角度"变体在数组里的下标（planner 第4条）；没有则传 null
+ */
+function distributeShots(
+  n: number,
+  mainCount: number,
+  variantIdx: number | null,
+): number[] {
+  const count = Math.max(1, Math.min(MAX_IMAGE_COUNT, n));
+  // 主镜头下标：0..mainCount-1，其中 0 = 最适合
+  if (count >= mainCount) {
+    // 先每个空间一张
+    const out = Array.from({ length: mainCount }, (_, i) => i);
+    // 多出的补给最适合空间：优先用 variant，再不够就复制第一名
+    let extra = count - mainCount;
+    while (extra > 0) {
+      out.push(variantIdx != null && extra === count - mainCount ? variantIdx : 0);
+      extra--;
+    }
+    return out.slice(0, count);
+  }
+  // count < mainCount：第一名必出 + 其余空间随机抽
+  const others = Array.from({ length: mainCount - 1 }, (_, i) => i + 1);
+  for (let i = others.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [others[i], others[j]] = [others[j], others[i]];
+  }
+  const picked = [0, ...others.slice(0, count - 1)];
+  // 保持空间排名顺序展示（最适合在前）
+  picked.sort((a, b) => a - b);
+  return picked;
+}
+
+/**
+ * 把存库的 planned_shots JSON 安全地还原成 PromptPlan。
+ * 结构不对（旧数据 / planner 失败时写的 null）一律返回 null → 走本地规则。
+ */
+function coercePromptPlan(raw: unknown): PromptPlan | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (!Array.isArray(r.shots) || r.shots.length === 0) return null;
+  const shots = r.shots
+    .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+    .map((x, i) => ({
+      scene_type: String(x.scene_type ?? "interior scene"),
+      space_rank:
+        typeof x.space_rank === "number" && x.space_rank >= 0
+          ? Math.min(2, Math.floor(x.space_rank))
+          : i >= 3
+            ? 0
+            : Math.min(2, i),
+      is_variant: x.is_variant === true || i >= 3,
+      room_reference: String(x.room_reference ?? ""),
+      time_of_day:
+        x.time_of_day === "dusk" || x.time_of_day === "night"
+          ? (x.time_of_day as "dusk" | "night")
+          : ("daylight" as const),
+      light_state: x.light_state === "on" ? ("on" as const) : ("off" as const),
+      placement: String(x.placement ?? ""),
+      scale_anchor: String(x.scale_anchor ?? ""),
+      composition_subject: String(x.composition_subject ?? ""),
+      prompt: String(x.prompt ?? "").trim(),
+    }))
+    .filter((x) => x.prompt.length > 20);
+  if (shots.length === 0) return null;
+  const role = r.usage_role;
+  const usage_role =
+    role === "main_pendant" ||
+    role === "accent_pendant" ||
+    role === "ambient_decor" ||
+    role === "product_showcase"
+      ? role
+      : "accent_pendant";
+  return {
+    usage_role,
+    reasoning: String(r.reasoning ?? "planned"),
+    shots,
+  };
+}
+
 export async function createAndRunGenerationJob(args: {
   userId: string;
   uploadedAssetId: string;
@@ -377,6 +467,8 @@ export async function createAndRunGenerationJob(args: {
   customPrompt?: string;
   platformStyle: PlatformStyle;
   aspectRatio: AspectRatio;
+  /** 顾客选择的出图数量 1-4。不传按默认 3。 */
+  imageCount?: number;
 }): Promise<
   | { ok: true; jobId: string; creditBalance: number }
   | {
@@ -389,47 +481,23 @@ export async function createAndRunGenerationJob(args: {
         | "profile_not_ready";
     }
 > {
-  let plannedPromptPlan: PromptPlan | null = null;
+  const imageCount = clampImageCount(args.imageCount);
+  const creditCost = imageCount * CREDIT_PER_IMAGE;
 
-  // PROMPT_PLANNER_ENABLED=true 时才走 LLM planner；默认关闭，用线下验证过的本地规则
-  // （buildShotPrompt：wide-angle real estate + 贴天花板 + off-center + 小尺寸占比）。
+  // planner 已拆到 /api/generation/plan（「构思」阶段）预先跑好并存到
+  // UploadedAsset.planned_shots。这里只读取，不再内联同步调 LLM —— 否则 planner
+  // 的 20-34s 会和生图一起挤爆 60s 预算。读不到（未构思/planner 失败/已过期）
+  // 就走本地规则 fallback（decideThreeShots）。
+  let plannedPromptPlan: PromptPlan | null = null;
   if (!args.sceneKind && process.env.PROMPT_PLANNER_ENABLED === "true") {
-    const assetForPlanning = await prisma.uploadedAsset.findUnique({
+    const assetForPlan = await prisma.uploadedAsset.findUnique({
       where: { id: args.uploadedAssetId },
-      select: {
-        user_id: true,
-        detected_lamp_type: true,
-        size_class: true,
-        size_hint_cm: true,
-        color_temp: true,
-        target_audience: true,
-        material_keywords: true,
-      },
+      select: { user_id: true, planned_shots: true },
     });
-    if (!assetForPlanning || assetForPlanning.user_id !== args.userId) {
+    if (!assetForPlan || assetForPlan.user_id !== args.userId) {
       return { ok: false, reason: "asset_not_found" };
     }
-    if (
-      !assetForPlanning.detected_lamp_type ||
-      !assetForPlanning.size_class ||
-      !assetForPlanning.color_temp ||
-      !assetForPlanning.target_audience
-    ) {
-      return { ok: false, reason: "profile_not_ready" };
-    }
-
-    plannedPromptPlan = await planImagePrompts({
-      profile: {
-        lamp_type: assetForPlanning.detected_lamp_type as LampType,
-        size_class: assetForPlanning.size_class as SizeClass,
-        size_hint_cm: assetForPlanning.size_hint_cm ?? 40,
-        color_temp: assetForPlanning.color_temp as ColorTemp,
-        target_audience: assetForPlanning.target_audience as TargetAudience,
-        material_keywords: (assetForPlanning.material_keywords ?? "").split(",").filter(Boolean),
-      },
-      platformStyle: args.platformStyle,
-      aspectRatio: args.aspectRatio,
-    });
+    plannedPromptPlan = coercePromptPlan(assetForPlan.planned_shots);
   }
 
   // Step A: 验证资源 + 扣额度 + 创建 job（一个事务）
@@ -465,15 +533,30 @@ export async function createAndRunGenerationJob(args: {
         };
         const fallbackShots = decideThreeShots(profile, args.platformStyle, args.aspectRatio);
         const plannedShots = plannedPromptPlan?.shots;
-        const shots = plannedShots
+        // 把候选镜头铺平成统一结构（planner 4 条 / fallback 3 条）
+        const candidates = plannedShots
           ? plannedShots.map((shot) => ({
               prompt: `${shot.prompt}\n\n${PLATFORM_STYLE_RULES[args.platformStyle]}\n\nRender at ${ASPECT_LABEL[args.aspectRatio]}.\n\n${STRICT_QUALITY}`,
               room: shot.scene_type,
               lit: shot.light_state === "on",
               compositionReferenceUrl: shot.room_reference,
-              plannerMeta: shot,
+              plannerMeta: shot as object | null,
+              is_variant: shot.is_variant,
             }))
-          : fallbackShots.map((shot) => ({ ...shot, plannerMeta: null }));
+          : fallbackShots.map((shot) => ({
+              ...shot,
+              plannerMeta: null as object | null,
+              is_variant: false,
+            }));
+        // 适合空间数 = 非变体候选数；variant 下标 = 第一个 is_variant 的位置
+        const mainCount = candidates.filter((c) => !c.is_variant).length;
+        const variantIdx = candidates.findIndex((c) => c.is_variant);
+        const pickedIdx = distributeShots(
+          imageCount,
+          mainCount,
+          variantIdx >= 0 ? variantIdx : null,
+        );
+        const shots = pickedIdx.map((i) => candidates[i]);
         promptList = shots.map((s) => s.prompt);
         compositionReferenceList = shots.map((s) => s.compositionReferenceUrl);
         // 存完整 prompts + room reference，便于排查“模型到底吃到了什么”。
@@ -524,7 +607,7 @@ export async function createAndRunGenerationJob(args: {
               : args.aspectRatio === "4_5"
                 ? "ratio_4_5"
                 : "ratio_16_9",
-          credit_cost: CREDIT_COST,
+          credit_cost: creditCost,
           status: "generating",
           stage_hint: "analyzing",
         },
@@ -534,7 +617,7 @@ export async function createAndRunGenerationJob(args: {
       const { balanceAfter } = await consumeCredits(
         tx,
         args.userId,
-        CREDIT_COST,
+        creditCost,
         job.id,
       );
 
@@ -574,7 +657,7 @@ export async function createAndRunGenerationJob(args: {
   // 旧流程：finalPrompt 是模板/推荐/自定义的 prompt，走 buildPrompt 套上标准框架，复制 3 次
   const prompts: string[] = result.promptList
     ? result.promptList
-    : Array.from({ length: OUTPUT_COUNT }, () =>
+    : Array.from({ length: imageCount }, () =>
         buildPrompt(result.finalPrompt, args.platformStyle, args.aspectRatio),
       );
   await runGenerationPipeline({
@@ -624,10 +707,10 @@ async function runGenerationPipeline(args: {
   const { jobId, userId, referenceImageUrl, aspectRatio } = args;
   const prompts: string[] = Array.isArray(args.prompts)
     ? args.prompts
-    : Array.from({ length: OUTPUT_COUNT }, () => args.prompts as string);
-  if (prompts.length !== OUTPUT_COUNT) {
+    : [args.prompts as string];
+  if (prompts.length < 1 || prompts.length > MAX_IMAGE_COUNT) {
     throw new Error(
-      `runGenerationPipeline: expected ${OUTPUT_COUNT} prompts, got ${prompts.length}`,
+      `runGenerationPipeline: expected 1-${MAX_IMAGE_COUNT} prompts, got ${prompts.length}`,
     );
   }
   try {
@@ -646,7 +729,7 @@ async function runGenerationPipeline(args: {
       const provider = getProviderForIndex(idx);
       const compositionReferenceUrl = args.compositionReferenceUrls?.[idx];
       console.log(
-        `[gen] output ${idx + 1}/${OUTPUT_COUNT} via ${provider.name}` +
+        `[gen] output ${idx + 1}/${prompts.length} via ${provider.name}` +
           (compositionReferenceUrl ? ` + roomRef=${compositionReferenceUrl}` : ""),
       );
       return provider.generate({
@@ -719,7 +802,7 @@ async function runGenerationPipeline(args: {
             stage_hint: null,
           },
         });
-        await refundCredits(tx, userId, CREDIT_COST, jobId);
+        await refundCredits(tx, userId, prompts.length * CREDIT_PER_IMAGE, jobId);
       });
     } catch (e) {
       console.error("[gen] failure-handling error", e);

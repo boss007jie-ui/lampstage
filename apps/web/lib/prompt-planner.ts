@@ -30,6 +30,10 @@ export type ProductProfileForPlanner = {
 
 export type PlannedShot = {
   scene_type: string;
+  /** 该镜头所属的"适合空间"排名（0 = 最适合）。用于按数量分配到空间。 */
+  space_rank: number;
+  /** 是否为"最适合空间的另一角度/时段"变体（第 4 条）。 */
+  is_variant: boolean;
   room_reference: string;
   time_of_day: "daylight" | "dusk" | "night";
   light_state: "off" | "on";
@@ -78,14 +82,22 @@ Each shot's "prompt" field MUST embed: the room scene, the explicit relative-siz
 
 Return STRICT JSON only. No markdown.
 
+SHOT PLAN — return exactly 4 shots, in this fixed order:
+- shot[0]: the BEST-FITTING space for this lamp (most suitable), space_rank=0, is_variant=false.
+- shot[1]: the 2nd best-fitting space, space_rank=1, is_variant=false.
+- shot[2]: the 3rd best-fitting space, space_rank=2, is_variant=false.
+- shot[3]: ANOTHER ANGLE / TIME-OF-DAY of the BEST space again (space_rank=0, is_variant=true) — same best space as shot[0] but visibly different: different camera angle, different time of day, or different furniture layout, so the two best-space shots don't look identical.
+Rank spaces best-first judged by the lamp's STYLE / MATERIAL / SHAPE / temperament. The best space (rank 0) is the one this specific lamp suits most.
+
 JSON schema:
 {
   "usage_role": "main_pendant|accent_pendant|ambient_decor|product_showcase",
-  "reasoning": "short reason",
+  "reasoning": "short reason incl. why the best space ranks first",
   "shots": [
     {
-      "scene_type": "string",
-      "room_reference": "one of provided refs",
+      "scene_type": "string, e.g. dining_room",
+      "space_rank": 0,
+      "is_variant": false,
       "time_of_day": "daylight|dusk|night",
       "light_state": "off|on",
       "placement": "string",
@@ -96,7 +108,7 @@ JSON schema:
   ]
 }
 
-Return exactly 3 shots.`;
+Return exactly 4 shots in the order described above.`;
 
 function stripFence(s: string): string {
   return s.replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
@@ -110,8 +122,16 @@ function normalizePlan(raw: unknown): PromptPlan | null {
   if (!isRecord(raw) || !Array.isArray(raw.shots)) return null;
   const shots: PlannedShot[] = raw.shots
     .filter(isRecord)
-    .map((s): PlannedShot => ({
+    .map((s, i): PlannedShot => ({
       scene_type: String(s.scene_type || "interior scene").slice(0, 80),
+      // 兜底：模型若没给 space_rank，按位置推断（前3条=0/1/2，第4条=0 的变体）
+      space_rank:
+        typeof s.space_rank === "number" && s.space_rank >= 0
+          ? Math.min(2, Math.floor(s.space_rank))
+          : i >= 3
+            ? 0
+            : Math.min(2, i),
+      is_variant: s.is_variant === true || i >= 3,
       room_reference: "",
       time_of_day:
         s.time_of_day === "dusk" || s.time_of_day === "night" ? s.time_of_day : "daylight",
@@ -122,8 +142,8 @@ function normalizePlan(raw: unknown): PromptPlan | null {
       prompt: String(s.prompt || "").trim(),
     }))
     .filter((s) => s.prompt.length > 40)
-    .slice(0, 3);
-  if (shots.length !== 3) return null;
+    .slice(0, 4);
+  if (shots.length !== 4) return null;
   const usage =
     raw.usage_role === "main_pendant" ||
     raw.usage_role === "accent_pendant" ||
@@ -160,7 +180,7 @@ ${args.userIntent || "Generate real usage scene images for a lighting e-commerce
 Platform style: ${args.platformStyle}
 Aspect ratio: ${args.aspectRatio}
 
-Write 3 planned image-edit shots. Only ONE image (the lamp product photo) is sent to the model.`;
+Write 4 planned image-edit shots in the fixed order described in the system prompt. Only ONE image (the lamp product photo) is sent to the model.`;
 
   const body = {
     model: MODEL,

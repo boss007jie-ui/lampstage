@@ -318,8 +318,20 @@ function Main({
 
   // Pipeline state
   const [phase, setPhase] = useState<
-    "idle" | "uploading" | "prechecking" | "submitting" | "polling" | "completed" | "failed"
+    | "idle"
+    | "uploading"
+    | "prechecking"
+    | "planning"
+    | "choosing_count"
+    | "submitting"
+    | "polling"
+    | "completed"
+    | "failed"
   >("idle");
+  // 构思完成后，记住已就绪的 asset，等顾客选完数量再发生成请求
+  const [plannedAssetId, setPlannedAssetId] = useState<string | null>(null);
+  // 点"场景构思"后收起左侧步骤2，让注意力集中到右侧
+  const [settingsCollapsed, setSettingsCollapsed] = useState(false);
   const [stageHint, setStageHint] = useState<string | null>(null);
   const [outputs, setOutputs] = useState<{ id: string; image_url: string }[]>([]);
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -354,6 +366,9 @@ function Main({
   }, []);
 
   const generating = phase !== "idle" && phase !== "completed" && phase !== "failed";
+  // busy：构思/提交/生成进行中（禁用"场景构思"按钮）。choosing_count 是暂停态，
+  // 不算 busy —— 顾客此时若展开设置，可以改完重新构思。
+  const busy = generating && phase !== "choosing_count";
   const sceneReady = useMemo(() => {
     if (newLampFlow) return Boolean(lampProfile);
     if (sceneKind === "template") return Boolean(templateId);
@@ -428,7 +443,9 @@ function Main({
     return raw;
   };
 
-  const startPipeline = async () => {
+  // 第一步：点"场景构思" → 上传 + 构思（写好提示词存库）。新流程构思完停在
+  // choosing_count 让顾客选张数；旧流程直接进入生成（默认 3 张）。
+  const startPlanning = async () => {
     if (!canGenerate || !file) return;
     if (!signedIn) {
       onRequireLogin();
@@ -436,6 +453,7 @@ function Main({
     }
     setErrMsg(null);
     setOutputs([]);
+    setPlannedAssetId(null);
 
     try {
       // 1) Upload (only if not already uploaded for this file)
@@ -513,7 +531,57 @@ function Main({
         }
       }
 
-      // 4) Submit job
+      // 构思：新流程下让后端用 gpt 按当前产品卡写好 4 条提示词并存库（独立请求、
+      // 有自己的 60s 预算）。提示词只存后端、不展示。失败不阻断，生成接口会
+      // fallback 到本地规则。
+      if (newLampFlow) {
+        setSettingsCollapsed(true); // 收起左侧步骤2，注意力转右侧
+        setPhase("planning");
+        try {
+          await fetch("/api/generation/plan", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              uploaded_asset_id: assetId,
+              platform_style: platformStyle,
+              aspect_ratio: aspect,
+            }),
+          });
+        } catch {
+          // 构思失败也继续：生成接口走本地规则兜底
+        }
+        // 构思完成 → 记住 asset，让顾客选出图数量
+        setPlannedAssetId(assetId);
+        setPhase("choosing_count");
+        return;
+      }
+
+      // 旧流程：无"选数量"步骤，沿用默认 3 张，直接生成
+      await runGeneration(assetId, 3, submitBody);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg !== "user_cancelled_template") {
+        setErrMsg(msg);
+      }
+      setPhase("failed");
+    }
+  };
+
+  // 第二步：顾客选完出图数量 → 发生成请求 + 轮询。
+  const runGeneration = async (
+    assetId: string,
+    count: number,
+    prebuiltBody?: Record<string, unknown>,
+  ) => {
+    try {
+      const submitBody: Record<string, unknown> = prebuiltBody ?? {
+        uploaded_asset_id: assetId,
+        platform_style: platformStyle,
+        aspect_ratio: aspect,
+      };
+      submitBody.image_count = count;
+
+      // Submit job
       setPhase("submitting");
       const subRes = await fetch("/api/generation/jobs", {
         method: "POST",
@@ -597,7 +665,16 @@ function Main({
           </Step>
 
           <Step n={2} label={t("ws_step_scene")}>
-            {newLampFlow && uploadedAssetId ? (
+            {newLampFlow && uploadedAssetId && settingsCollapsed ? (
+              <button
+                onClick={() => setSettingsCollapsed(false)}
+                className="w-full rounded-2xl border border-[#e5edf5] bg-[#f8fafc] px-4 py-3 text-left text-[13px] text-[#64748b] transition-colors hover:bg-[#eef2f7]"
+              >
+                {lampProfile
+                  ? `${lampTypeLabel(lampProfile.lamp_type)} · ${t("ws_expand_settings")}`
+                  : t("ws_expand_settings")}
+              </button>
+            ) : newLampFlow && uploadedAssetId ? (
               <LampProfileCard
                 assetId={uploadedAssetId}
                 onReady={(p) => setLampProfile(p)}
@@ -654,11 +731,11 @@ function Main({
           </Step>
 
           <button
-            onClick={startPipeline}
-            disabled={!canGenerate}
+            onClick={startPlanning}
+            disabled={!canGenerate || busy}
             className="mt-2 w-full rounded-xl bg-[#171717] px-4 py-3 font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {generating
+            {busy
               ? t("ws_btn_generating")
               : signedIn
                 ? t("ws_btn_generate")
@@ -681,6 +758,10 @@ function Main({
             outputs={outputs}
             errMsg={errMsg}
             filePreview={filePreview}
+            spaceCount={(lampProfile?.space_fit ?? []).length || 3}
+            onChooseCount={(n) => {
+              if (plannedAssetId) void runGeneration(plannedAssetId, n);
+            }}
           />
         </Panel>
       </section>
@@ -924,6 +1005,8 @@ function PreviewArea({
   outputs,
   errMsg,
   filePreview,
+  spaceCount,
+  onChooseCount,
 }: {
   templateName: string;
   platformStyle: PlatformStyle;
@@ -932,6 +1015,8 @@ function PreviewArea({
     | "idle"
     | "uploading"
     | "prechecking"
+    | "planning"
+    | "choosing_count"
     | "submitting"
     | "polling"
     | "completed"
@@ -940,6 +1025,8 @@ function PreviewArea({
   outputs: { id: string; image_url: string }[];
   errMsg: string | null;
   filePreview: string | null;
+  spaceCount: number;
+  onChooseCount: (n: number) => void;
 }) {
   const { t } = useLang();
   const [activeIdx, setActiveIdx] = useState(0);
@@ -1013,6 +1100,17 @@ function PreviewArea({
       >
         <p className="text-[13px] leading-relaxed text-red-700">{errMsg}</p>
       </div>
+    );
+  }
+
+  // ── choosing_count: 构思完成，让顾客选出图数量 ──
+  if (phase === "choosing_count") {
+    return (
+      <CountSelector
+        spaceCount={spaceCount}
+        aspectRatioCss={aspectRatioCss}
+        onChoose={onChooseCount}
+      />
     );
   }
 
@@ -1289,6 +1387,63 @@ function QuotaExhaustedDialog({
 }
 
 /**
+ * 出图数量选择器：构思完成后出现在右侧。顾客选 1-4 张，确认后才发生成请求扣费。
+ * 深色背景与加载态一致，让注意力留在右侧。最适合空间优先呈现。
+ */
+function CountSelector({
+  spaceCount,
+  aspectRatioCss,
+  onChoose,
+}: {
+  spaceCount: number;
+  aspectRatioCss: string;
+  onChoose: (n: number) => void;
+}) {
+  const { t } = useLang();
+  const [count, setCount] = useState(Math.min(3, Math.max(1, spaceCount)));
+  return (
+    <div
+      className="grid place-items-center overflow-hidden rounded-2xl px-5 md:rounded-3xl"
+      style={{
+        minHeight: 320,
+        aspectRatio: aspectRatioCss,
+        background: "linear-gradient(160deg,#1a1a2e,#16213e)",
+      }}
+    >
+      <div className="w-full max-w-[360px] text-center">
+        <div className="text-[16px] font-medium text-white sm:text-[18px]">
+          {t("ws_count_title")}
+        </div>
+        <div className="mt-4 flex justify-center gap-2.5">
+          {[1, 2, 3, 4].map((n) => (
+            <button
+              key={n}
+              onClick={() => setCount(n)}
+              className={`grid h-12 w-12 place-items-center rounded-xl text-[17px] font-semibold transition-all sm:h-14 sm:w-14 ${
+                count === n
+                  ? "bg-white text-[#16213e] ring-2 ring-white ring-offset-2 ring-offset-[#16213e]"
+                  : "bg-white/10 text-white/80 hover:bg-white/20"
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+        <p className="mt-4 text-[12px] leading-relaxed text-white/55">
+          {t("ws_count_hint")}
+        </p>
+        <button
+          onClick={() => onChoose(count)}
+          className="mt-5 w-full rounded-xl bg-[#533afd] px-4 py-3 font-medium text-white transition-opacity hover:opacity-90"
+        >
+          {t("ws_count_confirm")} · {count} {t("ws_count_unit")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * 工作流时间线：5 个阶段以勾选 / 当前 / 待办形式呈现，让用户清楚看到进展。
  *
  * Phase mapping:
@@ -1305,6 +1460,8 @@ function ProgressTimeline({
     | "idle"
     | "uploading"
     | "prechecking"
+    | "planning"
+    | "choosing_count"
     | "submitting"
     | "polling"
     | "completed"
@@ -1323,7 +1480,7 @@ function ProgressTimeline({
 
   // map phase + stageHint to current stage index
   let currentIdx = 0;
-  if (phase === "uploading") currentIdx = -1; // pre-stage
+  if (phase === "uploading" || phase === "planning") currentIdx = -1; // pre-stage
   else if (phase === "prechecking") currentIdx = 0;
   else if (phase === "submitting") currentIdx = 1;
   else if (phase === "polling") {
@@ -1337,15 +1494,15 @@ function ProgressTimeline({
 
   return (
     <div className="w-full max-w-[420px] px-2 sm:px-4">
-      {phase === "uploading" && (
+      {(phase === "uploading" || phase === "planning") && (
         <div className="mb-5 text-center">
           <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-white/40 border-t-white" />
           <div className="mt-2 text-[13px] sm:text-[15px] text-white/90">
-            {t("ws_uploading")}
+            {phase === "planning" ? t("ws_stage_planning") : t("ws_uploading")}
           </div>
         </div>
       )}
-      {phase !== "uploading" && (
+      {phase !== "uploading" && phase !== "planning" && (
         <ol className="space-y-2.5 sm:space-y-3">
           {STAGES.map((stage, idx) => {
             const done = idx < currentIdx;

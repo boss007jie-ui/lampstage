@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
     custom_prompt?: unknown;
     platform_style?: unknown;
     aspect_ratio?: unknown;
+    image_count?: unknown;
   };
   try {
     body = await req.json();
@@ -67,6 +68,8 @@ export async function POST(req: NextRequest) {
     typeof body.aspect_ratio === "string"
       ? (body.aspect_ratio as AspectRatio)
       : "4_5";
+  const imageCount =
+    typeof body.image_count === "number" ? body.image_count : undefined;
   if (!assetId) {
     return NextResponse.json({ error: "missing_fields" }, { status: 400 });
   }
@@ -86,6 +89,7 @@ export async function POST(req: NextRequest) {
     customPrompt,
     platformStyle,
     aspectRatio,
+    imageCount,
   });
   if (!result.ok) {
     const status =

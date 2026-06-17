@@ -26,6 +26,8 @@ export type ProductProfileForPlanner = {
   color_temp: ColorTemp;
   target_audience: TargetAudience;
   material_keywords: string[];
+  /** 已选/已排序的适合空间（SPACE_POOL key，最适合在前）。planner 必须严格使用，不得自选。 */
+  space_fit: string[];
 };
 
 export type PlannedShot = {
@@ -60,11 +62,11 @@ Hard rules (these come from offline A/B testing — follow them exactly):
 
 1. ROOM-FIRST narrative. Describe the full interior scene (style, furniture, natural daylight) as the main subject. The lamp is the LAST element — a brief prepositional phrase. NEVER make the lamp the sentence subject. The lamp must read as one small detail in the room, not a centered hero product.
 
-2. SCALE via in-scene reference (most important — the image model IGNORES absolute sizes like "25cm"). You MUST anchor the lamp's size to furniture already in the scene, plus an everyday-object hint:
-   - small product: "much smaller than the main furniture below it — its shade is only about the size of a dinner plate"
-   - medium product: "clearly smaller than the main furniture — about the size of a serving tray"
-   - large product: "noticeably smaller than the main furniture"
-   Always tell the model to compare the lamp to the nearby furniture and keep it clearly smaller. Pendants hang high on a long cord near the ceiling.
+2. SCALE via in-scene reference (MOST IMPORTANT — the image model IGNORES absolute sizes like "25cm", and OVERSIZING is the #1 recurring defect). You MUST anchor the lamp's size to furniture already in the scene with a HARD upper bound, plus an everyday-object hint:
+   - small product: "much smaller than the main furniture below it — its shade is only about the size of a dinner plate, and its width is at most one-quarter of the table/sofa width below it"
+   - medium product: "clearly smaller than the main furniture — about the size of a serving tray, and its width never exceeds one-third of the table/sofa width below it"
+   - large product: "a statement piece but still clearly smaller than the main furniture — its width never exceeds one-half of the table/sofa width below it"
+   ALWAYS include an explicit forbidding clause in the prompt: "the lamp must NOT span the width of the table, must NOT fill the center of the frame, and must NOT look oversized — it is a small accent high in the room." A pendant hangs high on a long cord near the ceiling, occupying only a small fraction of the frame.
 
 3. LIGHT STATE.
    - Daylight scenes: the lamp is switched OFF. State it forcefully: "the bulb is completely dark and unlit, with no glow, no warm light and no pink light at all — the room is lit only by soft natural daylight." (Residual pink/warm glow was a real recurring defect.)
@@ -78,16 +80,17 @@ Hard rules (these come from offline A/B testing — follow them exactly):
 
 7. WORDING. Never use "install", "the uploaded image", or "the reference image is" — say "matching the reference" for the lamp appearance. 70-110 English words per shot.
 
-Each shot's "prompt" field MUST embed: the room scene, the explicit relative-size anchor (rule 2), the forceful light-state line (rule 3), and the material-fidelity clause (rule 4).
+Each shot's "prompt" field MUST embed: the room scene, the explicit relative-size anchor WITH its hard upper-bound clause and the "must NOT span / must NOT look oversized" forbidding clause (rule 2), the forceful light-state line (rule 3), and the material-fidelity clause (rule 4).
 
 Return STRICT JSON only. No markdown.
 
-SHOT PLAN — return exactly 4 shots, in this fixed order:
-- shot[0]: the BEST-FITTING space for this lamp (most suitable), space_rank=0, is_variant=false.
-- shot[1]: the 2nd best-fitting space, space_rank=1, is_variant=false.
-- shot[2]: the 3rd best-fitting space, space_rank=2, is_variant=false.
-- shot[3]: ANOTHER ANGLE / TIME-OF-DAY of the BEST space again (space_rank=0, is_variant=true) — same best space as shot[0] but visibly different: different camera angle, different time of day, or different furniture layout, so the two best-space shots don't look identical.
-Rank spaces best-first judged by the lamp's STYLE / MATERIAL / SHAPE / temperament. The best space (rank 0) is the one this specific lamp suits most.
+SHOT PLAN — you are GIVEN a fixed, pre-ranked list of suitable spaces in the user message ("Suitable spaces (ranked, best-first)"). You MUST use EXACTLY those spaces, in that exact order. You are STRICTLY FORBIDDEN from inventing, substituting, or adding any other space. In particular, NEVER use a bedroom (or any room) unless it explicitly appears in the given list.
+Return exactly 4 shots in this fixed order:
+- shot[0]: spaces[0] (the best-fitting space). space_rank=0, is_variant=false. "scene_type" MUST equal spaces[0].
+- shot[1]: spaces[1] if it exists, else spaces[0]. space_rank=1, is_variant=false. "scene_type" MUST equal that space.
+- shot[2]: spaces[2] if it exists, else spaces[0]. space_rank=2, is_variant=false. "scene_type" MUST equal that space.
+- shot[3]: spaces[0] AGAIN (the best space), space_rank=0, is_variant=true — same best space as shot[0] but visibly different: different camera angle, different time of day, or different furniture layout, so the two best-space shots don't look identical. "scene_type" MUST equal spaces[0].
+If the list has fewer than 3 spaces, reuse spaces[0] for the missing slots (still as their own shots). Do NOT introduce a new space to fill a slot.
 
 JSON schema:
 {
@@ -171,8 +174,15 @@ export async function planImagePrompts(args: {
     return null;
   }
 
+  const spaceList =
+    args.profile.space_fit.length > 0
+      ? args.profile.space_fit.join(", ")
+      : "(none provided — fall back to the single best space judged by style)";
   const userText = `Product card:
 ${JSON.stringify(args.profile, null, 2)}
+
+Suitable spaces (ranked, best-first) — USE EXACTLY THESE, IN THIS ORDER, AND NOTHING ELSE:
+${spaceList}
 
 Business/user intent:
 ${args.userIntent || "Generate real usage scene images for a lighting e-commerce product. The lamp must blend into the room, not become a huge centered hero object."}

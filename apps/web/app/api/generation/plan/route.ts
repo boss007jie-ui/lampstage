@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
       color_temp: true,
       target_audience: true,
       material_keywords: true,
+      space_fit: true,
     },
   });
   if (!asset || asset.user_id !== user.id) {
@@ -103,6 +104,10 @@ export async function POST(req: NextRequest) {
       target_audience: asset.target_audience as TargetAudience,
       material_keywords: (asset.material_keywords ?? "")
         .split(",")
+        .filter(Boolean),
+      space_fit: (asset.space_fit ?? "")
+        .split(",")
+        .map((x) => x.trim())
         .filter(Boolean),
     },
     platformStyle,

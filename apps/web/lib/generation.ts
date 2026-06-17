@@ -266,7 +266,6 @@ function buildShotPrompt(
 ): string {
   const audience = AUDIENCE_KEYWORDS[profile.target_audience];
   const scene = spaceScene(room);
-  const sizeCm = profile.size_hint_cm || 40;
   const materialDesc =
     profile.material_keywords.length > 0
       ? profile.material_keywords.join(", ")
@@ -279,31 +278,54 @@ function buildShotPrompt(
     profile.lamp_type === "pendant" || profile.lamp_type === "ceiling";
   const tableCentric = isPendantType && TABLE_CENTRIC_SPACES.has(room);
 
+  // 相对尺寸锚点（线下实测关键）：flash 模型忽略"约25cm"这类绝对数字，
+  // 但会遵守"是桌宽的1/3、像个餐盘那么大"这种画面内参照物比较。size_class 决定比例。
+  // 吊灯/吸顶用宽度比，台灯/落地用高度比。
+  const refObject =
+    tableCentric ? "the table"
+    : isPendantType ? "the sofa / seating below"
+    : profile.lamp_type === "wall" ? "the furniture beside it"
+    : profile.lamp_type === "table" ? "the surface it sits on"
+    : "a person standing next to it";
+  const sizeFraction =
+    profile.size_class === "small" ? "only about one-quarter the width of"
+    : profile.size_class === "large" ? "about half the width of"
+    : "only about one-third the width of";
+  const plateHint =
+    profile.size_class === "small" ? ", roughly the size of a dinner plate"
+    : profile.size_class === "large" ? ""
+    : ", roughly the size of a serving tray";
+  const scaleLine =
+    isPendantType
+      ? `IMPORTANT SCALE: the lamp shade is small and narrow — ${sizeFraction} ${refObject}${plateHint}, clearly much smaller than ${refObject}; it hangs on its cord high up near the ceiling so it reads as a small modest accent, NOT an oversized statement piece.`
+      : `IMPORTANT SCALE: the lamp is modestly sized and clearly smaller than ${refObject}, reading as one small accent in the room, not an oversized hero object.`;
+
   // 位置：用自然语序把灯具"摆进"场景——居中对桌 / 家具区上方 / 靠墙 / 台面 / 落地。
   let placement: string;
   if (tableCentric) {
-    placement = `Directly above the centre of the table, on a short cord close to the ceiling, hangs a single ${lampNoun} ${lampRef}, about ${sizeCm}cm wide`;
+    placement = `Directly above the centre of the table, hanging high on its cord, is a single ${lampNoun} ${lampRef}`;
   } else if (isPendantType) {
-    placement = `From the ceiling above the seating area, on a short cord, hangs a single ${lampNoun} ${lampRef}, about ${sizeCm}cm wide`;
+    placement = `From the ceiling above the seating area, hanging high on its cord, is a single ${lampNoun} ${lampRef}`;
   } else if (profile.lamp_type === "wall") {
-    placement = `On the wall beside the furniture, at roughly eye level with its backplate flat against the wall, is mounted a single ${lampNoun} ${lampRef}, about ${sizeCm}cm`;
+    placement = `On the wall beside the furniture, at roughly eye level with its backplate flat against the wall, is mounted a single ${lampNoun} ${lampRef}`;
   } else if (profile.lamp_type === "table") {
-    placement = `On a surface to one side of the frame sits a single ${lampNoun} ${lampRef}, about ${sizeCm}cm tall`;
+    placement = `On a surface to one side of the frame sits a single ${lampNoun} ${lampRef}`;
   } else {
-    placement = `On the floor beside the seating stands a single ${lampNoun} ${lampRef}, about ${sizeCm}cm tall`;
+    placement = `On the floor beside the seating stands a single ${lampNoun} ${lampRef}`;
   }
 
   // 灯光状态：自然语序（关灯=白天自然光、灯泡暗；开灯=夜晚柔和色温光）。
   const litLine = lit
     ? `It is evening and the lamp is switched on, giving off a soft ${COLOR_TEMP_DESC[profile.color_temp]}, while the rest of the room stays calm and natural.`
-    : "It is a bright morning and the lamp is switched off — its bulb is completely dark and unlit, the whole room lit only by soft natural daylight coming through the windows.";
+    : "It is a bright morning and the lamp is switched OFF: the bulb is completely dark and unlit, with no glow, no warm light and no pink light at all — the whole room is lit only by soft natural daylight coming through the windows.";
 
   const body = [
     `A real interior photograph of a ${spaceDisplay(room)} on a bright day, styled as ${audience}.`,
     `${scene}.`,
     `${placement}.`,
+    scaleLine,
     litLine,
-    "Shot with a wide lens showing the whole room, the room and its furniture filling most of the frame; the lamp is shown at a realistic size and blends in as one natural piece of the décor, not an oversized centred product.",
+    "Shot with a wide lens showing the whole room, the room and its furniture filling most of the frame; the small lamp blends in as one natural piece of the décor, not an oversized centred product.",
   ].join(" ");
 
   return `${body}

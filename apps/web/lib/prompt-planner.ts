@@ -15,9 +15,55 @@ import type {
 import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
 import { logToolCall } from "@/lib/tool-log";
 
-const ENDPOINT = "https://yunwu.ai/v1/chat/completions";
-const MODEL = process.env.PROMPT_PLANNER_MODEL || "gpt-5.5";
-const PLANNER_TIMEOUT_MS = Number(process.env.PROMPT_PLANNER_TIMEOUT_MS || 12000);
+const DEEPSEEK_MODEL = "deepseek-v4-flash";
+const DEFAULT_PLANNER_MODEL = DEEPSEEK_MODEL;
+const YUNWU_MODEL = "gpt-5.5";
+const YUNWU_ENDPOINT = "https://yunwu.ai/v1/chat/completions";
+const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
+const PLANNER_TIMEOUT_MS = Number(process.env.PROMPT_PLANNER_TIMEOUT_MS || 60000);
+
+type PlannerProvider = "yunwu" | "deepseek";
+
+function normalizeBaseUrl(url: string): string {
+  return url.replace(/\/+$/, "");
+}
+
+function getPlannerConfig(): {
+  provider: PlannerProvider;
+  endpoint: string;
+  model: string;
+  apiKey?: string;
+  apiKeyName: string;
+} {
+  const requestedModel = process.env.PROMPT_PLANNER_MODEL;
+  const providerEnv = process.env.PROMPT_PLANNER_PROVIDER?.toLowerCase();
+  const provider: PlannerProvider =
+    providerEnv === "yunwu" ||
+    requestedModel === "gpt-5.5" ||
+    (!!requestedModel &&
+      !requestedModel.startsWith("deepseek-") &&
+      providerEnv !== "deepseek")
+      ? "yunwu"
+      : "deepseek";
+  if (provider === "deepseek") {
+    return {
+      provider,
+      endpoint:
+        process.env.DEEPSEEK_ENDPOINT ||
+        `${normalizeBaseUrl(process.env.DEEPSEEK_BASE_URL || DEEPSEEK_BASE_URL)}/chat/completions`,
+      model: requestedModel || DEFAULT_PLANNER_MODEL,
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      apiKeyName: "DEEPSEEK_API_KEY",
+    };
+  }
+  return {
+    provider,
+    endpoint: process.env.PROMPT_PLANNER_ENDPOINT || YUNWU_ENDPOINT,
+    model: requestedModel || YUNWU_MODEL,
+    apiKey: process.env.YUNWU_API_KEY,
+    apiKeyName: "YUNWU_API_KEY",
+  };
+}
 
 export type ProductProfileForPlanner = {
   lamp_type: LampType;
@@ -168,9 +214,9 @@ export async function planImagePrompts(args: {
   userIntent?: string;
 }): Promise<PromptPlan | null> {
   const startedAt = Date.now();
-  const apiKey = process.env.YUNWU_API_KEY;
-  if (!apiKey) {
-    console.warn("[prompt-planner] YUNWU_API_KEY missing");
+  const planner = getPlannerConfig();
+  if (!planner.apiKey) {
+    console.warn(`[prompt-planner] ${planner.apiKeyName} missing`);
     return null;
   }
 
@@ -193,13 +239,16 @@ Aspect ratio: ${args.aspectRatio}
 Write 4 planned image-edit shots in the fixed order described in the system prompt. Only ONE image (the lamp product photo) is sent to the model.`;
 
   const body = {
-    model: MODEL,
+    model: planner.model,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userText },
     ],
     response_format: { type: "json_object" },
     temperature: 0.2,
+    ...(planner.provider === "deepseek"
+      ? { thinking: { type: "disabled" as const } }
+      : {}),
   };
 
   const controller = new AbortController();
@@ -207,11 +256,11 @@ Write 4 planned image-edit shots in the fixed order described in the system prom
 
   let res: Response;
   try {
-    res = await fetch(ENDPOINT, {
+    res = await fetch(planner.endpoint, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${apiKey}`,
+        authorization: `Bearer ${planner.apiKey}`,
       },
       body: JSON.stringify(body),
       signal: controller.signal,
@@ -220,7 +269,7 @@ Write 4 planned image-edit shots in the fixed order described in the system prom
     console.warn("[prompt-planner] network/timeout error", e);
     void logToolCall({
       tool: "prompt_planner",
-      model: MODEL,
+      model: planner.model,
       status: "failed",
       durationMs: Date.now() - startedAt,
       error: `network/timeout: ${String(e)}`,
@@ -235,7 +284,7 @@ Write 4 planned image-edit shots in the fixed order described in the system prom
     console.warn(`[prompt-planner] HTTP ${res.status}: ${text.slice(0, 300)}`);
     void logToolCall({
       tool: "prompt_planner",
-      model: MODEL,
+      model: planner.model,
       status: "failed",
       httpStatus: res.status,
       durationMs: Date.now() - startedAt,
@@ -254,7 +303,7 @@ Write 4 planned image-edit shots in the fixed order described in the system prom
     const plan = normalizePlan(JSON.parse(stripFence(text)));
     void logToolCall({
       tool: "prompt_planner",
-      model: MODEL,
+      model: planner.model,
       status: plan ? "ok" : "failed",
       httpStatus: res.status,
       durationMs: Date.now() - startedAt,
@@ -265,7 +314,7 @@ Write 4 planned image-edit shots in the fixed order described in the system prom
     console.warn("[prompt-planner] parse error", e);
     void logToolCall({
       tool: "prompt_planner",
-      model: MODEL,
+      model: planner.model,
       status: "failed",
       httpStatus: res.status,
       durationMs: Date.now() - startedAt,

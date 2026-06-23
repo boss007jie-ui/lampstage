@@ -57,7 +57,7 @@ const ASPECT_LABEL: Record<AspectRatio, string> = {
   "16_9": "16:9 wide aspect ratio",
 };
 
-const STRICT_QUALITY = `Photoreal interior photography. Lamp appearance (material, color, shade shape) matches the reference image. Correct ceiling perspective and ambient lighting. No text or watermark.`.trim();
+const STRICT_QUALITY = `Photoreal interior photography. Lamp appearance (material, color, shade shape) matches the reference image. The lamp and room share one coherent lighting system: correct ceiling perspective, contact shadows, ambient tint, depth of field and grain. No text or watermark.`.trim();
 
 function buildPrompt(
   templatePrompt: string,
@@ -242,12 +242,14 @@ function buildRoomFirstPrompt(
       ? profile.material_keywords.join(", ")
       : "the same";
   const lightLine = lit
-    ? "The lamp is switched ON with a soft, realistic warm glow; the rest of the room stays calm and natural, keeping the daylight already in the reference."
+    ? "The lamp is switched ON with a soft, realistic warm glow; let the glow spill subtly onto nearby ceiling, wall and surfaces while the rest of the room stays calm and natural, keeping the daylight already in the reference."
     : "The lamp is switched OFF — dark, unlit bulb with no glow; the room stays lit only by the natural daylight already in the reference image.";
   const body = [
-    "Image 1 is the locked room reference. Keep its exact room layout, furniture, wall colour, flooring, window daylight, camera angle, ceiling and shadows UNCHANGED.",
-    `Image 2 is only the lamp's appearance reference. Add exactly ONE ${material} ${spaceDisplay(profile.lamp_type)} lamp from Image 2 (keep its exact shape, material and colour), ${PLACEMENT_BY_TYPE[profile.lamp_type]}.`,
-    `Match the room's perspective, daylight and shadow direction so the lamp looks truly photographed in the room, not pasted on. Keep the lamp ${SCALE_BY_SIZE[profile.size_class]}; it reads as one small installed fixture, secondary to the room.`,
+    "Image 1 is the locked room reference. Keep its exact room layout, furniture, wall colour, flooring, window daylight, camera angle, ceiling geometry and overall atmosphere unchanged, while allowing and requiring new local shadows and subtle relighting caused by the added lamp.",
+    `Image 2 is only the lamp's appearance reference. Add the ${material} ${spaceDisplay(profile.lamp_type)} lamp exactly as shown in Image 2, keeping the same number of heads/shades/pendants and their arrangement, ${PLACEMENT_BY_TYPE[profile.lamp_type]}.`,
+    "Preserve the lamp's exact silhouette, number of pendants/heads, shade shape, material and proportions from Image 2; do not redesign, simplify, or reduce it to a single head.",
+    "Relight the lamp to match the room's light direction, color temperature and ambient tint; add realistic shadows on nearby ceiling/canopy surfaces, the table or floor below, and any wall behind it, with soft contact shadows at the mounting point. Let the lamp shades and materials softly pick up and reflect surrounding room colors. Blend edges with the image grain, depth of field and lens softness so it must not look like a cutout pasted on top.",
+    `Match the room's perspective, daylight and shadow direction so the lamp looks truly photographed in the room. Keep the lamp ${SCALE_BY_SIZE[profile.size_class]}; it reads as one small installed fixture, secondary to the room.`,
     lightLine,
   ].join(" ");
   return `${body}
@@ -624,7 +626,9 @@ export async function createAndRunGenerationJob(args: {
             }));
         // 房间优先双图法：命中 scene-refs-v2 的空间，改用"锁定房间+放灯"精简提示词 + 房间参考图。
         // 未命中的自定义空间退回原纯文字提示词（compositionReferenceUrl 留空）。
+        // Default to single-image; opt into room refs only with USE_ROOM_REFERENCE=true.
         const enriched = candidates.map((c) => {
+          if (process.env.USE_ROOM_REFERENCE !== "true") return c;
           const roomRef = resolveRoomRef(c.room);
           if (!roomRef) return c;
           return {

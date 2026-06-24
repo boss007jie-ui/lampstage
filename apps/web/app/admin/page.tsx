@@ -52,6 +52,7 @@ type ToolLog = {
   duration_ms: number | null;
   error: string | null;
   created_at: string;
+  result_json?: string | null;
 };
 type ToolSummary = Record<
   string,
@@ -530,6 +531,7 @@ function LogsTab({ onForbidden }: { onForbidden: () => void }) {
               <th className="px-4 py-3">耗时</th>
               <th className="px-4 py-3">错误</th>
               <th className="px-4 py-3">时间</th>
+              <th className="px-4 py-3">提示词</th>
             </tr>
           </thead>
           <tbody>
@@ -559,11 +561,20 @@ function LogsTab({ onForbidden }: { onForbidden: () => void }) {
                   {l.error || "—"}
                 </td>
                 <td className="px-4 py-3 text-[#888]">{fmt(l.created_at)}</td>
+                <td className="px-4 py-3">
+                  {l.tool === "prompt_planner" &&
+                  l.status === "ok" &&
+                  l.result_json ? (
+                    <PlannerResultCell json={l.result_json} />
+                  ) : (
+                    "—"
+                  )}
+                </td>
               </tr>
             ))}
             {logs.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-[#aaa]">
+                <td colSpan={8} className="px-4 py-8 text-center text-[#aaa]">
                   无调用记录
                 </td>
               </tr>
@@ -571,6 +582,48 @@ function LogsTab({ onForbidden }: { onForbidden: () => void }) {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function PlannerResultCell({ json }: { json: string }) {
+  const [open, setOpen] = useState(false);
+  let plan: { reasoning?: string; shots?: Array<{ scene_type?: string; time_of_day?: string; light_state?: string; prompt?: string }> } | null = null;
+  try {
+    plan = JSON.parse(json);
+  } catch {
+    plan = null;
+  }
+
+  if (!plan) {
+    return <span className="text-[#888]">(解析失败)</span>;
+  }
+
+  return (
+    <div className="max-w-[360px]">
+      <span className="text-[12px] text-[#666]">
+        {plan.reasoning?.slice(0, 80) || "—"}
+      </span>
+      <button
+        onClick={() => setOpen(!open)}
+        className="ml-2 text-[11px] text-[#533afd] hover:underline"
+      >
+        {open ? "收起 ↑" : "展开 ↓"}
+      </button>
+      {open && (
+        <div className="mt-2 max-h-[360px] overflow-y-auto rounded border border-[#eee] bg-[#fafafa] p-3 text-[11px] leading-relaxed">
+          {plan.shots?.map((shot, i) => (
+            <div key={i} className="mb-3 border-b border-[#eee] pb-3 last:mb-0 last:border-b-0 last:pb-0">
+              <div className="font-semibold text-[#333]">
+                Shot {i + 1}: {shot.scene_type} · {shot.time_of_day} · {shot.light_state}
+              </div>
+              <div className="mt-1 whitespace-pre-wrap font-mono text-[#555]">
+                {shot.prompt}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -123,99 +123,52 @@ Never invent product dimensions from the lamp image.
 If dimensions are missing, use a conservative SMALL fallback:
 shade diameter = 30 cm, and state low scale confidence in reasoning.
 
-PRIMARY GOAL
+DIMENSIONS ARE PRIVATE PLANNING CONTEXT
 
-Create believable full-room lifestyle scenes where the room is the visual
-subject and the lamp is physically realistic in scale.
+Use product dimensions ONLY to select a believable room scale,
+furniture scale, ceiling height, and camera distance.
 
-The lamp may be centered over furniture in the real room, but it must never
-become the visual center of the image.
+Never include:
+- centimetres
+- percentages
+- frame-width calculations
+- table-depth calculations
+- chair-seat comparisons
+- scale-band labels
+- warnings about oversizing
 
-HARD RULES
+in the final image-edit prompt.
 
-1. ROOM-FIRST COMPOSITION
+SCENE-FIRST FUSION
 
-Describe the room, architecture, furniture, daylight, and camera angle first.
-Mention the lamp only once near the end of the prompt.
+The room is always the subject:
+architecture, furniture, daylight, texture, styling and lived-in atmosphere
+must take at least 80% of the final prompt.
 
-Use an oblique 30–45 degree camera angle, never a straight-on symmetrical
-composition.
+The lamp is a functional interior detail, not a product hero.
+Mention the lamp only once, in the final sentence of the prompt.
 
-The room must occupy most of the frame. Show surrounding furniture, walls,
-ceiling, floor, and architectural context.
+Do not use:
+- centered hero composition
+- product catalogue photography
+- compact pendant
+- statement piece
+- visually dominant lamp
+- exact scale enforcement wording
 
-For pendant scenes, the lamp may be centered over the table physically, but
-must appear in the upper third or upper-side area of the image rather than
-the visual center of the canvas.
+CAMERA
 
-2. SCALE LOCK — MOST IMPORTANT
+Use an observational interior editorial photograph:
+35mm lens equivalent, eye-level or slightly elevated oblique angle,
+camera placed far enough away for furniture, ceiling, floor and surrounding
+architecture to establish the room first.
 
-Do not use vague comparisons such as:
-"dinner plate", "serving tray", "small accent", or "statement piece".
+For pendant lamps:
+they may be physically above the table or seating area,
+but should read as naturally integrated into the ceiling plane,
+not as the center of the canvas.
 
-Always use:
-A. the actual lamp diameter in cm,
-B. a furniture dimension,
-C. a visible everyday-object comparison,
-D. a maximum image-frame percentage.
-
-Use these scale rules:
-
-SMALL: shade diameter up to 35 cm
-- Dining room: use a 160–180 cm long, 85–95 cm deep table.
-  Lamp shade must be no wider than 40% of table depth and narrower than one
-  dining chair seat.
-- Living room: use a 210–240 cm sofa.
-  Lamp shade must be no wider than half of one sofa seat cushion.
-- Lamp shade must occupy no more than 14% of total image width.
-
-MEDIUM: shade diameter 36–50 cm
-- Dining room: shade must be no wider than 55% of table depth and no wider
-  than one dining chair seat.
-- Living room: shade must be no wider than one sofa seat cushion.
-- Lamp shade must occupy no more than 18% of total image width.
-
-LARGE: shade diameter above 50 cm
-- Dining room: shade must remain narrower than 70% of table depth.
-- Living room: shade must remain narrower than 1.5 sofa seat cushions.
-- Lamp shade must occupy no more than 24% of total image width.
-
-Every prompt must include a concrete scale sentence in this format:
-
-"The [X cm] shade is visibly narrower than [reference object], occupies only
-about [Y]% of the frame width, and remains secondary to the room."
-
-Never use table length as the main size reference.
-Prefer table depth, chair seat width, sofa cushion width, or sideboard height.
-
-3. LAMP VISUAL PRIORITY
-
-The lamp must never:
-- dominate the center of the image,
-- span the visual width of the table or sofa,
-- appear closer to the camera than the furniture,
-- occupy more visual attention than the table, sofa, or room architecture,
-- look like a hero product photograph.
-
-Use this positive instruction:
-
-"Camera is positioned 3–5 metres from the pendant, with the furniture and
-architecture visually dominant and the lamp reading as a realistic fixture
-within the room."
-
-4. MATERIAL AND SHAPE FIDELITY
-
-Mention lamp fidelity only once.
-
-Use this wording:
-
-"a compact pendant matching the reference exactly in silhouette, woven
-material, colour, bulb form, and chain or cord construction."
-
-Do not repeatedly describe the lamp as "natural rattan pendant", "rope weave",
-"metal chain", etc. Repetition increases visual emphasis and causes oversizing.
-
-5. LIGHT STATE
+LIGHT STATE
 
 Daylight scenes:
 "soft natural daylight only; the fixture is switched off, with no emitted glow,
@@ -226,28 +179,35 @@ Dusk/night scenes:
 "the fixture emits a restrained, realistic warm indoor glow with no oversized
 light bloom or exaggerated halo."
 
-6. CAMERA AND FRAMING
+FINAL PROMPT FORMAT
 
-Use:
-- wide full-room interior photograph
-- 28–35 mm lens equivalent
-- oblique camera angle
-- visible ceiling and floor
-- furniture occupying most of the frame
-- lamp positioned in upper third or upper-side area
+Each prompt must be 60–90 English words.
 
-Never use:
-- centered hero-product composition
-- front-facing symmetrical camera
-- close-up pendant framing
-- product catalogue photography
-- isolated lamp emphasis
+Structure:
+1. room style and architecture
+2. furniture and styling
+3. daylight / atmosphere
+4. camera and composition
+5. one final short sentence describing the lamp
 
-7. PROMPT LENGTH
+Final lamp sentence example:
+"An unlit pendant matching the reference in silhouette, material, colour and construction hangs naturally above the table as a functional detail."
 
-Each image prompt must be 55–85 English words.
-Avoid repetitive negative wording.
-Use one compact scale lock sentence only.
+VALIDATION
+
+Before returning a shot prompt, reject and rewrite it if it contains:
+- cm
+- %
+- frame width
+- table depth
+- chair seat
+- scale lock
+- hero product
+- product catalogue
+- oversized
+- compact pendant
+
+Also reject and rewrite if the lamp is mentioned more than once.
 
 SHOT PLAN
 

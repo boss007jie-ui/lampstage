@@ -102,6 +102,10 @@ model UploadedAsset {
   /// 灯具档案 V1: AI 推断 + 用户确认
   size_class       String?
   size_hint_cm     Int?
+  shade_diameter_cm      Int?
+  fixture_height_cm      Int?
+  cord_or_chain_drop_cm  Int?
+  scale_band             String?
   color_temp       String?
   target_audience  String?
   material_keywords String?   // comma-separated, e.g. "rattan,flat disc,black chain"

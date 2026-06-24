@@ -77,6 +77,10 @@ export async function POST(req: NextRequest) {
       detected_lamp_type: true,
       size_class: true,
       size_hint_cm: true,
+      shade_diameter_cm: true,
+      fixture_height_cm: true,
+      cord_or_chain_drop_cm: true,
+      scale_band: true,
       color_temp: true,
       target_audience: true,
       material_keywords: true,
@@ -100,6 +104,15 @@ export async function POST(req: NextRequest) {
       lamp_type: asset.detected_lamp_type as LampType,
       size_class: asset.size_class as SizeClass,
       size_hint_cm: asset.size_hint_cm ?? 40,
+      shade_diameter_cm: asset.shade_diameter_cm ?? null,
+      fixture_height_cm: asset.fixture_height_cm ?? null,
+      cord_or_chain_drop_cm: asset.cord_or_chain_drop_cm ?? null,
+      scale_band:
+        asset.scale_band === "small" ||
+        asset.scale_band === "medium" ||
+        asset.scale_band === "large"
+          ? asset.scale_band
+          : (asset.size_class as SizeClass) ?? "medium",
       color_temp: asset.color_temp as ColorTemp,
       target_audience: asset.target_audience as TargetAudience,
       material_keywords: (asset.material_keywords ?? "")

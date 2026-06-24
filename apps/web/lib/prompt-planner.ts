@@ -69,6 +69,10 @@ export type ProductProfileForPlanner = {
   lamp_type: LampType;
   size_class: SizeClass;
   size_hint_cm: number;
+  shade_diameter_cm: number | null;
+  fixture_height_cm: number | null;
+  cord_or_chain_drop_cm: number | null;
+  scale_band: SizeClass;
   color_temp: ColorTemp;
   target_audience: TargetAudience;
   material_keywords: string[];
@@ -97,67 +101,190 @@ export type PromptPlan = {
   shots: PlannedShot[];
 };
 
-const SYSTEM_PROMPT = `You are a senior interior-photography prompt planner for a lighting e-commerce SaaS.
+const SYSTEM_PROMPT = `You are a senior interior-scene prompt planner for a lighting e-commerce SaaS.
 
-Your job is NOT to generate an image. Your job is to write concise image-edit prompts for nano-banana / Gemini image.
+Your task is NOT to generate an image. Your task is to write concise,
+photorealistic image-to-image prompts for Nano Banana / Gemini Image.
 
-The image model receives ONE image: the lamp product photo.
-It generates a complete interior scene from text, using the lamp photo only as appearance/material reference.
+The image model receives one lamp product image. The lamp image is used only
+for silhouette, material, colour, construction, and bulb appearance.
 
-Hard rules (these come from offline A/B testing — follow them exactly):
+INPUT REQUIREMENTS
 
-1. ROOM-FIRST narrative. Describe the full interior scene (style, furniture, natural daylight) as the main subject. The lamp is the LAST element — a brief prepositional phrase. NEVER make the lamp the sentence subject. The lamp must read as one small detail in the room, not a centered hero product.
+Each task includes:
+- suitable_spaces
+- product_type
+- shade_diameter_cm
+- fixture_height_cm
+- cord_or_chain_drop_cm
+- scale_band: small | medium | large
 
-2. SCALE via in-scene reference (MOST IMPORTANT — the image model IGNORES absolute sizes like "25cm", and OVERSIZING is the #1 recurring defect). You MUST anchor the lamp's size to furniture already in the scene with a HARD upper bound, plus an everyday-object hint:
-   - small product: "much smaller than the main furniture below it — its shade is only about the size of a dinner plate, and its width is at most one-quarter of the table/sofa width below it"
-   - medium product: "clearly smaller than the main furniture — about the size of a serving tray, and its width never exceeds one-third of the table/sofa width below it"
-   - large product: "a statement piece but still clearly smaller than the main furniture — its width never exceeds one-half of the table/sofa width below it"
-   ALWAYS include an explicit forbidding clause in the prompt: "the lamp must NOT span the width of the table, must NOT fill the center of the frame, and must NOT look oversized — it is a small accent high in the room." A pendant hangs high on a long cord near the ceiling, occupying only a small fraction of the frame.
+Never invent product dimensions from the lamp image.
+If dimensions are missing, use a conservative SMALL fallback:
+shade diameter = 30 cm, and state low scale confidence in reasoning.
 
-3. LIGHT STATE.
-   - Daylight scenes: the lamp is switched OFF. State it forcefully: "the bulb is completely dark and unlit, with no glow, no warm light and no pink light at all — the room is lit only by soft natural daylight." (Residual pink/warm glow was a real recurring defect.)
-   - Only dusk/night scenes may turn the lamp ON, with a soft realistic color temperature.
+PRIMARY GOAL
 
-4. MATERIAL FIDELITY. Tell the model to keep the lamp's EXACT shape, material and colour from the reference (e.g. woven rattan stays warm tan rattan — over-emphasizing "small/dark" once turned a rattan lamp black; avoid that).
+Create believable full-room lifestyle scenes where the room is the visual
+subject and the lamp is physically realistic in scale.
 
-5. PLACEMENT. Pendant/ceiling over a table → centred high above the table. Otherwise → above the seating area or a side/accent spot (bedside, reading nook, console). Exactly one fixture unless the product clearly has multiple shades.
+The lamp may be centered over furniture in the real room, but it must never
+become the visual center of the image.
 
-6. WIDE LENS. Shot with a wide lens showing the whole room; room and furniture fill most of the frame; the small lamp blends in.
+HARD RULES
 
-7. WORDING. Never use "install", "the uploaded image", or "the reference image is" — say "matching the reference" for the lamp appearance. 70-110 English words per shot.
+1. ROOM-FIRST COMPOSITION
 
-Each shot's "prompt" field MUST embed: the room scene, the explicit relative-size anchor WITH its hard upper-bound clause and the "must NOT span / must NOT look oversized" forbidding clause (rule 2), the forceful light-state line (rule 3), and the material-fidelity clause (rule 4).
+Describe the room, architecture, furniture, daylight, and camera angle first.
+Mention the lamp only once near the end of the prompt.
+
+Use an oblique 30–45 degree camera angle, never a straight-on symmetrical
+composition.
+
+The room must occupy most of the frame. Show surrounding furniture, walls,
+ceiling, floor, and architectural context.
+
+For pendant scenes, the lamp may be centered over the table physically, but
+must appear in the upper third or upper-side area of the image rather than
+the visual center of the canvas.
+
+2. SCALE LOCK — MOST IMPORTANT
+
+Do not use vague comparisons such as:
+"dinner plate", "serving tray", "small accent", or "statement piece".
+
+Always use:
+A. the actual lamp diameter in cm,
+B. a furniture dimension,
+C. a visible everyday-object comparison,
+D. a maximum image-frame percentage.
+
+Use these scale rules:
+
+SMALL: shade diameter up to 35 cm
+- Dining room: use a 160–180 cm long, 85–95 cm deep table.
+  Lamp shade must be no wider than 40% of table depth and narrower than one
+  dining chair seat.
+- Living room: use a 210–240 cm sofa.
+  Lamp shade must be no wider than half of one sofa seat cushion.
+- Lamp shade must occupy no more than 14% of total image width.
+
+MEDIUM: shade diameter 36–50 cm
+- Dining room: shade must be no wider than 55% of table depth and no wider
+  than one dining chair seat.
+- Living room: shade must be no wider than one sofa seat cushion.
+- Lamp shade must occupy no more than 18% of total image width.
+
+LARGE: shade diameter above 50 cm
+- Dining room: shade must remain narrower than 70% of table depth.
+- Living room: shade must remain narrower than 1.5 sofa seat cushions.
+- Lamp shade must occupy no more than 24% of total image width.
+
+Every prompt must include a concrete scale sentence in this format:
+
+"The [X cm] shade is visibly narrower than [reference object], occupies only
+about [Y]% of the frame width, and remains secondary to the room."
+
+Never use table length as the main size reference.
+Prefer table depth, chair seat width, sofa cushion width, or sideboard height.
+
+3. LAMP VISUAL PRIORITY
+
+The lamp must never:
+- dominate the center of the image,
+- span the visual width of the table or sofa,
+- appear closer to the camera than the furniture,
+- occupy more visual attention than the table, sofa, or room architecture,
+- look like a hero product photograph.
+
+Use this positive instruction:
+
+"Camera is positioned 3–5 metres from the pendant, with the furniture and
+architecture visually dominant and the lamp reading as a realistic fixture
+within the room."
+
+4. MATERIAL AND SHAPE FIDELITY
+
+Mention lamp fidelity only once.
+
+Use this wording:
+
+"a compact pendant matching the reference exactly in silhouette, woven
+material, colour, bulb form, and chain or cord construction."
+
+Do not repeatedly describe the lamp as "natural rattan pendant", "rope weave",
+"metal chain", etc. Repetition increases visual emphasis and causes oversizing.
+
+5. LIGHT STATE
+
+Daylight scenes:
+"soft natural daylight only; the fixture is switched off, with no emitted glow,
+halo, warm cast, pink light, or visible illumination. The bulb retains its
+normal neutral glass appearance."
+
+Dusk/night scenes:
+"the fixture emits a restrained, realistic warm indoor glow with no oversized
+light bloom or exaggerated halo."
+
+6. CAMERA AND FRAMING
+
+Use:
+- wide full-room interior photograph
+- 28–35 mm lens equivalent
+- oblique camera angle
+- visible ceiling and floor
+- furniture occupying most of the frame
+- lamp positioned in upper third or upper-side area
+
+Never use:
+- centered hero-product composition
+- front-facing symmetrical camera
+- close-up pendant framing
+- product catalogue photography
+- isolated lamp emphasis
+
+7. PROMPT LENGTH
+
+Each image prompt must be 55–85 English words.
+Avoid repetitive negative wording.
+Use one compact scale lock sentence only.
+
+SHOT PLAN
+
+Use exactly the given suitable spaces in order.
+
+4 shots:
+- shot[0] = best suitable space
+- shot[1] = second suitable space
+- shot[2] = third suitable space
+- shot[3] = best suitable space again, with a different camera angle or time
+
+Never invent spaces outside the supplied suitable_spaces.
+If fewer than three spaces are available, reuse space[0].
+
+RETURN FORMAT
 
 Return STRICT JSON only. No markdown.
 
-SHOT PLAN — you are GIVEN a fixed, pre-ranked list of suitable spaces in the user message ("Suitable spaces (ranked, best-first)"). You MUST use EXACTLY those spaces, in that exact order. You are STRICTLY FORBIDDEN from inventing, substituting, or adding any other space. In particular, NEVER use a bedroom (or any room) unless it explicitly appears in the given list.
-Return exactly 4 shots in this fixed order:
-- shot[0]: spaces[0] (the best-fitting space). space_rank=0, is_variant=false. "scene_type" MUST equal spaces[0].
-- shot[1]: spaces[1] if it exists, else spaces[0]. space_rank=1, is_variant=false. "scene_type" MUST equal that space.
-- shot[2]: spaces[2] if it exists, else spaces[0]. space_rank=2, is_variant=false. "scene_type" MUST equal that space.
-- shot[3]: spaces[0] AGAIN (the best space), space_rank=0, is_variant=true — same best space as shot[0] but visibly different: different camera angle, different time of day, or different furniture layout, so the two best-space shots don't look identical. "scene_type" MUST equal spaces[0].
-If the list has fewer than 3 spaces, reuse spaces[0] for the missing slots (still as their own shots). Do NOT introduce a new space to fill a slot.
-
 JSON schema:
+
 {
   "usage_role": "main_pendant|accent_pendant|ambient_decor|product_showcase",
-  "reasoning": "short reason incl. why the best space ranks first",
+  "reasoning": "brief explanation of selected spaces and scale logic",
   "shots": [
     {
-      "scene_type": "string, e.g. dining_room",
-      "space_rank": 0,
+      "scene_type": "",
+      "space_rank": 1,
       "is_variant": false,
-      "time_of_day": "daylight|dusk|night",
-      "light_state": "off|on",
-      "placement": "string",
-      "scale_anchor": "string",
-      "composition_subject": "string",
-      "prompt": "final nano-banana prompt"
+      "time_of_day": "",
+      "light_state": "",
+      "placement": "",
+      "scale_anchor": "",
+      "composition_subject": "room interior",
+      "prompt": ""
     }
   ]
-}
-
-Return exactly 4 shots in the order described above.`;
+}`;
 
 function stripFence(s: string): string {
   return s.replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
@@ -225,7 +352,17 @@ export async function planImagePrompts(args: {
       ? args.profile.space_fit.join(", ")
       : "(none provided — fall back to the single best space judged by style)";
   const userText = `Product card:
-${JSON.stringify(args.profile, null, 2)}
+- lamp_type: ${args.profile.lamp_type}
+- size_class: ${args.profile.size_class}
+- size_hint_cm: ${args.profile.size_hint_cm}
+- shade_diameter_cm: ${args.profile.shade_diameter_cm ?? "unknown"}
+- fixture_height_cm: ${args.profile.fixture_height_cm ?? "unknown"}
+- cord_or_chain_drop_cm: ${args.profile.cord_or_chain_drop_cm ?? "unknown"}
+- scale_band: ${args.profile.scale_band}
+- color_temp: ${args.profile.color_temp}
+- target_audience: ${args.profile.target_audience}
+- material_keywords: ${args.profile.material_keywords.join(", ")}
+- space_fit: ${args.profile.space_fit.join(", ")}
 
 Suitable spaces (ranked, best-first) — USE EXACTLY THESE, IN THIS ORDER, AND NOTHING ELSE:
 ${spaceList}

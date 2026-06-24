@@ -44,6 +44,14 @@ export type LampProfile = {
   lamp_type: LampType;
   size_class: SizeClass;
   size_hint_cm: number;
+  /** AI 估算的灯罩直径 cm，pendant/ceiling/wall 用，table/floor 可为 null */
+  shade_diameter_cm: number | null;
+  /** 灯具总高度 cm（含灯体+灯罩，不含吊线/吊链） */
+  fixture_height_cm: number | null;
+  /** 吊线/吊链下挂长度 cm（pendant 专用，其他类型为 null） */
+  cord_or_chain_drop_cm: number | null;
+  /** 尺寸档位：与 size_class 一致，供 planner 按档位选规则 */
+  scale_band: SizeClass;
   color_temp: ColorTemp;
   target_audience: TargetAudience;
   material_keywords: string[];
@@ -56,6 +64,10 @@ export const DEFAULT_PROFILE: LampProfile = {
   lamp_type: "unknown",
   size_class: "medium",
   size_hint_cm: 40,
+  shade_diameter_cm: null,
+  fixture_height_cm: null,
+  cord_or_chain_drop_cm: null,
+  scale_band: "medium",
   color_temp: "warm_3000k",
   target_audience: "modern_luxury",
   material_keywords: [],
@@ -80,6 +92,10 @@ Rules:
   wall: small ≤25cm projection, medium 25-40cm, large ≥40cm
   ceiling: small ≤40cm diameter, medium 40-70cm, large ≥70cm
 - size_hint_cm: your best numeric estimate of the lamp's primary dimension (diameter for pendant/ceiling, height for table/floor, projection for wall)
+- shade_diameter_cm: if the lamp has a visible shade/dome, estimate its diameter in cm. For pendant/ceiling/wall types, estimate from the lamp body width relative to common visual cues (e.g. a hand holding the lamp ≈ 8–9 cm palm width, a table lamp beside it ≈ standard A4 paper 21 cm). Return null only for types without a shade (e.g. bare bulb floor lamp).
+- fixture_height_cm: estimate the total height of the lamp body (shade + housing, excluding cord/chain/rod). Return null if impossible to judge.
+- cord_or_chain_drop_cm: for pendant type only, estimate the visible cord/chain/rod length from ceiling attachment to lamp body. For other types return null.
+- scale_band: same value as size_class. This is the size band used for scale-lock rules.
 - color_temp: looking at the bulb glow color and shade material, infer:
   warm_3000k=yellow/orange glow, linen/wood/amber glass shade
   neutral_4000k=natural white glow, mixed materials
@@ -157,6 +173,19 @@ function normalize(raw: Record<string, unknown>): LampProfile {
   if (isSizeClass(raw.size_class)) out.size_class = raw.size_class;
   const cm = Number(raw.size_hint_cm);
   if (Number.isFinite(cm) && cm > 0 && cm < 500) out.size_hint_cm = Math.round(cm);
+  const sd = Number(raw.shade_diameter_cm);
+  if (Number.isFinite(sd) && sd > 0 && sd < 300) {
+    out.shade_diameter_cm = Math.round(sd);
+  }
+  const fh = Number(raw.fixture_height_cm);
+  if (Number.isFinite(fh) && fh > 0 && fh < 500) {
+    out.fixture_height_cm = Math.round(fh);
+  }
+  const cd = Number(raw.cord_or_chain_drop_cm);
+  if (Number.isFinite(cd) && cd > 0 && cd < 500) {
+    out.cord_or_chain_drop_cm = Math.round(cd);
+  }
+  out.scale_band = isSizeClass(raw.scale_band) ? raw.scale_band : out.size_class;
   if (isColorTemp(raw.color_temp)) out.color_temp = raw.color_temp;
   if (isAudience(raw.target_audience)) out.target_audience = raw.target_audience;
   if (Array.isArray(raw.material_keywords)) {

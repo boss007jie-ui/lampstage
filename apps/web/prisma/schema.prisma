@@ -283,6 +283,8 @@ model ToolCallLog {
   duration_ms Int?
   /// 失败原因（截断保存）
   error       String?
+  /// planner 成功时存的完整 PromptPlan JSON（用于后台查阅），失败时为 null
+  result_json String?
   created_at  DateTime @default(now())
 
   @@index([created_at])

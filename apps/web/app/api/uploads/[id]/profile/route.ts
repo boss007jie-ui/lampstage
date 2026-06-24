@@ -26,6 +26,10 @@ type AssetSnapshot = {
   detected_lamp_type: string | null;
   size_class: string | null;
   size_hint_cm: number | null;
+  shade_diameter_cm: number | null;
+  fixture_height_cm: number | null;
+  cord_or_chain_drop_cm: number | null;
+  scale_band: string | null;
   color_temp: string | null;
   target_audience: string | null;
   material_keywords: string | null;
@@ -43,6 +47,10 @@ async function loadAsset(id: string): Promise<AssetSnapshot | null> {
       detected_lamp_type: true,
       size_class: true,
       size_hint_cm: true,
+      shade_diameter_cm: true,
+      fixture_height_cm: true,
+      cord_or_chain_drop_cm: true,
+      scale_band: true,
       color_temp: true,
       target_audience: true,
       material_keywords: true,
@@ -58,6 +66,10 @@ function toClient(a: AssetSnapshot) {
     lamp_type: a.detected_lamp_type ?? "unknown",
     size_class: a.size_class ?? "medium",
     size_hint_cm: a.size_hint_cm ?? 40,
+    shade_diameter_cm: a.shade_diameter_cm ?? null,
+    fixture_height_cm: a.fixture_height_cm ?? null,
+    cord_or_chain_drop_cm: a.cord_or_chain_drop_cm ?? null,
+    scale_band: a.scale_band ?? a.size_class ?? "medium",
     color_temp: a.color_temp ?? "warm_3000k",
     target_audience: a.target_audience ?? "modern_luxury",
     space_fit: (a.space_fit ?? "").split(",").filter((s) => s.length > 0),
@@ -122,6 +134,10 @@ export async function POST(
       detected_lamp_type: profile.lamp_type,
       size_class: profile.size_class,
       size_hint_cm: profile.size_hint_cm,
+      shade_diameter_cm: profile.shade_diameter_cm,
+      fixture_height_cm: profile.fixture_height_cm,
+      cord_or_chain_drop_cm: profile.cord_or_chain_drop_cm,
+      scale_band: profile.scale_band,
       color_temp: profile.color_temp,
       target_audience: profile.target_audience,
       material_keywords: profile.material_keywords.slice(0,5).join(","),
@@ -135,6 +151,10 @@ export async function POST(
       detected_lamp_type: true,
       size_class: true,
       size_hint_cm: true,
+      shade_diameter_cm: true,
+      fixture_height_cm: true,
+      cord_or_chain_drop_cm: true,
+      scale_band: true,
       color_temp: true,
       target_audience: true,
       material_keywords: true,
@@ -183,6 +203,13 @@ const SIZE_REPRESENTATIVE_CM: Record<string, Record<string, number>> = {
   unknown: { small: 25, medium: 45, large: 70 },
 };
 
+function readOptionalCm(value: unknown, max: number): number | null | undefined {
+  if (value === null) return null;
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  if (value <= 0 || value >= max) return undefined;
+  return Math.round(value);
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: { id: string } },
@@ -207,6 +234,9 @@ export async function PATCH(
   }
   if (typeof body.size_class === "string" && ALLOWED_SIZES.has(body.size_class)) {
     update.size_class = body.size_class;
+    if (typeof body.scale_band !== "string") {
+      update.scale_band = body.size_class;
+    }
     // 如果用户在同一次请求里没显式传 size_hint_cm，根据新 size_class + 当前 lamp_type 联动给一个代表值
     // 否则 AI 估算的具体数字会和新 size_class 矛盾（"小" + "~55cm"）
     if (typeof body.size_hint_cm !== "number") {
@@ -218,6 +248,15 @@ export async function PATCH(
   }
   if (typeof body.size_hint_cm === "number" && body.size_hint_cm > 0 && body.size_hint_cm < 500) {
     update.size_hint_cm = Math.round(body.size_hint_cm);
+  }
+  const shadeDiameterCm = readOptionalCm(body.shade_diameter_cm, 300);
+  if (shadeDiameterCm !== undefined) update.shade_diameter_cm = shadeDiameterCm;
+  const fixtureHeightCm = readOptionalCm(body.fixture_height_cm, 500);
+  if (fixtureHeightCm !== undefined) update.fixture_height_cm = fixtureHeightCm;
+  const cordOrChainDropCm = readOptionalCm(body.cord_or_chain_drop_cm, 500);
+  if (cordOrChainDropCm !== undefined) update.cord_or_chain_drop_cm = cordOrChainDropCm;
+  if (typeof body.scale_band === "string" && ALLOWED_SIZES.has(body.scale_band)) {
+    update.scale_band = body.scale_band;
   }
   if (typeof body.color_temp === "string" && ALLOWED_TEMPS.has(body.color_temp)) {
     update.color_temp = body.color_temp;
@@ -247,6 +286,10 @@ export async function PATCH(
       detected_lamp_type: true,
       size_class: true,
       size_hint_cm: true,
+      shade_diameter_cm: true,
+      fixture_height_cm: true,
+      cord_or_chain_drop_cm: true,
+      scale_band: true,
       color_temp: true,
       target_audience: true,
       material_keywords: true,

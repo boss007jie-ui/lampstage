@@ -308,6 +308,7 @@ Write 4 planned image-edit shots in the fixed order described in the system prom
       httpStatus: res.status,
       durationMs: Date.now() - startedAt,
       error: plan ? null : "normalizePlan returned null",
+      resultJson: plan ? JSON.stringify(plan) : null,
     });
     return plan;
   } catch (e) {

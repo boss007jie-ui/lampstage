@@ -22,6 +22,7 @@ export type ToolLogInput = {
   httpStatus?: number | null;
   durationMs?: number | null;
   error?: string | null;
+  resultJson?: string | null;
 };
 
 /** 写一条调用日志。永不抛错。 */
@@ -37,6 +38,7 @@ export async function logToolCall(input: ToolLogInput): Promise<void> {
         http_status: input.httpStatus ?? null,
         duration_ms: input.durationMs ?? null,
         error: input.error ? input.error.slice(0, 500) : null,
+        result_json: input.resultJson ?? null,
       },
     });
   } catch (e) {

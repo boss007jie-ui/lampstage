@@ -58,6 +58,7 @@ export async function GET(req: Request) {
       http_status: l.http_status,
       duration_ms: l.duration_ms,
       error: l.error,
+      result_json: l.result_json,
       created_at: l.created_at,
     })),
     summary24h: byTool,

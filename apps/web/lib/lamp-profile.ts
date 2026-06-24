@@ -14,7 +14,7 @@ import { getObjectBytes } from "@/lib/storage";
 import { logToolCall } from "@/lib/tool-log";
 
 const ENDPOINT = "https://yunwu.ai/v1/chat/completions";
-const MODEL = process.env.LAMP_PROFILE_MODEL || "gpt-5.5";
+const MODEL = process.env.LAMP_PROFILE_MODEL || "gpt-5.4-nano";
 
 export type LampType =
   | "pendant"

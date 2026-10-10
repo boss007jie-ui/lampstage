@@ -14,6 +14,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
+import { s3ForcePathStyle, s3Region } from "./s3-config";
 
 const SUBDIR_GENERATED = "generated";
 const SUBDIR_UPLOADS = "uploads";
@@ -32,14 +33,13 @@ let r2Client: S3Client | null = null;
 function getR2(): S3Client {
   if (r2Client) return r2Client;
   r2Client = new S3Client({
-    region: "auto",
+    region: s3Region("public"),
     endpoint: process.env.R2_ENDPOINT!,
     credentials: {
       accessKeyId: process.env.R2_ACCESS_KEY_ID!,
       secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
     },
-    // R2 doesn't support per-bucket subdomain style URLs by default
-    forcePathStyle: true,
+    forcePathStyle: s3ForcePathStyle("public"),
   });
   return r2Client;
 }

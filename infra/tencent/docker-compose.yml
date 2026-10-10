@@ -1,0 +1,52 @@
+services:
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/tencent/Dockerfile
+    image: lampstage-web:latest
+    env_file: .env.prod
+    environment:
+      NODE_ENV: production
+    command: ["npm", "run", "start"]
+    expose:
+      - "3000"
+    restart: unless-stopped
+    networks: [lampstage]
+
+  worker:
+    image: lampstage-web:latest
+    env_file: .env.prod
+    environment:
+      NODE_ENV: production
+      VIDEO_WORK_ROOT: /srv/lampstage/video-work
+      VIDEO_HYPIT_PACKAGE_ROOT: /app/apps/web/vendor/hypit
+      VIDEO_HYPIT_RUNTIME: /srv/lampstage/runtime/account01.runtime.json
+    command: ["npm", "run", "video:worker"]
+    volumes:
+      - video-work:/srv/lampstage/video-work
+      - ./runtime:/srv/lampstage/runtime:ro
+    restart: unless-stopped
+    networks: [lampstage]
+
+  edge:
+    image: caddy:2-alpine
+    depends_on: [web]
+    environment:
+      LAMPSTAGE_DOMAIN: ${LAMPSTAGE_DOMAIN:-lampstage.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+    networks: [lampstage]
+
+volumes:
+  video-work:
+  caddy-data:
+  caddy-config:
+
+networks:
+  lampstage:

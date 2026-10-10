@@ -1,0 +1,3 @@
+{$LAMPSTAGE_DOMAIN:lampstage.com} {
+  reverse_proxy web:3000
+}

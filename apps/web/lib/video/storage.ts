@@ -7,6 +7,7 @@ import { pipeline } from "node:stream/promises";
 import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand, CopyObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { VIDEO_MAX_BYTES } from "./types";
+import { s3ForcePathStyle, s3Region } from "../s3-config";
 
 export function privateStorageReady(): boolean {
   return r2Enabled() || process.env.NODE_ENV !== "production" || Boolean(process.env.VIDEO_STORAGE_DIR);
@@ -16,7 +17,7 @@ function r2Enabled() {
 }
 let client: S3Client | undefined;
 function s3() {
-  client ??= new S3Client({ region: "auto", endpoint: process.env.R2_ENDPOINT, forcePathStyle: true,
+  client ??= new S3Client({ region: s3Region("video"), endpoint: process.env.R2_ENDPOINT, forcePathStyle: s3ForcePathStyle("video"),
     credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID!, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY! } });
   return client;
 }

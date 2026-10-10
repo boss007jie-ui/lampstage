@@ -1,0 +1,14 @@
+.git
+.git/**
+**/.env
+**/.env.*
+**/.next
+**/node_modules
+**/.video-private
+**/.video-work
+**/.video-runtime
+**/.local-runtime
+**/coverage
+**/test-results
+.codex-tmp
+AI_AGENT_HUB

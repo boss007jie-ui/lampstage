@@ -30,6 +30,12 @@ Vercel Web 负责页面和 API，视频队列必须由另一台 Linux VM 或容�
 
 本次本地 H3 任务从确认到完成约 16 分 31 秒。Vercel 请求函数不适合作为常驻 worker；即使配置长函数，也不能替代持久化队列、Hypit 回执和 FFmpeg 工作目录。
 
+## 中国大陆云部署包
+
+本次新增了腾讯云优先的可执行部署包：[`infra/tencent`](../../infra/tencent/README.md)。它把 Web、视频 Worker 和 Caddy 放进 Docker Compose，数据库使用 TencentDB for PostgreSQL，媒体使用 COS，Worker 通过 Hypit 0.2.17、FFmpeg 和 RunningHub account 01 运行。腾讯 COS 与当前 AWS S3 SDK 的适配已改为真实 region 和可配置虚拟主机式访问；Cloudflare R2 仍可通过原有变量继续使用。
+
+建议先在广州 `ap-guangzhou` 或上海 `ap-shanghai` 建立同地域 VPC、TencentDB、两个私有 COS 桶和一台 Linux CVM。资源购买、DNS 修改和密钥写入仍需在用户自己的腾讯云账号中完成；仓库不保存任何云密钥。
+
 ## 推荐发布顺序
 
 1. 将当前工作区整理为可审阅的发布提交，先创建 Vercel Preview。

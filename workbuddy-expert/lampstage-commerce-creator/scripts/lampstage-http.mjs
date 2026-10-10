@@ -4,6 +4,7 @@
 // enter the Expert package.
 import readline from "node:readline";
 import dns from "node:dns/promises";
+import net from "node:net";
 
 const base = (process.env.LAMPSTAGE_API_BASE_URL || "https://lampstage.com/api/v1").replace(/\/$/, "");
 const key = process.env.LAMPSTAGE_API_KEY || "";
@@ -35,16 +36,26 @@ async function callApi(path, init = {}) {
 async function uploadAsset(args) {
   const MAX_SOURCE_BYTES = 150 * 1024 * 1024;
   const MAX_REDIRECTS = 3;
+  const MAX_SOURCE_URL_LENGTH = 2048;
   const isPrivate = (address) => {
-    const value = address.toLowerCase();
+    const value = address.toLowerCase().split("%")[0];
     if (value.startsWith("::ffff:")) return isPrivate(value.slice(7));
-    return value === "localhost" || value === "::1" || value.startsWith("127.") || value.startsWith("10.") ||
-      value.startsWith("192.168.") || value.startsWith("169.254.") || value.startsWith("172.16.") ||
-      value.startsWith("172.17.") || value.startsWith("172.18.") || value.startsWith("172.19.") ||
-      value.startsWith("172.2") || value.startsWith("172.30.") || value.startsWith("172.31.") ||
-      value.startsWith("fc") || value.startsWith("fd") || value.startsWith("fe80:");
+    if (net.isIPv4(value)) {
+      const octets = value.split(".").map(Number);
+      return octets[0] === 0 || octets[0] === 10 || octets[0] === 127 ||
+        (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127) ||
+        (octets[0] === 169 && octets[1] === 254) ||
+        (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+        (octets[0] === 192 && octets[1] === 168);
+    }
+    if (net.isIPv6(value)) {
+      return value === "::" || value === "::1" || value.startsWith("fc") || value.startsWith("fd") ||
+        /^fe[89ab]/.test(value);
+    }
+    return true;
   };
   const checkedUrl = async (value) => {
+    if (typeof value !== "string" || value.length > MAX_SOURCE_URL_LENGTH) throw new Error("source_url is too long");
     let url;
     try { url = new URL(value); } catch { throw new Error("source_url must be a valid http(s) URL"); }
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error("source_url must be a public http(s) URL");

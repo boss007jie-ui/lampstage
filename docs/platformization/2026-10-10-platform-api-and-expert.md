@@ -13,12 +13,18 @@ The first supported capability set is:
 
 ## API contract
 
-The first public, read-only contract is available at:
+The public v1 contract is available at:
 
 - `GET /api/v1/health`
 - `GET /api/v1/capabilities`
 
-Both routes are safe for discovery and include CORS headers. They do not claim that job execution is public yet. A later API rollout needs durable API keys, per-key usage and credit accounting, request idempotency, signed output URLs and rate limits before opening write endpoints.
+Discovery is public and write/task routes require a per-user Bearer API key created at `/account`. The live task paths are:
+
+- `POST /api/v1/assets` and `POST /api/v1/video-assets`
+- `POST /api/v1/image-jobs` and `POST /api/v1/video-jobs`
+- `GET /api/v1/jobs/:id`
+
+Provider credentials remain server-side. API keys are stored as SHA-256 digests and the full key is shown only once. Image generation currently waits for the existing provider pipeline before returning; video projects enter the existing durable worker queue. Idempotency keys and per-key rate limits remain the next hardening step before broad public distribution.
 
 ## WorkBuddy Expert
 

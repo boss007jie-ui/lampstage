@@ -8,13 +8,14 @@ import { LangToggle } from "@/components/i18n/LangToggle";
 import { useLang } from "@/components/i18n/LangProvider";
 import { BRAND } from "@/lib/brand";
 
-export function SiteHeader({ active }: { active?: "cases" | "help" | "credits" | "my" | "video" | "developers" }) {
+export function SiteHeader({ active }: { active?: "cases" | "help" | "credits" | "my" | "video" | "developers" | "account" }) {
   const { t, lang } = useLang();
   const [open, setOpen] = useState(false);
   const links = [
     { href: "/cases", label: t("nav_showcase"), key: "cases" },
     { href: "/video-workspace", label: lang === "zh" ? "视频工作台" : "Video workspace", key: "video" },
     { href: "/developers", label: t("nav_developers"), key: "developers" },
+    { href: "/account", label: lang === "zh" ? "API 密钥" : "API keys", key: "account" },
     { href: "/#how-it-works", label: t("nav_product"), key: "how" },
     { href: "/credits", label: t("nav_pricing"), key: "credits" },
     { href: "/help", label: t("nav_help"), key: "help" },
@@ -39,6 +40,7 @@ export function SiteHeader({ active }: { active?: "cases" | "help" | "credits" |
       {open && <nav id="mobile-navigation" className="mobile-navigation" aria-label={lang === "zh" ? "手机导航" : "Mobile navigation"}>
         {links.map((link) => <Link key={link.href} href={link.href} onClick={() => setOpen(false)}>{link.label}</Link>)}
         <Link href="/my" onClick={() => setOpen(false)}>{t("my_title")}</Link>
+        <Link href="/account" onClick={() => setOpen(false)}>{lang === "zh" ? "API 密钥" : "API keys"}</Link>
         <Link href="/workspace" className="mobile-workspace-link" onClick={() => setOpen(false)}>{t("nav_generate")}</Link>
       </nav>}
     </header>

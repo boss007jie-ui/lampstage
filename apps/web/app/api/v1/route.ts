@@ -12,8 +12,8 @@ export function GET() {
     object: "api",
     service: "lampstage-api",
     version: "v1",
-    status: "discovery",
-    links: { health: "/api/v1/health", capabilities: "/api/v1/capabilities", developers: "/developers" },
+    status: "ready",
+    links: { health: "/api/v1/health", capabilities: "/api/v1/capabilities", developers: "/developers", account: "/account" },
   }, { headers });
 }
 

@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "lampstage": {
-      "command": "npx",
-      "args": ["-y", "@lampstage/mcp-server"],
+      "command": "node",
+      "args": ["./scripts/lampstage-http.mjs"],
       "env": {
         "LAMPSTAGE_API_BASE_URL": "https://lampstage.com/api/v1",
         "LAMPSTAGE_API_KEY": "${LAMPSTAGE_API_KEY}"

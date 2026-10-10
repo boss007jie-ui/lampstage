@@ -77,6 +77,25 @@ model User {
   recharge_orders RechargeOrder[]
   video_assets    VideoAsset[]
   video_jobs      VideoJob[]
+  api_keys        ApiKey[]
+}
+
+/// API credentials for WorkBuddy and other server-side integrations.
+/// Only the SHA-256 digest is stored; the full token is returned once on creation.
+model ApiKey {
+  id           String    @id @default(cuid())
+  user_id      String
+  name         String    @default("WorkBuddy")
+  key_prefix   String
+  key_hash     String    @unique
+  created_at   DateTime  @default(now())
+  last_used_at DateTime?
+  revoked_at   DateTime?
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at])
+  @@index([user_id, revoked_at])
 }
 
 model Session {

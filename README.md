@@ -5,11 +5,11 @@
 
 [lampstage.com](https://lampstage.com) — image generation, video generation and ecommerce content workflows, with a versioned API entry point.
 
-2026-10-10：当前工作区已发布到 `lampstage.com`。公开首页、工作台、账号注册、视频工作台与开发者入口可访问；生产任务仍需有效的 PostgreSQL/Supabase 连接、migrations 和独立 worker。公开 API 当前开放能力目录与健康检查，写入型任务接口按文档中的安全前置条件推进。
+2026-10-10：当前工作区已发布到 `lampstage.com`。公开首页、工作台、账号注册、API 密钥页、视频工作台与开发者入口可访问；生产任务仍需有效的 PostgreSQL/Supabase 连接、migrations 和独立 worker。用户可在 `/account` 创建个人 API Key，再由 WorkBuddy Expert 通过 Bearer 鉴权调用 `/api/v1` 的素材、图片任务、视频项目和任务查询接口。
 
 本地新增[视频工作台](http://127.0.0.1:3000/video-workspace)：参考视频、源素材、参考画面确认、01 账号 H3 分段生成与合成。独立本地数据库、登录、素材上传和草稿保存已跑通，H3 01 已完成一次真实 5 秒验收；生产视频仍需独立 worker、私有 R2 和有效数据库。查看[本地使用说明](本地使用说明.md)与[视频实施说明](docs/implementation/2026-10-07-video-beta.md)。
 
-开发者入口：[`/developers`](https://lampstage.com/developers)。API 发现接口为 `/api/v1`、`/api/v1/health` 和 `/api/v1/capabilities`。可导入的 WorkBuddy Expert 位于 `workbuddy-expert/lampstage-commerce-creator`，包含产品理解、关键词优化、图片、视频与任务素材 Skills。
+开发者入口：[`/developers`](https://lampstage.com/developers)，密钥管理：[`/account`](https://lampstage.com/account)。API 发现接口为 `/api/v1`、`/api/v1/health` 和 `/api/v1/capabilities`。可导入的 WorkBuddy Expert 位于 `workbuddy-expert/lampstage-commerce-creator`，包含产品理解、关键词优化、图片、视频与任务素材 Skills，并随包提供 HTTP MCP 桥接脚本。
 
 ## 技术栈
 

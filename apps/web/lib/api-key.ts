@@ -28,10 +28,17 @@ function tokenFromRequest(request: Request) {
 export async function authenticateApiKey(request: Request) {
   const token = tokenFromRequest(request);
   if (!token || !token.startsWith(PREFIX)) return null;
-  const key = await prisma.apiKey.findUnique({
-    where: { key_hash: hashApiKey(token) },
-    include: { user: true },
-  });
+  let key;
+  try {
+    key = await prisma.apiKey.findUnique({
+      where: { key_hash: hashApiKey(token) },
+      include: { user: true },
+    });
+  } catch {
+    // Treat an unavailable credential store as an authentication miss. Never
+    // turn database diagnostics into a public API response.
+    return null;
+  }
   if (!key || key.revoked_at) return null;
   // Do not make a successful request wait on an audit timestamp update.
   void prisma.apiKey.update({

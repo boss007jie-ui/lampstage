@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
+import { createRequire } from 'node:module';
+
+// Exercise the real route with isolated auth/storage/DB adapters; no external writes.
+const require = createRequire(import.meta.url);
+const source = fs.readFileSync(new URL('../app/api/output-images/[id]/download/route.ts', import.meta.url), 'utf8');
+const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+let user = null;
+let output = null;
+let unavailable = false;
+let reads = 0;
+let updates = 0;
+const exports = {};
+vm.runInNewContext(compiled, { exports, Uint8Array, require(name) {
+  if (name === '@/lib/auth') return { getCurrentUser: async () => user };
+  if (name === '@/lib/db') return { prisma: { outputImage: { findUnique: async () => output, update: async () => { updates++; } } } };
+  if (name === '@/lib/storage') return { getObjectBytes: async () => { reads++; if (unavailable) throw new Error('Storage unavailable'); return { bytes: Buffer.from([1,2,3]), mime: 'image/png' }; } };
+  return require(name);
+} });
+const ctx = { params: { id: 'output-1' } };
+assert.equal((await exports.GET(undefined, ctx)).status, 401);
+assert.equal(reads, 0);
+user = { id: 'owner' };
+assert.equal((await exports.GET(undefined, ctx)).status, 404);
+output = { id: 'output-1', image_url: 'https://storage.example/generated/1.png', job: { user_id: 'other' }, is_downloaded: false };
+assert.equal((await exports.GET(undefined, ctx)).status, 404);
+assert.equal(reads, 0, 'Another account must never read storage');
+output.job.user_id = 'owner';
+const attachment = await exports.GET(undefined, ctx);
+assert.equal(attachment.status, 200);
+assert.equal(attachment.headers.get('content-type'), 'image/png');
+assert.equal(attachment.headers.get('content-disposition'), 'attachment; filename="lampstage-output-1.png"');
+assert.equal(attachment.headers.get('cache-control'), 'private, no-store');
+assert.deepEqual([...new Uint8Array(await attachment.arrayBuffer())], [1,2,3]);
+assert.equal(updates, 0, 'GET must remain read-only');
+unavailable = true;
+assert.equal((await exports.GET(undefined, ctx)).status, 502);
+const marked = await exports.POST(undefined, ctx);
+assert.equal(marked.status, 200);
+assert.deepEqual(await marked.json(), { image_url: output.image_url });
+assert.equal(updates, 1, 'Existing POST tracking contract remains intact');
+console.log('Output download regression: passed (auth, ownership, attachment, storage failure, POST compatibility).');

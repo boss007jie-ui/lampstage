@@ -9,7 +9,7 @@
 
 本地新增[视频工作台](http://127.0.0.1:3000/video-workspace)：参考视频、源素材、参考画面确认、01 账号 H3 分段生成与合成。独立本地数据库、登录、素材上传和草稿保存已跑通，H3 01 已完成一次真实 5 秒验收；生产视频仍需独立 worker、私有 R2 和有效数据库。查看[本地使用说明](本地使用说明.md)与[视频实施说明](docs/implementation/2026-10-07-video-beta.md)。
 
-开发者入口：[`/developers`](https://lampstage.com/developers)，密钥管理：[`/account`](https://lampstage.com/account)。API 发现接口为 `/api/v1`、`/api/v1/health` 和 `/api/v1/capabilities`。可导入的 WorkBuddy Expert 位于 `workbuddy-expert/lampstage-commerce-creator`，包含产品理解、关键词优化、图片、视频与任务素材 Skills，并随包提供 HTTP MCP 桥接脚本。
+开发者入口：[`/developers`](https://lampstage.com/developers)，密钥管理：[`/account`](https://lampstage.com/account)。API 发现接口为 `/api/v1`、`/api/v1/health` 和 `/api/v1/capabilities`。可导入的 WorkBuddy 视频复刻 Expert 位于 `workbuddy-expert/lampstage-commerce-creator`：它通过网站 API 调用服务端 Hypit / RunningHub Minimax H3 worker，完成参考视频拆解、图片参考帧生成、用户确认和最终复刻，并随包提供 HTTP MCP 桥接脚本。
 
 ## 技术栈
 

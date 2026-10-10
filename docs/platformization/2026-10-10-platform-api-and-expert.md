@@ -28,7 +28,7 @@ Provider credentials remain server-side. API keys are stored as SHA-256 digests 
 
 ## WorkBuddy Expert
 
-`workbuddy-expert/lampstage-commerce-creator` packages the customer-facing Expert. It composes product understanding, ecommerce keyword optimization, image generation, video generation and jobs/assets Skills. The `.mcp.json` uses a server-side `LAMPSTAGE_API_KEY` placeholder; supplier credentials remain in the Lampstage runtime.
+`workbuddy-expert/lampstage-commerce-creator` packages the customer-facing Video Replica Expert. It composes reference-video understanding, segment/reference-frame preparation, image generation, Hypit/RunningHub Minimax H3 rendering and jobs/assets Skills. The `.mcp.json` uses a server-side `LAMPSTAGE_API_KEY` placeholder; Hypit, RunningHub and image-provider credentials remain in the persistent Lampstage worker and are not shipped to WorkBuddy.
 
 ## Compatibility boundary
 

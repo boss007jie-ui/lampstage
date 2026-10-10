@@ -27,5 +27,5 @@ export async function POST(request: NextRequest) {
     preserve_audio: typeof body.preserve_audio === "boolean" ? body.preserve_audio : true,
     data: emptyVideoData() as object,
   } });
-  return apiJson({ id: job.id, job_id: job.id, type: "video", status: job.status }, { status: 201 });
+  return apiJson({ id: job.id, job_id: job.id, type: "video", status: job.status, next: "prepare_video_job" }, { status: 201 });
 }

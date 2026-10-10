@@ -33,9 +33,18 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   if (!videoJob) return apiJson({ error: "not_found" }, { status: 404 });
   const data = videoData(videoJob.data);
   const outputUrl = data.outputKey ? await privateMediaUrl(data.outputKey, "video/mp4", `${videoJob.id}.mp4`) : null;
+  const segments = await Promise.all(data.segments.map(async (segment) => ({
+    index: segment.index,
+    start: segment.start,
+    duration: segment.duration,
+    opening_url: segment.openingKey ? await privateMediaUrl(segment.openingKey, "image/png") : null,
+    ending_url: segment.endingKey ? await privateMediaUrl(segment.endingKey, "image/png") : null,
+    candidate_url: segment.candidateKey ? await privateMediaUrl(segment.candidateKey, "video/mp4", `${videoJob.id}-${segment.index}.mp4`) : null,
+  })));
   return apiJson({
     id: videoJob.id, type: "video", status: videoJob.status, stage: videoJob.stage,
-    error: videoJob.error, output_url: outputUrl,
+    phase: videoJob.phase, error: videoJob.error, output_url: outputUrl, segments,
+    estimate: { segments: data.segments.length, image_calls: data.imageCalls, video_coins: data.renderConsent?.estimatedCoins ?? null },
     created_at: videoJob.created_at.toISOString(), updated_at: videoJob.updated_at.toISOString(),
   });
 }

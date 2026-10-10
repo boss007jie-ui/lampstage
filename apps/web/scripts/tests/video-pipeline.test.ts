@@ -1,0 +1,145 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { assembleVideo, inspectSource, prepareSegment, probeMedia, segmentTimeline } from "../../lib/video/media";
+import { execFile } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
+import { reconciliationPlan, segmentAction, verifyRenderConsent } from "../../lib/video/processor";
+import type { VideoJobData } from "../../lib/video/types";
+import type { prisma } from "../../lib/db";
+import { claimJob, heartbeatLease, LeaseLostError, patchJob } from "../../lib/video/repository";
+
+test("4–15 second source windows cover the entire timeline without omitted tail", () => {
+  for (const seconds of [4, 4.01, 4.9, 5, 5.01, 6, 7.5, 8, 9.99, 10, 10.01, 11, 12, 14.99, 15]) {
+    const segments = segmentTimeline(seconds);
+    let cursor = 0;
+    let assembledDuration = 0;
+    for (const segment of segments) {
+      assert.ok(segment.duration === 4 || segment.duration === 5);
+      assert.ok(segment.start >= 0 && segment.trimStart >= 0 && segment.trimStart < segment.duration);
+      assert.ok(Math.abs(segment.start + segment.trimStart - cursor) < 0.00001);
+      const length = Math.min(segment.duration - segment.trimStart, seconds - cursor);
+      assembledDuration += length;
+      cursor += length;
+    }
+    assert.ok(Math.abs(assembledDuration - seconds) < 0.00001);
+    assert.ok(segments.length <= 3);
+  }
+});
+
+test("invalid source durations reject before generation", () => {
+  for (const value of [NaN, Infinity, 0, 3.99, 15.001, 15.1]) assert.throws(() => segmentTimeline(value));
+});
+
+test("an ambiguous submission can never be submitted again", () => {
+  const segment = { index: 0, start: 0, duration: 4 as const, trimStart: 0 };
+  assert.equal(segmentAction(segment, false), "submit");
+  assert.throws(() => segmentAction({ ...segment, submissionIntentAt: new Date().toISOString() }, false));
+  assert.throws(() => segmentAction(segment, true));
+  assert.equal(segmentAction({ ...segment, submissionIntentAt: "intent", buildId: "existing" }, true), "inspect");
+  assert.equal(segmentAction({ ...segment, buildId: "existing" }, false), "inspect");
+  assert.equal(segmentAction({ ...segment, candidateKey: "stored" }, true), "reuse");
+});
+
+test("consent applies to the whole job and changed quotes cannot silently expand scope", () => {
+  const data: VideoJobData = { version: 1, imageCalls: 4, segments: segmentTimeline(9), renderConsent: { at: new Date().toISOString(), maxCoins: 200, estimatedCoins: 200, perSegmentCoins: 100, segmentIndices: [0, 1] } };
+  assert.doesNotThrow(() => verifyRenderConsent(data, 100));
+  assert.throws(() => verifyRenderConsent(data, 101));
+  assert.throws(() => verifyRenderConsent(data, null));
+  assert.throws(() => verifyRenderConsent({ ...data, renderConsent: undefined }, 100));
+  assert.throws(() => verifyRenderConsent({ ...data, renderConsent: { ...data.renderConsent!, maxCoins: 199 } }, 100));
+  assert.throws(() => verifyRenderConsent({ ...data, segments: segmentTimeline(15) }, 100));
+});
+
+test("partial resume consent stays stable across checkpoints and only covers explicitly approved segments", () => {
+  const segments = segmentTimeline(15);
+  segments[0].candidateKey = "already-paid";
+  const data: VideoJobData = { version: 1, imageCalls: 6, segments, renderConsent: { at: new Date().toISOString(), maxCoins: 200, estimatedCoins: 200, perSegmentCoins: 100, segmentIndices: [1, 2] } };
+  assert.doesNotThrow(() => verifyRenderConsent(data, 100, 1));
+  assert.throws(() => verifyRenderConsent(data, 100, 0));
+  segments[1].submissionIntentAt = "checkpoint";
+  segments[1].buildId = "receipt";
+  segments[1].candidateKey = "saved";
+  assert.doesNotThrow(() => verifyRenderConsent(data, 100, 2));
+  assert.throws(() => verifyRenderConsent({ ...data, renderConsent: { ...data.renderConsent!, segmentIndices: [2, 2] } }, 100, 2));
+});
+
+test("a stale revision cannot overwrite durable provider receipts", async () => {
+    const calls: any[] = [];
+    const db = { videoJob: { updateMany: async (args: unknown) => { calls.push(args); return { count: 0 }; } } } as unknown as Pick<typeof prisma, "videoJob">;
+    await assert.rejects(patchJob("job", "worker-old", { expectedRevision: 3 }, { version: 1, imageCalls: 0, segments: [] }, db), LeaseLostError);
+    const args = calls[0];
+    assert.equal(args.where.revision, 3);
+    assert.equal(args.where.lease_owner, "worker-old");
+    assert.ok(args.where.lease_until.gt instanceof Date);
+    assert.equal(args.data.revision.increment, 1);
+});
+
+test("heartbeat renews only a live owner's lease without changing data revision", async () => {
+    const calls: any[] = [];
+    const db = { videoJob: { updateMany: async (args: unknown) => { calls.push(args); return { count: 1 }; } } } as unknown as Pick<typeof prisma, "videoJob">;
+    await heartbeatLease("job", "worker", db);
+    const args = calls[0];
+    assert.equal(args.where.lease_owner, "worker");
+    assert.ok(args.where.lease_until.gt instanceof Date);
+    assert.deepEqual(Object.keys(args.data), ["lease_until"]);
+});
+
+test("claim expires interrupted jobs to attention and loses a raced CAS without processing", async () => {
+    const calls: any[] = [];
+    const db = { videoJob: {
+      updateMany: async (args: unknown) => { calls.push(args); return { count: 0 }; },
+      findMany: async () => [{ id: "job", revision: 7, phase: "render" }],
+    } } as unknown as Pick<typeof prisma, "videoJob">;
+    assert.equal(await claimJob("worker-new", db), null);
+    const expiry = calls[0];
+    assert.equal(expiry.data.status, "attention");
+    assert.equal(expiry.data.revision.increment, 1);
+    const claim = calls[1];
+    assert.equal(claim.where.status, "queued");
+    assert.equal(claim.where.revision, 7);
+    assert.equal(claim.data.lease_owner, "worker-new");
+});
+
+test("partial reconciliation recovers an existing build while leaving later unsubmitted segments untouched", () => {
+  const segments = segmentTimeline(10);
+  segments[0].buildId = "existing-paid-build";
+  segments[0].submissionIntentAt = "intent";
+  const plan = reconciliationPlan(segments);
+  assert.deepEqual(plan.recoverable.map(s => s.index), [0]);
+  assert.deepEqual(plan.missing.map(s => s.index), [1]);
+  assert.equal(segmentAction(plan.recoverable[0], true), "inspect");
+  assert.equal(segments[1].submissionIntentAt, undefined);
+  assert.throws(() => segmentAction(plan.missing[0], true));
+});
+
+test("local synthetic media preserves the full tail, normalizes playback, and selects original audio", { skip: process.env.RUN_VIDEO_MEDIA_TESTS !== "1" }, async () => {
+  const root = path.resolve(os.tmpdir());
+  const workspace = await mkdtemp(path.join(root, "lamp-video-test-"));
+  try {
+    const source = path.join(workspace, "source.mp4");
+    await promisify(execFile)(process.env.VIDEO_FFMPEG_PATH || "ffmpeg", ["-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=180x320:rate=30", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "6.2", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", source], { windowsHide: true });
+    const info = await inspectSource(source);
+    const segments = segmentTimeline(info.duration);
+    const candidates: string[] = [];
+    for (const segment of segments) candidates.push((await prepareSegment(source, segment, workspace)).clip);
+    for (const preserveAudio of [true, false]) {
+      const output = await assembleVideo({ candidates, segments, source, duration: info.duration, preserveAudio, workspace });
+      const result = await probeMedia(output);
+      assert.ok(Math.abs(result.duration - 6.2) <= 0.12);
+      assert.equal(result.width, 720);
+      assert.equal(result.height, 1280);
+      assert.equal(result.videoCodec, "h264");
+      assert.equal(result.hasAudio, preserveAudio);
+      if (preserveAudio) assert.equal(result.audioCodec, "aac");
+    }
+  } finally {
+    // Only remove this test's verified mkdtemp child, never a computed parent directory.
+    const resolved = path.resolve(workspace);
+    assert.equal(path.dirname(resolved), root);
+    assert.ok(path.basename(resolved).startsWith("lamp-video-test-"));
+    await rm(resolved, { recursive: true, force: true });
+  }
+});

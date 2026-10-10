@@ -1,7 +1,7 @@
 {
-  "name": "lampstage-commerce-creator",
+  "name": "lampstage-video-replica",
   "version": "0.1.0",
-  "description": "Use Lampstage to understand a product, optimize ecommerce copy, generate images and create video jobs from one Expert.",
+  "description": "Use Lampstage to analyze a reference video, generate replacement frames and recreate the video through Hypit and RunningHub Minimax H3.",
   "author": { "name": "Lampstage", "email": "hello@lampstage.com" },
   "license": "UNLICENSED",
   "agents": ["./agents/lampstage-commerce-creator.md"],
@@ -13,12 +13,12 @@
     "./skills/jobs-and-assets"
   ],
   "expertType": "agent",
-  "agentName": "lampstage-commerce-creator",
-  "displayName": { "en": "Lampstage Commerce Creator", "zh": "创境电商内容专家" },
-  "profession": { "en": "AI commerce content and media expert", "zh": "AI 电商内容与媒体专家" },
-  "displayDescription": { "en": "Combines product understanding, commerce copy, image generation and video jobs in one workflow.", "zh": "把产品理解、电商文案、图片生成和视频任务组合成一个工作流。" },
-  "defaultInitPrompt": { "en": "Create a content package for this product", "zh": "为这个产品创建一套内容" },
-  "plugin": "lampstage-commerce-creator",
+  "agentName": "lampstage-video-replica",
+  "displayName": { "en": "Lampstage Video Replica Expert", "zh": "创境视频复刻专家" },
+  "profession": { "en": "AI reference-video replication expert", "zh": "AI 参考视频复刻专家" },
+  "displayDescription": { "en": "Analyzes a reference video, generates replacement frames and recreates the final video with Hypit and RunningHub Minimax H3.", "zh": "拆解参考视频，生成替换分镜，并通过 Hypit 与 RunningHub Minimax H3 复刻最终视频。" },
+  "defaultInitPrompt": { "en": "Recreate this reference video with my product", "zh": "用我的产品复刻这个参考视频" },
+  "plugin": "lampstage-video-replica",
   "dependencies": {
     "mcpServers": ["lampstage"]
   },

@@ -6,9 +6,9 @@
 - 已绑定并验证的域名：`lampstage.com`、`www.lampstage.com`、`lampstage.vercel.app`。
 - 历史基线部署来自 Git 提交 `bf1c3a0ee332c2a58a0dfb7e206978ac64bf2575`；当前生产部署见下方 `dpl_7P9y6vmz7wScnYkVMPD1oTEpZ22w`。
 - 本地最新代码已通过 `npm run build` 和 `npm run typecheck`。
-- 当前工作区仍有用户本轮改版的未提交改动；直接从 GitHub 触发生产部署不会包含这些未提交改动。
+- 工作区仍可能包含未跟踪的设计草稿和本地临时文件；它们不属于 `c94747e` 发布提交，也不会进入远端构建。
 
-2026-10-09 已将当前工作区发布到生产部署 `dpl_7P9y6vmz7wScnYkVMPD1oTEpZ22w`，并绑定回 `lampstage.com`。构建成功，首页、工作台静态页面和两个模型名称可访问。部署前修复了 `vercel.json` 的 UTF-8 BOM，并将图片生成路由的 `maxDuration` 调整为 Hobby 计划允许的 300 秒。
+2026-10-09 已将当前工作区发布到生产部署 `dpl_7P9y6vmz7wScnYkVMPD1oTEpZ22w`，并绑定回 `lampstage.com`。构建成功，首页、工作台静态页面和两个模型名称可访问。部署前修复了 `vercel.json` 的 UTF-8 BOM，并将图片生成路由的 `maxDuration` 调整为 Hobby 计划允许的 300 秒。之后的平台 API 与 WorkBuddy 视频复刻改动已在 Git 提交 `c94747e` 推送到 `master`；公开 `capabilities`、`developers` 和视频准备/渲染路由均可达，视频写入仍会在数据库不可用时返回 503/401 等预期保护状态。
 
 线上冒烟结果：`/` 和 `/workspace` 返回 200；`/api/templates` 返回 500，`/api/videos/capabilities` 返回数据库未就绪。原因是本次授权写入的本机数据库连接串对应的 Supabase 用户已经不存在；本机迁移命令也返回同一数据库身份错误。当前生产版本应视为“公开页面已上线，登录、上传、保存和生图待补有效生产数据库”。
 

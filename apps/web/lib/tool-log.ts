@@ -11,7 +11,8 @@ export type ToolName =
   | "lamp_profile"
   | "prompt_planner"
   | "nano-banana"
-  | "gpt-image-2";
+  | "gpt-image-2"
+  | "scene_quality";
 
 export type ToolLogInput = {
   tool: ToolName;

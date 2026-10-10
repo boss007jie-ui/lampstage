@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { SiteHeader } from "@/components/site/SiteHeader";
+import { SiteFooter } from "@/components/site/SiteFooter";
 import { useLang } from "@/components/i18n/LangProvider";
 import { BRAND } from "@/lib/brand";
 
@@ -8,28 +10,30 @@ export default function TermsPage() {
   const { lang } = useLang();
   const zh = lang === "zh";
   return (
+    <>
+    <SiteHeader />
     <main className="mx-auto max-w-3xl px-5 py-12">
-      <Link href="/" className="text-[13px] text-[#533afd] hover:underline">
+      <Link href="/" className="text-[13px] text-[#5b6350] hover:underline">
         ← {zh ? "返回首页" : "Back home"}
       </Link>
-      <h1 className="mt-4 text-[26px] font-semibold tracking-tight">
+      <h1 className="mt-4 text-[34px] font-semibold tracking-tight">
         {zh ? "用户协议" : "Terms of Service"}
       </h1>
-      <p className="mt-2 text-[13px] text-[#888]">
+      <p className="mt-2 text-[13px] text-[#6b7066]">
         {zh ? "最后更新：2026 年 6 月" : "Last updated: June 2026"}
       </p>
 
-      <div className="mt-8 space-y-6 text-[14px] leading-relaxed text-[#374151]">
+      <div className="mt-8 space-y-6 text-[15px] leading-7 text-[#454a40]">
         <Section title={zh ? "服务说明" : "The service"}>
           {zh
-            ? `${BRAND.cn}（${BRAND.en}）提供 AI 家居场景图生成服务。你上传灯具图片，我们生成可用于电商展示的场景图。`
-            : `${BRAND.en} provides AI home-scene image generation. You upload a lamp photo and we generate scene images for e-commerce use.`}
+            ? `${BRAND.cn}（${BRAND.en}）提供 AI 内容与媒体能力。你可以上传素材，调用图片、视频和电商内容任务，并通过 API 接入工作流。`
+            : `${BRAND.en} provides AI content and media capabilities. You can upload assets, call image, video and commerce content tasks, and connect workflows through the API.`}
         </Section>
 
         <Section title={zh ? "账号与额度" : "Account & credits"}>
           {zh
-            ? "新用户注册赠送免费生成额度。额度用于生成图片，每次生成按张消耗。额度不可转让、不可兑换现金。"
-            : "New users get free generation credits. Credits are consumed per generated image, are non-transferable, and have no cash value."}
+            ? "新用户注册赠送免费体验额度。额度按任务规则消耗，不可转让、不可兑换现金。"
+            : "New users receive free trial credits. Credits are consumed according to task rules, are non-transferable, and have no cash value."}
         </Section>
 
         <Section title={zh ? "你的内容与责任" : "Your content & responsibility"}>
@@ -40,8 +44,8 @@ export default function TermsPage() {
 
         <Section title={zh ? "生成结果" : "Generated results"}>
           {zh
-            ? "AI 生成结果可能存在偏差或不完美，不保证每次都满足预期。生成图的使用权归你，可用于商业展示。"
-            : "AI results may be imperfect and are not guaranteed to meet every expectation. You own the usage rights to generated images and may use them commercially."}
+            ? "AI 生成结果可能存在偏差或不完美，不保证每次都满足预期。你需要在发布前核对事实、素材一致性和渠道要求。"
+            : "AI results may be imperfect and are not guaranteed to meet every expectation. Review facts, asset consistency and channel requirements before publishing."}
         </Section>
 
         <Section title={zh ? "付费与退款" : "Payment & refunds"}>
@@ -63,12 +67,14 @@ export default function TermsPage() {
         </Section>
       </div>
 
-      <p className="mt-10 text-[12px] text-[#aaa]">
-        <Link href="/privacy" className="text-[#533afd] hover:underline">
+      <p className="mt-10 text-[12px] text-[#6b7066]">
+        <Link href="/privacy" className="text-[#5b6350] hover:underline">
           {zh ? "隐私政策" : "Privacy Policy"}
         </Link>
       </p>
     </main>
+    <SiteFooter />
+    </>
   );
 }
 
@@ -81,7 +87,7 @@ function Section({
 }) {
   return (
     <section>
-      <h2 className="mb-1.5 text-[16px] font-semibold text-[#171717]">
+      <h2 className="mb-1.5 text-[16px] font-semibold text-[#262924]">
         {title}
       </h2>
       <p>{children}</p>

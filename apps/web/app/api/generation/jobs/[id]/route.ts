@@ -5,6 +5,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isProviderMigrationError, publicGenerationFailure } from "@/lib/provider-errors";
+import { recordedImageModel } from "@/lib/image-models";
 
 export const runtime = "nodejs";
 
@@ -27,9 +29,11 @@ export async function GET(
     id: job.id,
     status: job.status,
     stage_hint: job.stage_hint,
-    failure_reason: job.failure_reason,
+    failure_reason: publicGenerationFailure(job.failure_reason),
+    failure_code: isProviderMigrationError(job.failure_reason) ? "provider_migration_required" : null,
     aspect_ratio: job.aspect_ratio,
     platform_style: job.platform_style,
+    image_model: recordedImageModel(job.metadata),
     outputs: job.outputs.map((o) => ({
       id: o.id,
       image_url: o.image_url,

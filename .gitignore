@@ -34,3 +34,9 @@ test-results/
 # misc
 *.log
 *.tsbuildinfo
+
+# Video beta private media and provider runtime data
+apps/web/.video-private/
+apps/web/.video-work/
+apps/web/.video-runtime/
+apps/web/.local-runtime/

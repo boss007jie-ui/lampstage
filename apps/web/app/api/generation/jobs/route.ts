@@ -8,10 +8,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { createAndRunGenerationJob } from "@/lib/generation";
+import { prisma } from "@/lib/db";
 import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
+import { validateImageSelection } from "@/lib/image-models";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Vercel Hobby allows at most 300 seconds. Image requests run in parallel;
+// the route must stay within that platform limit while the client polls the job.
+export const maxDuration = 300;
 
 const VALID_PLATFORM = new Set<PlatformStyle>([
   "domestic_ecommerce",
@@ -33,6 +37,7 @@ export async function POST(req: NextRequest) {
     platform_style?: unknown;
     aspect_ratio?: unknown;
     image_count?: unknown;
+    image_model?: unknown;
   };
   try {
     body = await req.json();
@@ -67,7 +72,7 @@ export async function POST(req: NextRequest) {
   const aspectRatio =
     typeof body.aspect_ratio === "string"
       ? (body.aspect_ratio as AspectRatio)
-      : "4_5";
+      : "1_1";
   const imageCount =
     typeof body.image_count === "number" ? body.image_count : undefined;
   if (!assetId) {
@@ -79,6 +84,8 @@ export async function POST(req: NextRequest) {
   if (!VALID_ASPECT.has(aspectRatio)) {
     return NextResponse.json({ error: "bad_aspect_ratio" }, { status: 400 });
   }
+  const selection = validateImageSelection(body.image_model, aspectRatio);
+  if (!selection.ok) return NextResponse.json({ error: selection.reason }, { status: 400 });
 
   const result = await createAndRunGenerationJob({
     userId: user.id,
@@ -90,6 +97,7 @@ export async function POST(req: NextRequest) {
     platformStyle,
     aspectRatio,
     imageCount,
+    imageModel: selection.imageModel,
   });
   if (!result.ok) {
     const status =
@@ -100,10 +108,15 @@ export async function POST(req: NextRequest) {
           : 404;
     return NextResponse.json({ error: result.reason }, { status });
   }
-  // 同步生成：返回时所有图已生成完毕（成功或失败都可由 GET /jobs/[id] 查到）
+  // Report the persisted terminal state and balance after any refund.
+  const [job, account] = await Promise.all([
+    prisma.generationJob.findUniqueOrThrow({ where: { id: result.jobId }, select: { status: true } }),
+    prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { credit_balance: true } }),
+  ]);
   return NextResponse.json({
     job_id: result.jobId,
-    status: "completed",
-    credit_balance: result.creditBalance,
+    status: job.status,
+    credit_balance: account.credit_balance,
+    image_model: selection.imageModel,
   });
 }

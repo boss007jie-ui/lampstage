@@ -75,6 +75,8 @@ model User {
   contact_leads   ContactLead[]
   sessions        Session[]
   recharge_orders RechargeOrder[]
+  video_assets    VideoAsset[]
+  video_jobs      VideoJob[]
 }
 
 model Session {
@@ -121,6 +123,23 @@ model UploadedAsset {
   jobs GenerationJob[]
 
   @@index([user_id, created_at])
+}
+
+model SceneSeed {
+  id              String   @id @default(cuid())
+  scene_type      String
+  target_audience String
+  time_of_day     String
+  image_url       String
+  quality_score   Int      @default(0)
+  usage_count     Int      @default(0)
+  source          String   @default("seed")
+  is_qualified    Boolean  @default(false)
+  created_at      DateTime @default(now())
+  last_used_at    DateTime?
+
+  @@index([scene_type, target_audience, time_of_day, quality_score])
+  @@index([is_qualified, usage_count])
 }
 
 model Template {
@@ -294,4 +313,51 @@ model ToolCallLog {
   @@index([created_at])
   @@index([tool, created_at])
   @@index([status, created_at])
+}
+
+/// Private video uploads. Objects are never served through the public image bucket URL.
+model VideoAsset {
+  id          String   @id @default(cuid())
+  user_id     String
+  storage_key String   @unique
+  mime        String
+  size_bytes  Int
+  status      String   @default("pending")
+  created_at  DateTime @default(now())
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  jobs        VideoJob[]
+  @@index([user_id, created_at])
+}
+
+/// Durable queue: updateMany compare-and-swap claims + lease heartbeats.
+model VideoJob {
+  id               String    @id @default(cuid())
+  user_id          String
+  source_asset_id  String
+  product_asset_id String
+  title            String
+  instructions     String    @default("")
+  preserve_audio   Boolean   @default(true)
+  status           String    @default("draft")
+  phase            String    @default("prepare")
+  stage            String    @default("等待准备参考图")
+  data             Json
+  error            String?
+  lease_owner      String?
+  lease_until      DateTime?
+  revision         Int       @default(0)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  user             User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  source_asset     VideoAsset @relation(fields: [source_asset_id], references: [id])
+  @@index([user_id, created_at])
+  @@index([status, created_at])
+}
+
+model VideoWorker {
+  id           String   @id
+  heartbeat_at DateTime @default(now())
+  image_ready  Boolean  @default(false)
+  video_ready  Boolean  @default(false)
+  detail       String?
 }

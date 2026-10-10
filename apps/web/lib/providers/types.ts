@@ -6,7 +6,7 @@
  * 编程，换 provider 只换文件不动业务。
  */
 
-export type AspectRatio = "1_1" | "4_5" | "16_9";
+export type AspectRatio = "1_1" | "4_5" | "16_9" | "9_16";
 export type PlatformStyle = "domestic_ecommerce" | "brand_site";
 
 export type Stage =
@@ -23,6 +23,10 @@ export interface GenInput {
   referenceImageUrl: string;
   /** 可选：场景/房间构图参考图 URL。用于多图参考，让模型保持房间布局和尺度。 */
   compositionReferenceUrl?: string;
+  /** Private video frames can be supplied without publishing their storage URLs. */
+  referenceImageData?: { bytes: Buffer; mime: string };
+  compositionReferenceData?: { bytes: Buffer; mime: string };
+  requestTimeoutMs?: number;
   aspectRatio: AspectRatio;
   platformStyle: PlatformStyle;
   /** MVP 固定 4 */

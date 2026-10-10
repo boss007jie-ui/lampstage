@@ -20,17 +20,19 @@ export type Template = {
   sort_order: number;
 };
 
-const STYLE_TAGS_ZH = [
-  "温馨",
-  "现代",
-  "极简",
-  "工业风",
-  "北欧",
-  "日式",
-  "奢华",
-  "民宿",
-  "商业空间",
-  "夜晚",
+export type TemplateLoadState = "loading" | "error" | "ready" | "empty";
+
+const STYLE_TAGS = [
+  { zh: "温馨", en: "Cozy" },
+  { zh: "现代", en: "Modern" },
+  { zh: "极简", en: "Minimalist" },
+  { zh: "工业风", en: "Industrial" },
+  { zh: "北欧", en: "Scandinavian" },
+  { zh: "日式", en: "Japanese" },
+  { zh: "奢华", en: "Luxury" },
+  { zh: "民宿", en: "Guesthouse" },
+  { zh: "商业空间", en: "Commercial space" },
+  { zh: "夜晚", en: "Nighttime" },
 ];
 
 export function SceneSelector(props: {
@@ -40,6 +42,8 @@ export function SceneSelector(props: {
   templateId: string | null;
   setTemplateId: (id: string | null) => void;
   templatesError: string | null;
+  templatesState: TemplateLoadState;
+  onRetryTemplates: () => void;
   sceneKind: "recommended" | "template" | "custom";
   setSceneKind: (k: "recommended" | "template" | "custom") => void;
   recommendedSceneIdx: number;
@@ -53,7 +57,7 @@ export function SceneSelector(props: {
   customPrompt: string;
   setCustomPrompt: (s: string) => void;
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const {
     file,
     uploadedAssetId,
@@ -61,6 +65,8 @@ export function SceneSelector(props: {
     templateId,
     setTemplateId,
     templatesError,
+    templatesState,
+    onRetryTemplates,
     sceneKind,
     setSceneKind,
     recommendedSceneIdx,
@@ -75,8 +81,11 @@ export function SceneSelector(props: {
     setCustomPrompt,
   } = props;
 
+  const activeAsset = useRef(uploadedAssetId);
+  activeAsset.current = uploadedAssetId;
   const runSuggest = async () => {
     if (!uploadedAssetId) return;
+    const requestAsset = uploadedAssetId;
     setSuggesting(true);
     setSuggestError(null);
     try {
@@ -87,15 +96,16 @@ export function SceneSelector(props: {
       });
       if (!r.ok) {
         const data = await r.json().catch(() => ({}));
-        throw new Error(data.error || `${r.status}`);
+        throw new Error(data.error === "provider_migration_required" ? "provider_migration_required" : "suggest_failed");
       }
       const data = (await r.json()) as { scenes: Scene[] };
+      if (activeAsset.current !== requestAsset) return;
       setSuggestions(data.scenes || []);
       setRecommendedSceneIdx(0);
     } catch (e) {
-      setSuggestError(String(e));
+      if (activeAsset.current === requestAsset) setSuggestError(e instanceof Error ? e.message : "suggest_failed");
     } finally {
-      setSuggesting(false);
+      if (activeAsset.current === requestAsset) setSuggesting(false);
     }
   };
 
@@ -120,16 +130,17 @@ export function SceneSelector(props: {
 
   return (
     <div>
-      <div className="mb-3 flex gap-1.5 overflow-x-auto rounded-xl border border-[#e5e1d8] bg-[#fafafa] p-1">
+      <div className="mb-3 flex gap-1.5 overflow-x-auto rounded-xl border border-[#e5e5de] bg-[#fafafa] p-1">
         {tabs.map((tab) => {
           const on = sceneKind === tab.value;
           return (
             <button
               key={tab.value}
               type="button"
+              aria-pressed={on}
               onClick={() => setSceneKind(tab.value)}
               className={`flex-1 whitespace-nowrap rounded-lg px-2.5 py-2 text-[13px] transition-colors ${
-                on ? "bg-[#171717] text-white" : "text-[#666] hover:text-[#171717]"
+                on ? "bg-[#5b6350] text-white" : "text-[#6b7066] hover:text-[#5b6350]"
               }`}
             >
               {tab.label}
@@ -153,17 +164,10 @@ export function SceneSelector(props: {
 
       {sceneKind === "template" && (
         <>
-          {templatesError && (
-            <p className="mb-2 text-[13px] text-red-600">
-              {t("ws_err_template")}
-              {templatesError}
-            </p>
-          )}
-          <TemplateGrid
-            templates={templates}
-            selectedId={templateId}
-            onSelect={setTemplateId}
-          />
+          {templatesState === "loading" && <p role="status" className="rounded-xl border border-[#e5e5de] bg-[#f7f7f2] p-4 text-[13px] text-[#6b7066]">{lang === "zh" ? "正在读取场景模板…" : "Loading scene templates…"}</p>}
+          {templatesState === "error" && <div role="alert" className="rounded-xl border border-red-100 bg-red-50 p-4 text-[13px] text-red-700"><p>{lang === "zh" ? "场景模板暂时无法读取，请重试。" : "Scene templates could not be loaded. Please retry."}</p>{templatesError && <p className="mt-1 break-words text-xs">{templatesError}</p>}<button type="button" onClick={onRetryTemplates} className="btn btn-outline mt-3">{lang === "zh" ? "重新读取模板" : "Retry loading templates"}</button></div>}
+          {templatesState === "empty" && <div role="status" className="rounded-xl border border-[#e5e5de] bg-[#f7f7f2] p-4 text-[13px] text-[#6b7066]"><p>{lang === "zh" ? "暂无可用模板，可切换智能推荐或自定义场景。" : "No templates are available. Try recommended or custom scenes."}</p><button type="button" onClick={onRetryTemplates} className="btn btn-outline mt-3">{lang === "zh" ? "刷新模板" : "Refresh templates"}</button></div>}
+          {templatesState === "ready" && <TemplateGrid templates={templates} selectedId={templateId} onSelect={setTemplateId} />}
         </>
       )}
 
@@ -193,38 +197,40 @@ function RecommendedScenes({
   onSelect: (i: number) => void;
   onRetry: () => void;
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
 
   if (!file) {
     return (
-      <div className="rounded-xl border border-dashed border-[#e7e1d7] bg-white p-6 text-center text-[13px] text-[#94a3b8]">
+      <div className="rounded-xl border border-dashed border-[#e5e5de] bg-white p-6 text-center text-[13px] text-[#6b7066]">
         {t("ws_recommend_need_upload")}
       </div>
     );
   }
   if (!uploadedAssetId && suggestions.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-[#e7e1d7] bg-white p-6 text-center text-[13px] text-[#94a3b8]">
-        {t("ws_recommend_uploading")}
+      <div className="rounded-xl border border-dashed border-[#e5e5de] bg-white p-6 text-center text-[13px] text-[#6b7066]">
+        {lang === "zh" ? "等待上传完成；如需登录，请先登录后继续。" : "Waiting for upload. Sign in first if prompted."}
       </div>
     );
   }
   if (suggesting) {
     return (
-      <div className="rounded-xl border border-[#e7e1d7] bg-white p-6 text-center">
-        <div className="mb-2 inline-block h-5 w-5 animate-spin rounded-full border-2 border-[#171717] border-t-transparent" />
-        <p className="text-[13px] text-[#666]">{t("ws_recommend_thinking")}</p>
-        <p className="mt-1 text-[11px] text-[#94a3b8]">
-          {t("ws_recommend_thinking_hint")}
+      <div className="rounded-xl border border-[#e5e5de] bg-white p-6 text-center">
+        <div className="mb-2 inline-block h-5 w-5 animate-spin rounded-full border-2 border-[#5b6350] border-t-transparent" />
+        <p className="text-[13px] text-[#6b7066]">{t("ws_recommend_thinking")}</p>
+        <p className="mt-1 text-[11px] text-[#6b7066]">
+          {lang === "zh" ? "正在根据商品图构思场景。" : "Planning scenes from your product image."}
         </p>
       </div>
     );
   }
   if (suggestError) {
+    const message = suggestError.includes("provider_migration_required")
+      ? lang === "zh" ? "图片服务账号已迁移，请管理员更新图片配置后重试。" : "The image service account has migrated. Please ask an administrator to update the image configuration, then retry."
+      : lang === "zh" ? "场景推荐服务暂不可用，请稍后重试。" : "Scene recommendations are temporarily unavailable. Please try again later.";
     return (
-      <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-[13px] text-red-700">
-        <div>{t("ws_recommend_error")}</div>
-        <div className="mt-1 text-[11px] opacity-80">{suggestError}</div>
+      <div role="alert" className="rounded-xl border border-red-100 bg-red-50 p-4 text-[13px] text-red-700">
+        <div>{message}</div>
         <button
           onClick={onRetry}
           className="mt-2 rounded-md border border-red-200 bg-white px-3 py-1 text-[12px] text-red-700"
@@ -236,7 +242,7 @@ function RecommendedScenes({
   }
   if (suggestions.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-[#e7e1d7] bg-white p-6 text-center text-[13px] text-[#94a3b8]">
+      <div className="rounded-xl border border-dashed border-[#e5e5de] bg-white p-6 text-center text-[13px] text-[#6b7066]">
         {t("ws_recommend_empty")}{" "}
         <button onClick={onRetry} className="ml-2 underline">
           {t("ws_recommend_retry")}
@@ -275,49 +281,65 @@ function RecommendedSceneCard({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const { t } = useLang();
-  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+  const { t, lang } = useLang();
+  const identity = JSON.stringify([assetId, idx, scene.prompt_en]);
+  const currentIdentity = useRef(identity);
+  currentIdentity.current = identity;
+  const [thumbnail, setThumbnail] = useState<{ identity: string; url: string } | null>(null);
+  const thumbUrl = thumbnail?.identity === identity ? thumbnail.url : null;
+  const pendingRequest = useRef<symbol | null>(null);
+  const requestController = useRef<AbortController | null>(null);
+  const mounted = useRef(false);
   const [thumbLoading, setThumbLoading] = useState(false);
   const [thumbError, setThumbError] = useState(false);
   const hoverTimer = useRef<number | null>(null);
 
-  // 切换灯具图（assetId 变化）时重置
   useEffect(() => {
-    setThumbUrl(null);
+    mounted.current = true;
+    setThumbnail(null);
     setThumbLoading(false);
     setThumbError(false);
-  }, [assetId]);
+    return () => {
+      mounted.current = false;
+      if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+      requestController.current?.abort();
+      pendingRequest.current = null;
+    };
+  }, [identity]);
 
   const requestThumb = async () => {
-    if (thumbUrl || thumbLoading) return;
+    if (!mounted.current || currentIdentity.current !== identity || pendingRequest.current || (thumbUrl && !thumbError)) return;
+    const request = Symbol("thumbnail");
+    pendingRequest.current = request;
+    const controller = new AbortController();
+    requestController.current = controller;
+    const isCurrent = () => mounted.current && currentIdentity.current === identity && pendingRequest.current === request;
     setThumbLoading(true);
     setThumbError(false);
     try {
-      const r = await fetch("/api/generation/suggest/thumb", {
+      const response = await fetch("/api/generation/suggest/thumb", {
         method: "POST",
+        signal: controller.signal,
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          uploaded_asset_id: assetId,
-          idx,
-          prompt_en: scene.prompt_en,
-        }),
+        body: JSON.stringify({ uploaded_asset_id: assetId, idx, prompt_en: scene.prompt_en }),
       });
-      if (!r.ok) {
-        setThumbError(true);
-        return;
-      }
-      const data = (await r.json()) as { thumb_url: string };
-      // 加 cache-buster 防止偶尔的 304 缓存
-      setThumbUrl(data.thumb_url + "?t=" + Date.now());
+      if (!response.ok) throw new Error("thumbnail_unavailable");
+      const data = await response.json() as { thumb_url?: string };
+      if (!data.thumb_url) throw new Error("missing_thumbnail");
+      if (isCurrent()) setThumbnail({ identity, url: data.thumb_url + (data.thumb_url.includes("?") ? "&" : "?") + "t=" + Date.now() });
     } catch {
-      setThumbError(true);
+      if (isCurrent()) { setThumbnail(null); setThumbError(true); }
     } finally {
-      setThumbLoading(false);
+      if (isCurrent()) {
+        pendingRequest.current = null;
+        requestController.current = null;
+        setThumbLoading(false);
+      }
     }
   };
 
   const onMouseEnter = () => {
-    if (thumbUrl || thumbLoading) return;
+    if (thumbUrl || thumbError || pendingRequest.current) return;
     hoverTimer.current = window.setTimeout(() => {
       void requestThumb();
     }, 500);
@@ -331,24 +353,27 @@ function RecommendedSceneCard({
 
   const handleClick = () => {
     onSelect();
-    // 点击就立即触发（不等 hover delay）
-    if (!thumbUrl && !thumbLoading) {
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+    // Explicit selection also retries a failed thumbnail.
+    if (!thumbUrl || thumbError) {
       void requestThumb();
     }
   };
 
   return (
     <button
+      type="button"
+      aria-pressed={selected}
       onClick={handleClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       className={`overflow-hidden rounded-2xl border bg-white text-left transition-all ${
         selected
-          ? "border-[#171717] shadow-[0_0_0_3px_rgba(23,23,23,.06)]"
-          : "border-[#e7e1d7] hover:border-[#171717]"
+          ? "border-[#5b6350] shadow-[0_0_0_3px_rgba(23,23,23,.06)]"
+          : "border-[#e5e5de] hover:border-[#5b6350]"
       }`}
     >
-      <div className="relative h-32 w-full overflow-hidden bg-gradient-to-br from-[#f6efe1] to-[#cbb38d] sm:h-36">
+      <div className="relative h-32 w-full overflow-hidden bg-gradient-to-br from-[#f4f4ef] to-[#d9ddd2] sm:h-36">
         {thumbUrl && !thumbError && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -357,37 +382,42 @@ function RecommendedSceneCard({
             className="h-full w-full object-cover transition-opacity duration-500"
             style={{ opacity: thumbUrl ? 1 : 0 }}
             loading="lazy"
-            onError={() => setThumbError(true)}
+            onError={() => {
+              if (mounted.current && currentIdentity.current === identity) { setThumbnail(null); setThumbError(true); }
+            }}
           />
         )}
-        {!thumbUrl && (
+        {(!thumbUrl || thumbError) && (
           <div className="absolute inset-0 grid place-items-center">
             {thumbLoading ? (
               <div className="flex flex-col items-center gap-1.5">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#171717] border-t-transparent" />
-                <span className="text-[11px] text-[#876c3a]">{t("ws_recommend_thumb_loading")}</span>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#5b6350] border-t-transparent" />
+                <span className="text-[11px] text-[#5b6350]">{t("ws_recommend_thumb_loading")}</span>
               </div>
+            ) : thumbError ? (
+              <span role="status" className="px-3 text-center text-[11px] text-[#6b7066]">{lang === "zh" ? "场景参考暂不可用，点击重试" : "Scene preview unavailable. Select to retry."}</span>
             ) : (
-              <span className="text-[11px] text-[#876c3a] opacity-70">
-                {t("ws_recommend_thumb_hover")}
+              <span className="text-[11px] text-[#5b6350] opacity-70">
+                {lang === "zh" ? "选择以查看场景参考" : "Select to preview this scene"}
               </span>
             )}
           </div>
         )}
       </div>
       <div className="p-3">
-        <div className="text-[14px] font-semibold text-[#171717]">
+        <div className="text-[14px] font-semibold text-[#5b6350]">
           {scene.title}
         </div>
-        <div className="mt-1 line-clamp-2 text-[12px] text-[#666]">
+        <div className="mt-1 line-clamp-2 text-[12px] text-[#6b7066]">
           {scene.pitch}
         </div>
+        <p className="mt-2 text-[11px] text-[#6b7066]">{lang === "zh" ? "构思参考，尚未生成正式结果" : "Scene reference, not a generated result"}</p>
         {scene.best_for.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {scene.best_for.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="rounded-full bg-[#faf7ed] px-2 py-0.5 text-[11px] text-[#876c3a]"
+                className="rounded-full bg-[#f0f2eb] px-2 py-0.5 text-[11px] text-[#5b6350]"
               >
                 {tag}
               </span>
@@ -408,10 +438,7 @@ function TemplateGrid({
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
-  const { t, lang } = useLang();
-  if (templates.length === 0) {
-    return <div className="text-[13px] text-[#888]">{t("ws_err_loading")}</div>;
-  }
+  const { lang } = useLang();
   const sceneLabelMap: Record<string, { zh: string; en: string }> = {
     dining: { zh: "餐厅", en: "Dining" },
     living: { zh: "客厅", en: "Living" },
@@ -437,11 +464,13 @@ function TemplateGrid({
         return (
           <button
             key={tpl.id}
+            type="button"
+            aria-pressed={selected}
             onClick={() => onSelect(tpl.id)}
             className={`overflow-hidden rounded-2xl border bg-white text-left transition-all ${
               selected
-                ? "border-[#171717] shadow-[0_0_0_3px_rgba(23,23,23,.06)]"
-                : "border-[#e7e1d7] hover:border-[#171717]"
+                ? "border-[#5b6350] shadow-[0_0_0_3px_rgba(23,23,23,.06)]"
+                : "border-[#e5e5de] hover:border-[#5b6350]"
             }`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -452,10 +481,10 @@ function TemplateGrid({
               loading="lazy"
             />
             <div className="p-3">
-              <div className="text-[13px] font-semibold text-[#171717] sm:text-[14px]">
+              <div className="text-[13px] font-semibold text-[#5b6350] sm:text-[14px]">
                 {tpl.name}
               </div>
-              <div className="text-[11px] text-[#888] sm:text-[12px]">
+              <div className="text-[11px] text-[#6b7066] sm:text-[12px]">
                 {lampLabel} · {sceneLabel}
               </div>
             </div>
@@ -473,34 +502,33 @@ function CustomPromptEditor({
   value: string;
   onChange: (s: string) => void;
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   return (
     <div>
       <textarea
+        aria-label={t("ws_tab_custom")}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={t("ws_custom_placeholder")}
         rows={4}
-        className="w-full rounded-xl border border-[#e7e1d7] bg-white p-3 text-[13px] outline-none focus:border-[#171717]"
+        className="w-full rounded-xl border border-[#e5e5de] bg-white p-3 text-[13px] outline-none focus:border-[#5b6350]"
       />
-      <div className="mt-2 text-[11px] text-[#94a3b8]">
+      <div className="mt-2 text-[11px] text-[#6b7066]">
         {t("ws_custom_tags_hint")}
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
-        {STYLE_TAGS_ZH.map((tag) => (
+        {STYLE_TAGS.map((tag) => (
           <button
-            key={tag}
+            key={tag.en}
             type="button"
             onClick={() => {
-              const sep =
-                value.trim().length > 0 && !value.trim().endsWith("，")
-                  ? "，"
-                  : "";
-              onChange(value + sep + tag);
+              const trimmed = value.trimEnd();
+              const sep = trimmed.length > 0 && !/[，,]$/.test(trimmed) ? (lang === "zh" ? "，" : ", ") : trimmed.length > 0 && lang === "en" ? " " : "";
+              onChange(trimmed + sep + tag[lang]);
             }}
-            className="rounded-full border border-[#e5e1d8] bg-white px-2.5 py-1 text-[12px] text-[#666] hover:border-[#171717] hover:text-[#171717]"
+            className="rounded-full border border-[#e5e5de] bg-white px-2.5 py-1 text-[12px] text-[#6b7066] hover:border-[#5b6350] hover:text-[#5b6350]"
           >
-            {tag}
+            {tag[lang]}
           </button>
         ))}
       </div>

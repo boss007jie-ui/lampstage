@@ -7,7 +7,7 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 
-const ENDPOINT = "https://yunwu.ai/v1/chat/completions";
+const ENDPOINT = process.env.SCENE_SUGGEST_ENDPOINT || "https://yunwu.ai/v1/chat/completions";
 const MODEL = process.env.SCENE_SUGGEST_MODEL || "gpt-5.5";
 
 export type Scene = {

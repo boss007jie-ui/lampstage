@@ -1,20 +1,11 @@
-/**
- * Provider 选择。默认策略：shot 0/1 走 nano-banana，shot 2 走 gpt-image-2。
- * IMAGE_PROVIDER=nano-banana 强制全部走 nano（回退/省钱）。
- */
-import { nanoBananaProvider } from "./nano-banana";
-import { gptImage2Provider } from "./gpt-image-2";
+import { nanoBanana21Provider, image25Provider } from "./openlux-images";
 import type { IGenerationProvider } from "./types";
+import { DEFAULT_IMAGE_MODEL, type ImageModelId } from "../image-models";
 
-export function getProvider(): IGenerationProvider {
-  return nanoBananaProvider;
-}
-
-/** 混合策略：前两张 nano-banana，第三张 gpt-image-2 */
-export function getProviderForIndex(idx: number): IGenerationProvider {
-  if (process.env.IMAGE_PROVIDER === "nano-banana") return nanoBananaProvider;
-  if (process.env.IMAGE_PROVIDER === "gpt-image-2") return gptImage2Provider;
-  return idx >= 2 ? gptImage2Provider : nanoBananaProvider;
+export function getProvider(model: ImageModelId = DEFAULT_IMAGE_MODEL): IGenerationProvider {
+  if (model === "nano_banana_21") return nanoBanana21Provider;
+  if (model === "image_25") return image25Provider;
+  throw new Error("Unsupported image model.");
 }
 
 export type { IGenerationProvider } from "./types";

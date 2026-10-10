@@ -1,348 +1,112 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { LangToggle } from "@/components/i18n/LangToggle";
-import { useLang } from "@/components/i18n/LangProvider";
-import {
-  LeadCaptureModal,
-  type LeadSource,
-} from "@/components/credits/LeadCaptureModal";
+import { useCallback, useEffect, useState } from "react";
+import { Check, Coins, ArrowClockwise } from "@phosphor-icons/react";
+import { LoginModal } from "@/components/auth/LoginModal";
 import { RechargeDialog } from "@/components/credits/RechargeDialog";
-import { BRAND, type DictKey } from "@/lib/brand";
+import { SiteHeader } from "@/components/site/SiteHeader";
+import { SiteFooter } from "@/components/site/SiteFooter";
+import { useLang } from "@/components/i18n/LangProvider";
+import type { DictKey } from "@/lib/brand";
 
 type Pack = "basic" | "business" | "factory";
-
-type Tx = {
-  id: string;
-  type: "grant" | "consume" | "refund" | "manual_adjustment";
-  amount: number;
-  related_job_id: string | null;
-  note: string | null;
-  created_at: string;
-};
+type Tx = { id: string; type: "grant" | "consume" | "refund" | "manual_adjustment"; amount: number; related_job_id: string | null; note: string | null; created_at: string };
+type LoadState = "loading" | "ready" | "unauth" | "error";
+const PACKS: { key: Pack; name: DictKey; credits: number; yuan: number; desc: DictKey }[] = [
+  { key: "basic", name: "plan_basic_name", credits: 100, yuan: 30, desc: "plan_basic_desc" },
+  { key: "business", name: "plan_business_name", credits: 400, yuan: 99, desc: "plan_business_desc" },
+  { key: "factory", name: "plan_factory_name", credits: 1500, yuan: 299, desc: "plan_factory_desc" },
+];
 
 export default function CreditsPage() {
   const { t, lang } = useLang();
   const [balance, setBalance] = useState<number | null>(null);
   const [txs, setTxs] = useState<Tx[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [unauth, setUnauth] = useState(false);
-  const [leadOpen, setLeadOpen] = useState<LeadSource | null>(null);
+  const [state, setState] = useState<LoadState>("loading");
+  const [loginOpen, setLoginOpen] = useState(false);
   const [rechargePack, setRechargePack] = useState<Pack | null>(null);
-
-  const reloadCredits = () => {
-    fetch("/api/my/credits", { cache: "no-store" })
-      .then(async (r) => {
-        if (r.status === 401) {
-          setUnauth(true);
-          setLoading(false);
-          return;
-        }
-        if (!r.ok) {
-          setLoading(false);
-          return;
-        }
-        const data = await r.json();
-        setBalance(data.credit_balance);
-        setTxs(data.transactions || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+  const copy = lang === "zh" ? {
+    intro: "按实际需求购买图片额度。在线支付完成后，额度自动到账。", loading: "正在读取账户…",
+    loadError: "账户信息暂时无法加载，请检查网络后重试。", retry: "重试",
+    signIn: "登录后查看余额与交易记录", freeIntro: "新用户注册可获赠 20 次额度。",
+    freeAvailable: "注册即送", freeGranted: "已领取", topup: "在线充值",
+    recent: "最近交易记录", historyError: "交易记录暂时无法加载。",
+  } : {
+    intro: "Buy image credits as needed. Online payments add credits automatically.", loading: "Loading account…",
+    loadError: "Account information could not be loaded. Check your connection and retry.", retry: "Retry",
+    signIn: "Sign in to view your balance and transactions", freeIntro: "New accounts receive 20 free credits.",
+    freeAvailable: "On signup", freeGranted: "Granted", topup: "Top up online",
+    recent: "Recent transactions", historyError: "Transaction history could not be loaded.",
   };
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/my/credits", { cache: "no-store" })
-      .then(async (r) => {
-        if (cancelled) return;
-        if (r.status === 401) {
-          setUnauth(true);
-          setLoading(false);
-          return;
-        }
-        if (!r.ok) {
-          setLoading(false);
-          return;
-        }
-        const data = await r.json();
-        setBalance(data.credit_balance);
-        setTxs(data.transactions || []);
-        setLoading(false);
-      })
-      .catch(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async (signal?: AbortSignal) => {
+    setState("loading");
+    try {
+      const response = await fetch("/api/my/credits", { cache: "no-store", signal });
+      if (signal?.aborted) return;
+      if (response.status === 401) { setBalance(null); setTxs([]); setState("unauth"); return; }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      if (typeof data.credit_balance !== "number" || !Array.isArray(data.transactions)) throw new Error("Invalid credits response");
+      if (signal?.aborted) return;
+      setBalance(data.credit_balance);
+      setTxs(data.transactions);
+      setState("ready");
+    } catch {
+      if (!signal?.aborted) { setBalance(null); setTxs([]); setState("error"); }
+    }
   }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
+  const granted = state === "ready" && txs.some(tx => tx.type === "grant" && tx.amount === 20);
+  const labelTx = (type: Tx["type"]) => type === "grant" ? t("credits_tx_grant") : type === "consume" ? t("credits_tx_consume") : type === "refund" ? t("credits_tx_refund") : t("credits_tx_manual");
 
-  return (
-    <div className="min-h-screen bg-[#f7f7f5]">
-      <header className="border-b border-[#e8e5df] bg-white">
-        <div className="mx-auto flex max-w-[1180px] items-center justify-between px-5 py-4 md:px-6">
-          <Link
-            href="/"
-            className="text-[18px] font-semibold tracking-tight md:text-[22px]"
-          >
-            {lang === "zh" ? `${BRAND.en} · ${BRAND.cn}` : BRAND.en}
-          </Link>
-          <div className="flex items-center gap-3">
-            <LangToggle />
-            <Link
-              href="/workspace"
-              className="rounded-md bg-[#171717] px-4 py-2 text-[14px] text-white"
-            >
-              {t("nav_generate")}
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-[1180px] px-5 py-8 md:px-6 md:py-10">
-        <h1 className="text-[28px] font-light tracking-[-0.5px] md:text-[36px]">
-          {t("credits_title")}
-        </h1>
-
-        {/* 余额 + 简短引导 */}
-        <section className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-[1fr_2fr]">
-          <BalanceCard
-            balance={balance}
-            loading={loading}
-            unauth={unauth}
-            unit={t("credits_balance_unit")}
-            label={t("credits_balance_label")}
-          />
-          <PlansHero
-            title={t("plans_title")}
-            subtitle={t("plans_subtitle")}
-          />
+  return <div className="flex min-h-screen flex-col bg-[#faf9f6]">
+    <SiteHeader active="credits" />
+    <main className="page-container flex-1 py-10 md:py-16">
+      <div className="mb-8"><h1 className="page-heading">{t("credits_title")}</h1><p className="page-description mt-3">{copy.intro}</p></div>
+      <div className="grid gap-5 lg:grid-cols-[minmax(280px,1fr)_2fr]">
+        <section className="surface p-7" aria-labelledby="credits-balance-title">
+          <Coins size={28} className="text-[#5b6350]" />
+          <h2 id="credits-balance-title" className="mt-4 text-sm text-[#6b7066]">{t("credits_balance_label")}</h2>
+          {state === "ready" ? <p className="mt-2 text-5xl font-semibold tracking-tight">{balance}<span className="ml-2 text-base font-normal text-[#6b7066]">{t("credits_balance_unit")}</span></p>
+            : <p className="mt-3 text-sm text-[#6b7066]" role={state === "error" ? "alert" : "status"}>{state === "loading" ? copy.loading : state === "unauth" ? copy.signIn : copy.loadError}</p>}
+          {state === "error" && <button type="button" onClick={() => void load()} className="btn btn-outline mt-4"><ArrowClockwise size={17} />{copy.retry}</button>}
+          {state === "unauth" && <button type="button" onClick={() => setLoginOpen(true)} className="btn btn-primary mt-4">{t("nav_login")}</button>}
         </section>
-
-        {/* 充值包 */}
-        <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <PlanCard
-            nameKey="plan_free_name"
-            priceKey="plan_free_price"
-            quotaKey="plan_free_quota"
-            unitKey="plan_free_unit"
-            descKey="plan_free_desc"
-            isFree
-          />
-          <PlanCard
-            nameKey="plan_basic_name"
-            priceKey="plan_basic_price"
-            quotaKey="plan_basic_quota"
-            unitKey="plan_basic_unit"
-            descKey="plan_basic_desc"
-            onContact={() => setRechargePack("basic")}
-          />
-          <PlanCard
-            nameKey="plan_business_name"
-            priceKey="plan_business_price"
-            quotaKey="plan_business_quota"
-            unitKey="plan_business_unit"
-            descKey="plan_business_desc"
-            onContact={() => setRechargePack("business")}
-            highlight
-          />
-          <PlanCard
-            nameKey="plan_factory_name"
-            priceKey="plan_factory_price"
-            quotaKey="plan_factory_quota"
-            unitKey="plan_factory_unit"
-            descKey="plan_factory_desc"
-            onContact={() => setRechargePack("factory")}
-          />
-        </section>
-
-        {/* 交易记录 */}
-        <section className="mt-10">
-          <h2 className="text-[18px] font-semibold tracking-tight">
-            {t("credits_history_title")}
-          </h2>
-          <div className="mt-3 overflow-hidden rounded-2xl border border-[#e5edf5] bg-white">
-            {loading && (
-              <div className="p-6 text-center text-[#94a3b8]">…</div>
-            )}
-            {!loading && unauth && (
-              <div className="p-6 text-center text-[#64748d]">
-                {t("login_title")}
-              </div>
-            )}
-            {!loading && !unauth && txs.length === 0 && (
-              <div className="p-6 text-center text-[#94a3b8]">
-                {t("credits_history_empty")}
-              </div>
-            )}
-            {!loading && !unauth && txs.length > 0 && (
-              <ul className="divide-y divide-[#f1f5f9]">
-                {txs.map((tx) => (
-                  <li
-                    key={tx.id}
-                    className="flex items-center justify-between gap-3 px-5 py-3"
-                  >
-                    <div>
-                      <div className="text-[14px] font-medium text-[#061b31]">
-                        {labelTx(tx.type, t)}
-                      </div>
-                      <div className="text-[12px] text-[#94a3b8]">
-                        {new Date(tx.created_at).toLocaleString()}
-                        {tx.note ? ` · ${tx.note}` : ""}
-                      </div>
-                    </div>
-                    <div
-                      className={`font-mono text-[15px] ${
-                        tx.amount >= 0 ? "text-emerald-600" : "text-[#061b31]"
-                      }`}
-                    >
-                      {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+        <section className="surface p-7" aria-labelledby="credits-plans-title">
+          <h2 id="credits-plans-title" className="text-2xl font-semibold">{t("plans_title")}</h2>
+          <p className="page-description mt-3">{t("plans_subtitle")}</p>
+          <div className="mt-5 flex items-center gap-3 rounded-xl bg-[#f0f2eb] p-4">
+            <Check size={20} className="shrink-0 text-[#5b6350]" /><p className="text-sm">{copy.freeIntro} <span className="font-semibold text-[#5b6350]">{granted ? copy.freeGranted : copy.freeAvailable}</span></p>
           </div>
         </section>
-      </main>
-
-      <LeadCaptureModal
-        open={leadOpen !== null}
-        source={leadOpen ?? "other"}
-        onClose={() => setLeadOpen(null)}
-      />
-
-      <RechargeDialog
-        open={rechargePack !== null}
-        pack={rechargePack}
-        onClose={() => setRechargePack(null)}
-        onPaid={reloadCredits}
-      />
-    </div>
-  );
-}
-
-function labelTx(
-  type: Tx["type"],
-  t: (k: DictKey) => string,
-): string {
-  switch (type) {
-    case "grant":
-      return t("credits_tx_grant");
-    case "consume":
-      return t("credits_tx_consume");
-    case "refund":
-      return t("credits_tx_refund");
-    case "manual_adjustment":
-      return t("credits_tx_manual");
-  }
-}
-
-function BalanceCard({
-  balance,
-  loading,
-  unauth,
-  unit,
-  label,
-}: {
-  balance: number | null;
-  loading: boolean;
-  unauth: boolean;
-  unit: string;
-  label: string;
-}) {
-  return (
-    <div
-      className="rounded-2xl border border-[#eadfcb] bg-gradient-to-br from-[#fbf6e7] to-[#fdf8e9] p-6"
-      style={{ boxShadow: "0 18px 40px rgba(174,110,35,.08)" }}
-    >
-      <div className="text-[13px] text-[#876c3a]">{label}</div>
-      <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-[44px] font-light tracking-[-1.5px] text-[#171717]">
-          {loading ? "…" : unauth ? "—" : (balance ?? 0)}
-        </span>
-        <span className="text-[14px] text-[#876c3a]">{unit}</span>
       </div>
-    </div>
-  );
-}
-
-function PlansHero({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div className="rounded-2xl border border-[#e5edf5] bg-white p-6">
-      <h2 className="text-[20px] font-semibold tracking-tight md:text-[22px]">
-        {title}
-      </h2>
-      <p className="mt-2 text-[14px] leading-relaxed text-[#64748d]">
-        {subtitle}
-      </p>
-    </div>
-  );
-}
-
-function PlanCard({
-  nameKey,
-  priceKey,
-  quotaKey,
-  unitKey,
-  descKey,
-  onContact,
-  isFree,
-  highlight,
-}: {
-  nameKey: DictKey;
-  priceKey: DictKey;
-  quotaKey: DictKey;
-  unitKey: DictKey;
-  descKey: DictKey;
-  onContact?: () => void;
-  isFree?: boolean;
-  highlight?: boolean;
-}) {
-  const { t } = useLang();
-  return (
-    <div
-      className={`relative rounded-2xl border p-5 transition-shadow ${
-        highlight
-          ? "border-[#533afd] bg-white shadow-[0_18px_50px_rgba(83,58,253,.12)]"
-          : "border-[#e5edf5] bg-white"
-      }`}
-    >
-      <div className="text-[13px] uppercase tracking-[0.18em] text-[#94a3b8]">
-        {t(nameKey)}
-      </div>
-      {/* 价格 */}
-      <div className="mt-2 flex items-baseline gap-1.5">
-        <span className="text-[32px] font-semibold tracking-[-1px] text-[#061b31]">
-          {t(priceKey)}
-        </span>
-        <span className="text-[14px] text-[#94a3b8]">/ {t(quotaKey)}</span>
-      </div>
-      {/* 单价 */}
-      <div className="mt-1 text-[12px] font-medium text-[#876c3a]">
-        {t(unitKey)}
-      </div>
-      <p className="mt-2 min-h-[42px] text-[13px] text-[#64748d]">
-        {t(descKey)}
-      </p>
-      {isFree ? (
-        <div className="mt-4 inline-flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-1.5 text-[12px] text-emerald-700">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-          {t("plan_btn_active")}
+      <section className="mt-6 grid gap-4 md:grid-cols-3" aria-label={t("plans_title")}>
+        {PACKS.map(pack => <article key={pack.key} className="surface flex flex-col p-6">
+          <h3 className="text-sm font-semibold text-[#5b6350]">{t(pack.name)}</h3>
+          <p className="mt-4 text-4xl font-semibold tracking-tight">¥{pack.yuan}</p>
+          <p className="mt-2 text-sm text-[#6b7066]">{pack.credits} {lang === "zh" ? "次额度" : "credits"}</p>
+          <p className="mt-5 flex-1 text-sm leading-6 text-[#6b7066]">{t(pack.desc)}</p>
+          <button type="button" className="btn btn-primary mt-6 w-full disabled:opacity-50" disabled={state === "loading" || state === "error"} onClick={() => state === "unauth" ? setLoginOpen(true) : setRechargePack(pack.key)}>{copy.topup}</button>
+        </article>)}
+      </section>
+      <section className="mt-12" aria-labelledby="credits-history-title">
+        <h2 id="credits-history-title" className="text-xl font-semibold">{t("credits_history_title")}</h2>
+        <p className="mt-1 text-sm text-[#6b7066]">{copy.recent}</p>
+        <div className="surface mt-4 overflow-hidden">
+          {state === "loading" && <p className="p-6 text-sm text-[#6b7066]" role="status">{copy.loading}</p>}
+          {state === "unauth" && <p className="p-6 text-sm text-[#6b7066]">{copy.signIn}</p>}
+          {state === "error" && <div className="p-6" role="alert"><p className="text-sm text-[#6b7066]">{copy.historyError}</p><button type="button" className="btn btn-outline mt-3" onClick={() => void load()}>{copy.retry}</button></div>}
+          {state === "ready" && txs.length === 0 && <p className="p-6 text-sm text-[#6b7066]">{t("credits_history_empty")}</p>}
+          {state === "ready" && txs.length > 0 && <ul className="divide-y divide-[#e5e5de]">{txs.map(tx => <li key={tx.id} className="flex items-center justify-between gap-4 px-6 py-4"><div><p className="text-sm font-medium">{labelTx(tx.type)}</p><p className="mt-1 text-xs text-[#6b7066]"><time dateTime={tx.created_at}>{new Date(tx.created_at).toLocaleString(lang === "zh" ? "zh-CN" : "en-US")}</time>{tx.note && <> · {tx.note}</>}</p></div><strong className={`text-sm ${tx.amount >= 0 ? "text-[#5b6350]" : "text-[#262924]"}`}>{tx.amount > 0 ? "+" : ""}{tx.amount}</strong></li>)}</ul>}
         </div>
-      ) : (
-        <button
-          onClick={onContact}
-          className={`mt-4 w-full rounded-md px-4 py-2 text-[13px] font-medium transition-colors ${
-            highlight
-              ? "bg-[#533afd] text-white hover:bg-[#4434d4]"
-              : "bg-[#171717] text-white hover:bg-black"
-          }`}
-        >
-          {t("plan_btn_contact")}
-        </button>
-      )}
-    </div>
-  );
+      </section>
+    </main>
+    <SiteFooter />
+    <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onSignedIn={() => { setLoginOpen(false); void load(); }} />
+    <RechargeDialog open={rechargePack !== null} pack={rechargePack} onClose={() => setRechargePack(null)} onPaid={() => void load()} />
+  </div>;
 }

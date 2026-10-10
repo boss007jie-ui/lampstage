@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { suggestScenes } from "@/lib/suggest-scenes";
+import { isProviderMigrationError } from "@/lib/provider-errors";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     console.error("[suggest] failed:", e);
     return NextResponse.json(
-      { error: "suggest_failed", message: String(e).slice(0, 200) },
+      { error: isProviderMigrationError(e) ? "provider_migration_required" : "suggest_failed" },
       { status: 502 },
     );
   }

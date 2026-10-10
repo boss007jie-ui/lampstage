@@ -13,7 +13,6 @@ import {
   DEFAULT_LANG,
   type DictKey,
   type Lang,
-  detectLangFromBrowser,
   t as translate,
 } from "@/lib/brand";
 
@@ -58,12 +57,13 @@ export function LangProvider({
       setLangState(fromCookie);
       return;
     }
-    const detected = detectLangFromBrowser(
-      typeof navigator !== "undefined" ? navigator.language : undefined,
-    );
-    setLangState(detected);
-    writeCookie(COOKIE, detected);
-  }, []);
+    setLangState(initialLang ?? DEFAULT_LANG);
+    writeCookie(COOKIE, initialLang ?? DEFAULT_LANG);
+  }, [initialLang]);
+
+  useEffect(() => {
+    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  }, [lang]);
 
   const setLang = useCallback((l: Lang) => {
     setLangState(l);

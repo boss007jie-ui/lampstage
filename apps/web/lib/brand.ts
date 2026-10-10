@@ -9,7 +9,7 @@
  */
 
 export const BRAND = {
-  cn: "灯境",
+  cn: "创境",
   en: "Lampstage",
   domain: "lampstage.com",
   email: "hello@lampstage.com",
@@ -39,45 +39,56 @@ export function detectLangFromBrowser(navLang: string | undefined): Lang {
 type Dict = Record<Lang, string>;
 
 const D = {
+  login_subtitle: {"zh": "登录后管理素材、调用 AI 能力，并保存生成结果。", "en": "Sign in to manage assets, call AI capabilities and save generated outputs."},
+  footer_privacy: {"zh": "隐私政策", "en": "Privacy"},
+  footer_terms: {"zh": "用户协议", "en": "Terms"},
+  sample_note: {"zh": "示例用于展示内容方向，实际结果取决于上传素材、任务目标与模型状态。", "en": "Examples illustrate content directions. Results depend on your assets, task goal and model state."},
+  sample_label: {"zh": "场景示例", "en": "Scene example"},
+  scene_living: {"zh": "客厅", "en": "Living room"},
+  scene_dining: {"zh": "餐厅", "en": "Dining room"},
+  scene_reading: {"zh": "阅读角", "en": "Reading corner"},
+  scene_bedroom: {"zh": "卧室", "en": "Bedroom"},
+  scene_hotel: {"zh": "酒店", "en": "Hotel"},
+  home_prepare_title: {"zh": "一份清晰的素材，是好的开始。", "en": "Start with a clear source asset."},
+  home_prepare_body: {"zh": "上传图片、视频或参考素材，确认任务目标，让图像生成、视频生成和内容优化围绕你的业务展开。", "en": "Upload an image, video or reference asset, define the goal, and let image generation, video generation and content optimization work around your workflow."},
+  home_prepare_link: {"zh": "查看素材要求", "en": "Asset guidelines"},
+  home_bottom_title: {"zh": "下一次生成，从一个可复用的工作流开始。", "en": "Start your next generation with a reusable workflow."},
+  home_bottom_body: {"zh": "登录工作台，调用 AI 能力，保存结果，并通过 API 接入你的产品流程。", "en": "Sign in to call AI capabilities, save outputs and connect the workflow through the API."},
+  home_contact: {"zh": "咨询 API 与工作流接入", "en": "Discuss API and workflow access"},
+  cases_intro: {"zh": "浏览内容与视觉方向，再为你自己的工作流开始调用。", "en": "Explore content and visual directions, then start a workflow of your own."},
+  cases_all: {"zh": "全部场景", "en": "All scenes"},
+  cases_detail: {"zh": "查看示例", "en": "View example"},
+  cases_design_note: {"zh": "这是一个内容方向示例，用于展示构图与氛围。它不是你的任务生成结果。", "en": "This example illustrates composition and mood. It is not a generated result for your task."},
+  cases_check_title: {"zh": "生成结果后，建议核对", "en": "When reviewing your results"},
+  cases_check_body: {"zh": "主体细节、比例、颜色、画面文字、动作与任务要求。", "en": "Check subject details, proportions, color, text, motion and task requirements."},
   // SEO / 元数据
-  meta_title: {
-    zh: "灯境 · 一张灯具图，生成可直接上架的家居场景图",
-    en: "Lampstage · Turn one lamp photo into shelf-ready scene shots.",
-  },
-  meta_desc: {
-    zh: "为灯具卖家快速生成适用于淘宝、天猫、1688、Shopify 和独立站的专业场景图，减少拍摄成本，加快上新速度。",
-    en: "AI home-scene photography for lamp sellers on Shopify, Amazon and Tmall. Cut studio costs, ship listings faster.",
-  },
+  meta_title: {"zh": "创境 Lampstage · AI 内容与媒体 API 平台", "en": "Lampstage · AI media and content API platform"},
+  meta_desc: {"zh": "统一管理素材，调用图像生成、视频生成与电商内容优化能力，并通过 API 接入你的工作流。", "en": "Manage assets in one place, call image generation, video generation and commerce content optimization, and connect your workflow through an API."},
 
   // Nav
-  nav_showcase: { zh: "案例", en: "Showcase" },
-  nav_product: { zh: "产品", en: "Product" },
+  nav_showcase: {"zh": "能力示例", "en": "Showcase"},
+  nav_product: {"zh": "如何使用", "en": "How it works"},
+  nav_developers: {"zh": "开发者", "en": "Developers"},
   nav_styles: { zh: "风格", en: "Styles" },
   nav_pricing: { zh: "价格", en: "Pricing" },
   nav_login: { zh: "登录", en: "Sign in" },
   nav_my_works: { zh: "我的作品", en: "My works" },
   nav_credits: { zh: "额度", en: "Credits" },
   nav_help: { zh: "帮助", en: "Help" },
-  nav_generate: { zh: "生成场景图", en: "Generate scenes" },
+  nav_generate: {"zh": "我的工作台", "en": "Workspace"},
 
   // Hero
-  hero_badge: { zh: "AI 灯具电商图工作台", en: "AI scene-photo studio for lamp sellers" },
-  hero_title: {
-    zh: "一张灯具图，生成可直接上架的家居场景图。",
-    en: "Turn one lamp photo into shelf-ready scene shots.",
-  },
-  hero_subtitle: {
-    zh: "为灯具卖家快速生成适用于淘宝、天猫、1688、Shopify 和独立站的专业场景图，减少拍摄成本，加快上新速度。",
-    en: "Built for lamp sellers on Shopify, Amazon, Tmall and 1688. Cut studio costs, ship listings faster.",
-  },
-  hero_cta_primary: { zh: "开始生成场景图", en: "Start generating" },
-  hero_cta_secondary: { zh: "查看案例", en: "See examples" },
-  hero_meta_speed: { zh: "30–60 秒出图", en: "30–60s per image" },
-  hero_meta_count: { zh: "一次 3 张", en: "3 shots per run" },
-  hero_meta_styles: { zh: "国内电商 / 独立站双版本", en: "Marketplace + brand-site styles" },
+  hero_badge: {"zh": "AI 内容与媒体平台 · 支持 API 接入", "en": "AI content and media platform · API ready"},
+  hero_title: {"zh": "把素材，变成可复用的 AI 工作流。", "en": "Turn your assets into reusable AI workflows."},
+  hero_subtitle: {"zh": "在一个工作台里调用图像生成、视频生成和电商内容优化；登录即可开始，也可以通过 API 接入你的产品。", "en": "Call image generation, video generation and commerce content optimization from one workspace. Sign in to start or connect your product through the API."},
+  hero_cta_primary: {"zh": "进入工作台，开始调用", "en": "Open the workspace"},
+  hero_cta_secondary: {"zh": "查看能力示例", "en": "Explore capabilities"},
+  hero_meta_speed: { zh: "按实际阶段查看进度", en: "Follow the current stage" },
+  hero_meta_count: { zh: "图片 / 视频 / 文案", en: "Images / video / copy" },
+  hero_meta_styles: { zh: "工作台 + API + Expert", en: "Workspace + API + Expert" },
 
   // Stats
-  stat_speed_value: { zh: "30–60s", en: "30–60s" },
+  stat_speed_value: { zh: "按阶段", en: "By stage" },
   stat_speed_label: { zh: "出图速度", en: "Output speed" },
   stat_count_value: { zh: "3 张", en: "3 shots" },
   stat_count_label: { zh: "一次预览", en: "Per generation" },
@@ -85,8 +96,8 @@ const D = {
   stat_credits_label: { zh: "新用户免费额度", en: "New-user credits" },
 
   // Showcase strip
-  showcase_eyebrow: { zh: "真实生成示例", en: "Real generations" },
-  showcase_title: { zh: "上传灯具图，得到这种效果", en: "Upload your lamp, get scenes like these" },
+  showcase_eyebrow: {"zh": "场景示例", "en": "Scene examples"},
+  showcase_title: {"zh": "同一份素材，连接不同的内容任务", "en": "One source asset, many content workflows"},
   showcase_cta: { zh: "立即生成自己的 →", en: "Generate yours →" },
   showcase_tag_domestic: { zh: "国内电商版", en: "Marketplace" },
   showcase_tag_brand: { zh: "独立站品牌版", en: "Brand site" },
@@ -98,25 +109,16 @@ const D = {
   showcase_item_4: { zh: "酒店大堂吊灯", en: "Hotel-lobby chandelier" },
 
   // How it works
-  how_title: { zh: "三步生成专业灯具电商图", en: "Three steps to a sellable lamp scene" },
+  how_title: {"zh": "你提供素材，创境负责把能力串起来。", "en": "Bring the asset. Lampstage connects the capabilities."},
   how_step1_tag: { zh: "01 上传", en: "01 UPLOAD" },
-  how_step1_title: { zh: "上传灯具图", en: "Upload the lamp" },
-  how_step1_desc: {
-    zh: "支持白底图、透明 PNG、普通商品图。",
-    en: "White-background, transparent PNG or plain product shot — all welcome.",
-  },
+  how_step1_title: {"zh": "上传素材并定义目标", "en": "Upload an asset and define the goal"},
+  how_step1_desc: {"zh": "支持图片、视频和参考素材，按任务要求上传。", "en": "Upload an image, video or reference asset as the task requires."},
   how_step2_tag: { zh: "02 模板", en: "02 TEMPLATE" },
-  how_step2_title: { zh: "选择家居模板", en: "Pick a room template" },
-  how_step2_desc: {
-    zh: "客厅、餐厅、卧室、酒店、展厅。",
-    en: "Living, dining, bedroom, hotel and showroom.",
-  },
+  how_step2_title: {"zh": "选择能力与工作流", "en": "Choose capabilities and a workflow"},
+  how_step2_desc: {"zh": "确认事实、目标市场、风格与输出比例。", "en": "Confirm facts, target market, style and output ratio."},
   how_step3_tag: { zh: "03 导出", en: "03 EXPORT" },
-  how_step3_title: { zh: "下载电商图", en: "Download & ship" },
-  how_step3_desc: {
-    zh: "生成 1:1、4:5、16:9 多比例图片。",
-    en: "1:1, 4:5 and 16:9 — sized for every storefront.",
-  },
+  how_step3_title: {"zh": "生成、核对并接入", "en": "Generate, review and connect"},
+  how_step3_desc: {"zh": "核对结果与源素材，再下载或通过 API 接入。", "en": "Review the output against the source, then download or connect through the API."},
 
   // Styles section
   styles_domestic_title: { zh: "国内电商风格", en: "Marketplace style" },
@@ -131,19 +133,16 @@ const D = {
   },
 
   // Footer
-  footer_tagline: { zh: "为灯具卖家生成专业电商场景图", en: "AI scene photography for lamp sellers" },
+  footer_tagline: {"zh": "把素材变成可复用的 AI 工作流。", "en": "Turn source assets into reusable AI workflows."},
 
   // Workspace
-  ws_title: { zh: "把灯具商品图变成专业家居场景图", en: "Turn your lamp shots into pro home scenes" },
-  ws_subtitle: {
-    zh: "上传图片，选择空间模板，生成适合淘宝 / 天猫 / 1688 与独立站的电商视觉。",
-    en: "Upload, pick a room, render visuals ready for Tmall, 1688, Shopify and beyond.",
-  },
-  ws_mode_chip: { zh: "国内电商版 / 独立站版", en: "Marketplace / Brand-site" },
+  ws_title: {"zh": "把素材变成可交付的内容", "en": "Turn source assets into deliverable content"},
+  ws_subtitle: {"zh": "上传素材，选择图像、视频或电商内容任务，核对结果后保存并下载。", "en": "Upload an asset, choose an image, video or commerce content task, then review and save the output."},
+  ws_mode_chip: {"zh": "AI 内容工作台", "en": "AI content workspace"},
   ws_panel_settings: { zh: "生成设置", en: "Settings" },
-  ws_panel_preview: { zh: "实时预览", en: "Live preview" },
-  ws_step_upload: { zh: "上传灯具商品图", en: "Upload your lamp" },
-  ws_upload_hint: { zh: "支持白底图、透明 PNG、普通商品图", en: "White-background, transparent PNG or product shot" },
+  ws_panel_preview: {"zh": "生成结果", "en": "Results"},
+  ws_step_upload: { zh: "上传素材", en: "Upload an asset" },
+  ws_upload_hint: { zh: "支持图片、视频和参考素材", en: "Images, videos and reference assets" },
   ws_upload_max: { zh: "最大 5MB · JPG / PNG / WEBP", en: "Up to 5 MB · JPG / PNG / WEBP" },
   ws_upload_remove: { zh: "移除", en: "Remove" },
   ws_upload_warn: {
@@ -158,9 +157,9 @@ const D = {
   ws_step_template: { zh: "选择家居场景", en: "Pick a room" },
   ws_step_platform: { zh: "选择平台风格", en: "Pick a style" },
   ws_step_aspect: { zh: "选择图片比例", en: "Pick a ratio" },
-  ws_platform_domestic: { zh: "国内电商", en: "Marketplace" },
-  ws_platform_brand: { zh: "独立站品牌", en: "Brand-site" },
-  ws_aspect_1_1: { zh: "1:1 主图", en: "1:1 Square" },
+  ws_platform_domestic: {"zh": "产品展示", "en": "Product-focused"},
+  ws_platform_brand: {"zh": "品牌氛围", "en": "Lifestyle"},
+  ws_aspect_1_1: {"zh": "1:1 方图", "en": "1:1 Square"},
   ws_aspect_4_5: { zh: "4:5 详情", en: "4:5 Portrait" },
   ws_aspect_16_9: { zh: "16:9 横图", en: "16:9 Wide" },
 
@@ -176,26 +175,20 @@ const D = {
   ws_count_unit: { zh: "张", en: "" },
   ws_expand_settings: { zh: "展开设置", en: "Edit settings" },
 
-  ws_credits_title_signed: { zh: "本月剩余额度", en: "Credits this month" },
+  ws_credits_title_signed: {"zh": "剩余额度", "en": "Credits remaining"},
   ws_credits_title_unsigned: { zh: "免费额度（登录后可用）", en: "Free credits (sign in to use)" },
   ws_credits_hint_signed: { zh: "每生成 1 张消耗 1 次", en: "1 credit per image" },
   ws_credits_hint_unsigned: { zh: "登录领取 20 次新人额度", en: "Sign in to claim 20 free credits" },
 
-  ws_preview_disclaimer: {
-    zh: "预览仅为示意，真实生成由 Nano Banana 在 Task 8 接入后产出。",
-    en: "Preview is illustrative; real generations come online when the model API is wired up.",
-  },
+  ws_preview_disclaimer: {"zh": "发布前请核对结果与源素材、事实和任务要求。", "en": "Review the output against the source, facts and task requirements before publishing."},
   ws_btn_regenerate: { zh: "重新生成", en: "Regenerate" },
   ws_btn_download: { zh: "下载高清图", en: "Download HD" },
   ws_progress_placeholder: { zh: "正在准备生成…", en: "Preparing…" },
-  ws_progress_subtext: {
-    zh: "Task 8 接入后将显示阶段性进度",
-    en: "Stage-by-stage progress lights up when the model API is live",
-  },
+  ws_progress_subtext: {"zh": "任务处理期间会显示实际阶段。", "en": "The current processing stage appears here."},
 
   ws_alert_dryrun: {
-    zh: "已记录生成参数（Task 8 接入 nano banana 后会真正出 4 张图）：",
-    en: "Generation params captured (real renders go live once the model API is wired up):",
+    zh: "已记录生成参数：",
+    en: "Generation settings recorded:",
   },
   ws_welcome_new: {
     zh: "欢迎，已为你发放 {n} 次免费额度",
@@ -207,25 +200,22 @@ const D = {
   },
 
   // Generation pipeline
-  ws_stage_analyzing: { zh: "正在分析灯具结构…", en: "Analyzing lamp structure…" },
-  ws_stage_matching: { zh: "正在匹配家居场景…", en: "Matching the room…" },
-  ws_stage_generating: { zh: "正在生成家居场景图…", en: "Generating scene shots…" },
+  ws_stage_analyzing: { zh: "正在分析素材…", en: "Analyzing the asset…" },
+  ws_stage_matching: { zh: "正在匹配工作流…", en: "Matching the workflow…" },
+  ws_stage_generating: { zh: "正在生成内容…", en: "Generating content…" },
   ws_stage_lighting: { zh: "正在优化光影效果…", en: "Refining the lighting…" },
   ws_stage_finalizing: { zh: "正在准备预览图…", en: "Preparing previews…" },
-  ws_eta: { zh: "预计 30–60 秒完成", en: "Usually 30–60s" },
+  ws_eta: {"zh": "生成时间取决于素材和任务状态", "en": "Processing time depends on the image and task status"},
 
   ws_uploading: { zh: "正在上传…", en: "Uploading…" },
   ws_idle_hint: { zh: "等待上传", en: "Waiting for upload" },
-  ws_idle_sub: { zh: "上传灯具图，舞台灯光即将为它点亮", en: "Upload a lamp — the stage lights are ready" },
+  ws_idle_sub: { zh: "上传一份素材，开始调用 AI 能力", en: "Upload an asset to start calling AI capabilities" },
   ws_idle_hint_uploaded: { zh: "已就绪 · 选好场景后点生成", en: "Ready · pick a scene and generate" },
   ws_err_upload_failed: { zh: "上传失败", en: "Upload failed" },
-  ws_err_insufficient: {
-    zh: "额度不足。一次生成 3 张需 3 次额度。",
-    en: "Not enough credits. Each run uses 3.",
-  },
+  ws_err_insufficient: {"zh": "额度不足，请查看本次张数或充值。", "en": "Not enough credits. Adjust the image count or top up."},
   ws_err_generic: { zh: "请求失败", en: "Request failed" },
   ws_failure_label: { zh: "生成失败：", en: "Generation failed: " },
-  ws_failure_refunded: { zh: "已退回 4 次额度", en: "4 credits refunded" },
+  ws_failure_refunded: {"zh": "额度结算请以交易记录为准。", "en": "Check your transaction history for the credit settlement."},
 
   // Mismatch warning
   ws_mismatch_title: { zh: "灯具类型与模板不匹配", en: "Lamp type mismatch" },
@@ -244,8 +234,8 @@ const D = {
   login_signin_for: { zh: "登录账号：", en: "Signing in as" },
   login_register_for: { zh: "新账号：", en: "Creating account for" },
   login_desc: {
-    zh: "新用户首次登录即送 20 次生成额度，足够生成 5 组场景图。",
-    en: "New users get 20 free credits on first sign-in — enough for 5 scene runs.",
+    zh: "新账号注册可获赠 20 次额度，体验工作台里的 AI 内容能力。",
+    en: "New accounts receive 20 credits to try the AI content capabilities in the workspace.",
   },
   login_label_id: { zh: "邮箱", en: "Email" },
   login_placeholder_id: { zh: "you@example.com", en: "you@example.com" },
@@ -338,16 +328,16 @@ const D = {
   // Cases page
   cases_title: { zh: "案例", en: "Cases" },
   cases_body: {
-    zh: "正在筛选优质案例。MVP 阶段的真实灯具场景图样片将在测试用户验证后陆续公开。",
-    en: "Curating real generations from beta users. Public showcase coming soon.",
+    zh: "正在筛选优质案例。MVP 阶段的真实生成结果将在测试用户验证后陆续公开。",
+    en: "Curating real generations from beta users. More public examples are coming soon.",
   },
   cases_back: { zh: "返回首页", en: "Back to home" },
 
   // My works
   my_title: { zh: "我的作品", en: "My works" },
   my_empty: {
-    zh: "还没有生成记录。返回工作台上传一张灯具图试试。",
-    en: "No generations yet. Head back to the workspace to create your first scene.",
+    zh: "还没有生成记录。返回工作台上传素材并开始第一个任务。",
+    en: "No generations yet. Head back to the workspace to start your first task.",
   },
   my_back: { zh: "返回工作台", en: "Back to workspace" },
   my_status_completed: { zh: "已完成", en: "Done" },
@@ -372,65 +362,53 @@ const D = {
   credits_tx_manual: { zh: "运营调整", en: "Manual adjustment" },
 
   plans_title: { zh: "充值额度包", en: "Top up credit packs" },
-  plans_subtitle: {
-    zh: "按量充值，用多少买多少，永久有效不清零。MVP 阶段加客服微信，转账后立即到账。",
-    en: "Pay as you go — credits never expire. During MVP, add us on WeChat and we top up right after payment.",
-  },
+  plans_subtitle: {"zh": "选择额度包，在线支付后查看订单状态。每张生成使用 1 次额度。", "en": "Choose a pack and check the online payment status. Each generated image uses 1 credit."},
   plan_free_name: { zh: "免费体验", en: "Free trial" },
-  plan_free_quota: { zh: "20 张", en: "20 images" },
-  plan_free_price: { zh: "¥0", en: "$0" },
+  plan_free_quota: {"zh": "20 次额度", "en": "20 credits"},
+  plan_free_price: {"zh": "¥0", "en": "CNY 0"},
   plan_free_unit: { zh: "注册即送", en: "On signup" },
-  plan_free_desc: {
-    zh: "新用户首次登录即送，无需联系。",
-    en: "Auto-granted on signup. No contact required.",
-  },
+  plan_free_desc: {"zh": "新账号注册赠送，用于体验场景图生成。", "en": "A new-account grant to try scene generation."},
   plan_basic_name: { zh: "体验包", en: "Starter" },
-  plan_basic_quota: { zh: "100 张", en: "100 images" },
-  plan_basic_price: { zh: "¥30", en: "$5" },
-  plan_basic_unit: { zh: "¥0.30 / 张", en: "$0.05 / image" },
+  plan_basic_quota: {"zh": "100 次额度", "en": "100 credits"},
+  plan_basic_price: {"zh": "¥30", "en": "CNY 30"},
+  plan_basic_unit: {"zh": "¥0.30 / 次额度", "en": "CNY 0.30 / credit"},
   plan_basic_desc: {
-    zh: "适合个人卖家少量上新。",
-    en: "For individual sellers shipping a few SKUs.",
+    zh: "少量商品，尝试不同的场景方向。",
+    en: "Explore different scene directions for a few products.",
   },
   plan_business_name: { zh: "标准包", en: "Standard" },
-  plan_business_quota: { zh: "400 张", en: "400 images" },
-  plan_business_price: { zh: "¥99", en: "$15" },
-  plan_business_unit: { zh: "¥0.25 / 张 · 最划算", en: "$0.04 / image · best value" },
+  plan_business_quota: {"zh": "400 次额度", "en": "400 credits"},
+  plan_business_price: {"zh": "¥99", "en": "CNY 99"},
+  plan_business_unit: {"zh": "约 ¥0.25 / 次额度", "en": "About CNY 0.25 / credit"},
   plan_business_desc: {
-    zh: "适合店群和小型代运营团队。",
-    en: "For multi-store sellers and small agency teams.",
+    zh: "持续上新，为更多商品制作场景图。",
+    en: "Create scenes across more products as you add listings.",
   },
   plan_factory_name: { zh: "大包", en: "Bulk" },
-  plan_factory_quota: { zh: "1500 张", en: "1500 images" },
-  plan_factory_price: { zh: "¥299", en: "$45" },
-  plan_factory_unit: { zh: "¥0.20 / 张", en: "$0.03 / image" },
+  plan_factory_quota: {"zh": "1500 次额度", "en": "1500 credits"},
+  plan_factory_price: {"zh": "¥299", "en": "CNY 299"},
+  plan_factory_unit: {"zh": "约 ¥0.20 / 次额度", "en": "About CNY 0.20 / credit"},
   plan_factory_desc: {
-    zh: "工厂或代运营批量出图，量大更优惠。",
-    en: "Factory-scale batch generation, best per-image rate.",
+    zh: "较多商品与场景需求，单次额度价格更低。",
+    en: "For larger product and scene needs, with a lower price per credit.",
   },
-  plan_btn_contact: { zh: "扫码充值", en: "Scan to top up" },
+  plan_btn_contact: {"zh": "选择额度包", "en": "Choose pack"},
   plan_btn_active: { zh: "已激活", en: "Active" },
 
   // Lead capture modal
-  lead_title: { zh: "联系开通额度", en: "Contact to top up" },
-  lead_subtitle: {
-    zh: "留下你的微信或手机号，运营会在 24 小时内主动联系你。",
-    en: "Leave your WeChat or phone — we'll reach out within 24 hours.",
-  },
+  lead_title: {"zh": "商家咨询", "en": "Talk to us"},
+  lead_subtitle: {"zh": "告诉我们你的商品类型、目标市场和场景需求。", "en": "Tell us about your product, target market and scene requirements."},
   lead_label_name: { zh: "称呼（可选）", en: "Name (optional)" },
   lead_scan_title: { zh: "扫码直接加客服", en: "Scan to add support" },
-  lead_scan_desc: {
-    zh: "微信扫一扫，沟通套餐与充值最快。",
-    en: "Fastest way to discuss plans and top-ups.",
-  },
+  lead_scan_desc: {"zh": "使用项目客服二维码，咨询素材和使用问题。", "en": "Use the support QR code for image and usage questions."},
   lead_wechat_id: { zh: "微信号", en: "WeChat ID" },
   lead_or_leave: { zh: "或留下联系方式", en: "or leave your contact" },
   lead_label_wechat: { zh: "微信号", en: "WeChat" },
   lead_label_phone: { zh: "手机号", en: "Phone" },
   lead_label_message: { zh: "需求描述（可选）", en: "Message (optional)" },
   lead_placeholder_message: {
-    zh: "例如：我有 50 个灯具 SKU 想批量出图。",
-    en: "E.g. I have 50 lamp SKUs and need batch generation.",
+    zh: "例如：我有 50 个 SKU，想批量生成图片和商品文案。",
+    en: "E.g. I have 50 SKUs and need batch images and product copy.",
   },
   lead_btn_submit: { zh: "提交", en: "Submit" },
   lead_btn_submitting: { zh: "提交中…", en: "Submitting…" },
@@ -438,45 +416,36 @@ const D = {
     zh: "请至少填写微信号或手机号",
     en: "Please enter WeChat or phone.",
   },
-  lead_err_generic: { zh: "提交失败：", en: "Submit failed: " },
-  lead_success_title: { zh: "已收到，运营会主动联系你", en: "Got it. We'll reach out shortly." },
-  lead_success_body: {
-    zh: "你也可以直接添加微信：lampstage（占位，运营请替换）",
-    en: "You can also add our WeChat: lampstage (placeholder).",
-  },
+  lead_err_generic: { zh: "提交未成功，请稍后重试或扫码咨询。", en: "Your enquiry could not be sent. Please retry or contact us using the QR code." },
+  lead_success_title: {"zh": "已收到你的咨询", "en": "Your message has been received"},
+  lead_success_body: {"zh": "联系方式和需求已提交。你也可以使用客服二维码咨询。", "en": "Your contact details and message were submitted. You can also use the support QR code."},
   lead_success_close: { zh: "好的", en: "OK" },
 
   // Quota exhausted modal (workspace -> 409)
-  quota_title: { zh: "免费额度已用完", en: "Free credits used up" },
-  quota_subtitle: {
-    zh: "继续生成需要开通额度包。基础包 100 次，商业包 500 次，工厂卖家可定制批量出图。",
-    en: "To keep generating, top up. Basic 100 / Business 500 / Factory custom batch.",
-  },
+  quota_title: {"zh": "本次生成额度不足", "en": "Not enough credits"},
+  quota_subtitle: {"zh": "查看本次出图数量，或选择 100、400、1500 次额度包。", "en": "Check the image count or choose a pack of 100, 400 or 1500 credits."},
   quota_btn_topup: { zh: "去额度页查看套餐", en: "View plans" },
   quota_btn_close: { zh: "稍后再说", en: "Maybe later" },
 
   // Scene selector tabs
   ws_step_scene: { zh: "选择场景方案", en: "Pick a scene" },
-  ws_tab_recommended: { zh: "✨ 智能推荐", en: "✨ Smart picks" },
-  ws_tab_template: { zh: "📂 快捷模板", en: "📂 Templates" },
-  ws_tab_custom: { zh: "✍️ 自由描述", en: "✍️ Describe" },
+  ws_tab_recommended: {"zh": "智能推荐", "en": "Suggestions"},
+  ws_tab_template: {"zh": "快捷模板", "en": "Templates"},
+  ws_tab_custom: {"zh": "自由描述", "en": "Describe"},
 
   ws_recommend_need_upload: {
-    zh: "先上传一张灯具图，系统会针对它推荐 4 个最合适的场景。",
-    en: "Upload a lamp first — we'll suggest 4 scenes tailored to it.",
+    zh: "先上传一份素材，再查看围绕任务构思的内容方向。",
+    en: "Upload an asset to explore content directions for your task.",
   },
   ws_recommend_uploading: {
     zh: "正在准备上传…",
     en: "Preparing upload…",
   },
   ws_recommend_thinking: {
-    zh: "AI 正在分析这盏灯，给出场景建议",
-    en: "AI is analyzing your lamp and crafting scene suggestions",
+    zh: "AI 正在分析素材，给出内容建议",
+    en: "AI is analyzing your asset and crafting content suggestions",
   },
-  ws_recommend_thinking_hint: {
-    zh: "通常 15–25 秒",
-    en: "Usually 15–25 seconds",
-  },
+  ws_recommend_thinking_hint: {"zh": "请等待场景建议返回", "en": "Waiting for scene suggestions"},
   ws_recommend_error: {
     zh: "推荐失败",
     en: "Suggestions failed",

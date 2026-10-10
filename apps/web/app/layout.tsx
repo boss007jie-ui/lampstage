@@ -19,7 +19,7 @@ export function generateMetadata(): Metadata {
       title: t(lang, "meta_title"),
       description: t(lang, "meta_desc"),
       url: "https://lampstage.com",
-      siteName: "Lampstage / 灯境",
+      siteName: "Lampstage / 创境",
       type: "website",
     },
   };
@@ -33,7 +33,7 @@ export default function RootLayout({
   const lang = readLangFromCookies();
   return (
     <html lang={lang === "zh" ? "zh-CN" : "en"}>
-      <body className="bg-white text-[#061b31] antialiased">
+      <body className="antialiased">
         <LangProvider initialLang={lang}>{children}</LangProvider>
       </body>
     </html>

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Eye, EyeSlash, X } from "@phosphor-icons/react";
+import { Dialog } from "@/components/ui/Dialog";
 import { useLang } from "@/components/i18n/LangProvider";
 
 type Props = {
@@ -30,7 +32,7 @@ type Step =
   | "forgot-verify";
 
 export function LoginModal({ open, onClose, onSignedIn }: Props) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [step, setStep] = useState<Step>("email-input");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,11 +40,16 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
   const [code, setCode] = useState("");
   const [devCode, setDevCode] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const pendingRef = useRef(false);
+  const sessionRef = useRef(0);
+  const openRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
 
-  // 重置：modal 关闭时
-  useEffect(() => {
+  // A closed or replaced dialog invalidates every outstanding response.
+  useLayoutEffect(() => {
+    sessionRef.current += 1;
+    openRef.current = open;
     if (!open) {
       setStep("email-input");
       setEmail("");
@@ -50,10 +57,41 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
       setCode("");
       setDevCode(null);
       setPending(false);
+      pendingRef.current = false;
       setError(null);
       setResendIn(0);
     }
+    return () => {
+      sessionRef.current += 1;
+      openRef.current = false;
+      pendingRef.current = false;
+    };
   }, [open]);
+  const close = () => {
+    sessionRef.current += 1;
+    openRef.current = false;
+    pendingRef.current = false;
+    onClose();
+  };
+  const beginRequest = () => {
+    if (!openRef.current || pendingRef.current) return null;
+    pendingRef.current = true;
+    setPending(true);
+    return sessionRef.current;
+  };
+  const current = (session: number) => openRef.current && sessionRef.current === session;
+  const finishRequest = (session: number) => {
+    if (!current(session)) return;
+    pendingRef.current = false;
+    setPending(false);
+  };
+  const changeStep = (next: Step) => {
+    sessionRef.current += 1;
+    pendingRef.current = false;
+    setPending(false);
+    setError(null);
+    setStep(next);
+  };
 
   // 重发倒计时
   useEffect(() => {
@@ -62,10 +100,9 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
     return () => window.clearTimeout(tm);
   }, [resendIn]);
 
-  if (!open) return null;
-
   // ---------- Step 1: lookup email ----------
   const lookupEmail = async () => {
+    if (!openRef.current || pendingRef.current) return;
     setError(null);
     const id = email.trim();
     if (!id) {
@@ -76,7 +113,8 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
       setError(t("login_err_invalid_id"));
       return;
     }
-    setPending(true);
+    const session = beginRequest();
+    if (session === null) return;
     try {
       const r = await fetch("/api/auth/lookup", {
         method: "POST",
@@ -84,6 +122,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         body: JSON.stringify({ email: id }),
       });
       const data = await r.json();
+      if (!current(session)) return;
       if (!r.ok) {
         setError(t("login_err_send_generic") + (data.error || r.status));
         return;
@@ -94,20 +133,22 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         setStep("register-set-password");
       }
     } catch (e) {
-      setError(t("login_err_network") + String(e));
+      if (current(session)) setError(t("login_err_network") + String(e));
     } finally {
-      setPending(false);
+      finishRequest(session);
     }
   };
 
   // ---------- Step 2a: sign in with password ----------
   const signInWithPassword = async () => {
+    if (!openRef.current || pendingRef.current) return;
     setError(null);
     if (!password) {
       setError(t("login_err_no_password"));
       return;
     }
-    setPending(true);
+    const session = beginRequest();
+    if (session === null) return;
     try {
       const r = await fetch("/api/auth/sign-in", {
         method: "POST",
@@ -115,6 +156,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         body: JSON.stringify({ email: email.trim(), password }),
       });
       const data = await r.json();
+      if (!current(session)) return;
       if (!r.ok) {
         const msg =
           data.error === "wrong_password"
@@ -131,20 +173,22 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         creditBalance: data.credit_balance,
       });
     } catch (e) {
-      setError(t("login_err_network") + String(e));
+      if (current(session)) setError(t("login_err_network") + String(e));
     } finally {
-      setPending(false);
+      finishRequest(session);
     }
   };
 
   // ---------- Step 2b: registration -> set password + send code ----------
   const sendRegisterCode = async () => {
+    if (!openRef.current || pendingRef.current) return;
     setError(null);
     if (password.length < 6) {
       setError(t("login_err_weak_password"));
       return;
     }
-    setPending(true);
+    const session = beginRequest();
+    if (session === null) return;
     try {
       const r = await fetch("/api/auth/send-code", {
         method: "POST",
@@ -152,6 +196,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         body: JSON.stringify({ identifier: email.trim() }),
       });
       const data = await r.json();
+      if (!current(session)) return;
       if (!r.ok) {
         if (data.error === "rate_limited") {
           setError(t("login_err_rate"));
@@ -166,20 +211,22 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
       setDevCode(data.devCode || null);
       setResendIn(60);
     } catch (e) {
-      setError(t("login_err_network") + String(e));
+      if (current(session)) setError(t("login_err_network") + String(e));
     } finally {
-      setPending(false);
+      finishRequest(session);
     }
   };
 
   // ---------- Step 3: verify code & finish registration ----------
   const verifyAndRegister = async () => {
+    if (!openRef.current || pendingRef.current) return;
     setError(null);
     if (!/^\d{6}$/.test(code)) {
       setError(t("login_err_code_format"));
       return;
     }
-    setPending(true);
+    const session = beginRequest();
+    if (session === null) return;
     try {
       const r = await fetch("/api/auth/register", {
         method: "POST",
@@ -187,6 +234,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         body: JSON.stringify({ email: email.trim(), password, code }),
       });
       const data = await r.json();
+      if (!current(session)) return;
       if (!r.ok) {
         const msg =
           data.error === "wrong_code"
@@ -209,16 +257,18 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         creditBalance: data.credit_balance,
       });
     } catch (e) {
-      setError(t("login_err_network") + String(e));
+      if (current(session)) setError(t("login_err_network") + String(e));
     } finally {
-      setPending(false);
+      finishRequest(session);
     }
   };
 
   // ---------- Forgot password: send code & verify magic-link login ----------
   const sendForgotCode = async () => {
+    if (!openRef.current || pendingRef.current) return;
     setError(null);
-    setPending(true);
+    const session = beginRequest();
+    if (session === null) return;
     try {
       const r = await fetch("/api/auth/send-code", {
         method: "POST",
@@ -226,6 +276,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         body: JSON.stringify({ identifier: email.trim() }),
       });
       const data = await r.json();
+      if (!current(session)) return;
       if (!r.ok) {
         if (data.error === "rate_limited") {
           setError(t("login_err_rate"));
@@ -238,19 +289,21 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
       setDevCode(data.devCode || null);
       setResendIn(60);
     } catch (e) {
-      setError(t("login_err_network") + String(e));
+      if (current(session)) setError(t("login_err_network") + String(e));
     } finally {
-      setPending(false);
+      finishRequest(session);
     }
   };
 
   const verifyForgotCode = async () => {
+    if (!openRef.current || pendingRef.current) return;
     setError(null);
     if (!/^\d{6}$/.test(code)) {
       setError(t("login_err_code_format"));
       return;
     }
-    setPending(true);
+    const session = beginRequest();
+    if (session === null) return;
     try {
       const r = await fetch("/api/auth/verify-code", {
         method: "POST",
@@ -258,6 +311,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         body: JSON.stringify({ identifier: email.trim(), code }),
       });
       const data = await r.json();
+      if (!current(session)) return;
       if (!r.ok) {
         const msg =
           data.error === "wrong_code"
@@ -274,9 +328,9 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         creditBalance: data.credit_balance,
       });
     } catch (e) {
-      setError(t("login_err_network") + String(e));
+      if (current(session)) setError(t("login_err_network") + String(e));
     } finally {
-      setPending(false);
+      finishRequest(session);
     }
   };
 
@@ -301,68 +355,53 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
             : t("login_sent_to", { id: email.trim() });
 
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-end bg-black/50 sm:place-items-center"
-      onClick={onClose}
-    >
-      <div
-        className="w-full rounded-t-2xl bg-white p-5 shadow-2xl sm:m-4 sm:max-w-md sm:rounded-2xl sm:p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Dialog open={open} onClose={close} titleId="login-modal-title">
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <h2 className="text-[20px] font-semibold tracking-tight">
+            <h2 id="login-modal-title" className="text-[20px] font-semibold tracking-tight">
               {headerTitle}
             </h2>
-            <p className="mt-1 break-all text-[13px] text-[#64748d]">
+            <p className="mt-1 break-all text-[13px] text-[#6b7066]">
               {headerDesc}
             </p>
           </div>
           <button
-            onClick={onClose}
-            className="ml-3 rounded-full p-1 text-[#94a3b8] hover:bg-[#f1f5f9] hover:text-[#061b31]"
+            onClick={close}
+            className="icon-button ml-3 text-[#6b7066]"
             aria-label={t("login_close")}
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <X size={20} />
           </button>
         </div>
 
         {/* ---------- Step: email-input ---------- */}
         {step === "email-input" && (
           <>
-            <label className="mb-2 block text-[13px] font-medium text-[#273951]">
+            <label htmlFor="login-email" className="mb-2 block text-[13px] font-medium text-[#262924]">
               {t("login_label_id")}
             </label>
             <input
+              id="login-email"
+              name="email"
+              autoComplete="email"
               type="email"
               value={email}
+              disabled={pending}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t("login_placeholder_id")}
               autoFocus
-              className="w-full rounded-md border border-[#e5edf5] px-3 py-2.5 text-[14px] outline-none focus:border-[#533afd]"
+              className="w-full rounded-md border border-[#e5e5de] px-3 py-2.5 text-[14px] outline-none focus:border-[#5b6350]"
               onKeyDown={(e) => e.key === "Enter" && lookupEmail()}
             />
-            {error && <p className="mt-2 text-[13px] text-red-600">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-[13px] text-red-700">{error}</p>}
             <button
               onClick={lookupEmail}
               disabled={pending}
-              className="mt-4 w-full rounded-md bg-[#533afd] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
+              className="mt-4 w-full rounded-md bg-[#5b6350] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
             >
               {pending ? t("login_btn_checking") : t("login_btn_continue")}
             </button>
-            <p className="mt-3 text-[11px] text-[#94a3b8]">
+            <p className="mt-3 text-[11px] text-[#6b7066]">
               {t("login_hint_smart")}
             </p>
           </>
@@ -371,51 +410,55 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         {/* ---------- Step: password-input (existing user sign in) ---------- */}
         {step === "password-input" && (
           <>
-            <label className="mb-2 block text-[13px] font-medium text-[#273951]">
+            <label htmlFor="login-password" className="mb-2 block text-[13px] font-medium text-[#262924]">
               {t("login_label_password")}
             </label>
             <div className="relative">
               <input
+                id="login-password"
+                name="password"
+                autoComplete="current-password"
                 type={showPassword ? "text" : "password"}
                 value={password}
+                disabled={pending}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t("login_placeholder_password")}
                 autoFocus
-                className="w-full rounded-md border border-[#e5edf5] px-3 py-2.5 pr-10 text-[14px] outline-none focus:border-[#533afd]"
+                className="w-full rounded-md border border-[#e5e5de] px-3 py-2.5 pr-10 text-[14px] outline-none focus:border-[#5b6350]"
                 onKeyDown={(e) => e.key === "Enter" && signInWithPassword()}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-[#94a3b8] hover:text-[#533afd]"
-                aria-label={showPassword ? "hide" : "show"}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-[#6b7066] hover:text-[#5b6350]"
+                aria-label={showPassword ? (lang === "zh" ? "隐藏密码" : "Hide password") : (lang === "zh" ? "显示密码" : "Show password")}
               >
-                <EyeIcon open={showPassword} />
+                {showPassword ? <Eye size={18} /> : <EyeSlash size={18} />}
               </button>
             </div>
-            {error && <p className="mt-2 text-[13px] text-red-600">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-[13px] text-red-700">{error}</p>}
             <button
               onClick={signInWithPassword}
               disabled={pending}
-              className="mt-4 w-full rounded-md bg-[#533afd] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
+              className="mt-4 w-full rounded-md bg-[#5b6350] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
             >
               {pending ? t("login_btn_signing_in") : t("login_btn_sign_in")}
             </button>
             <div className="mt-3 flex items-center justify-between text-[12px]">
               <button
                 onClick={() => {
-                  setStep("email-input");
+                  changeStep("email-input");
                   setPassword("");
-                  setError(null);
                 }}
-                className="text-[#64748d] hover:underline"
+                disabled={pending}
+                className="text-[#6b7066] hover:underline"
               >
                 {t("login_back_email")}
               </button>
               <button
                 onClick={sendForgotCode}
                 disabled={pending}
-                className="text-[#533afd] hover:underline disabled:opacity-50"
+                className="text-[#5b6350] hover:underline disabled:opacity-50"
               >
                 {t("login_forgot_password")}
               </button>
@@ -426,46 +469,50 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         {/* ---------- Step: register-set-password ---------- */}
         {step === "register-set-password" && (
           <>
-            <label className="mb-2 block text-[13px] font-medium text-[#273951]">
+            <label htmlFor="register-password" className="mb-2 block text-[13px] font-medium text-[#262924]">
               {t("login_label_set_password")}
             </label>
             <div className="relative">
               <input
+                id="register-password"
+                name="new-password"
+                autoComplete="new-password"
                 type={showPassword ? "text" : "password"}
                 value={password}
+                disabled={pending}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t("login_placeholder_set_password")}
                 autoFocus
-                className="w-full rounded-md border border-[#e5edf5] px-3 py-2.5 pr-10 text-[14px] outline-none focus:border-[#533afd]"
+                className="w-full rounded-md border border-[#e5e5de] px-3 py-2.5 pr-10 text-[14px] outline-none focus:border-[#5b6350]"
                 onKeyDown={(e) => e.key === "Enter" && sendRegisterCode()}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-[#94a3b8] hover:text-[#533afd]"
-                aria-label={showPassword ? "hide" : "show"}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-[#6b7066] hover:text-[#5b6350]"
+                aria-label={showPassword ? (lang === "zh" ? "隐藏密码" : "Hide password") : (lang === "zh" ? "显示密码" : "Show password")}
               >
-                <EyeIcon open={showPassword} />
+                {showPassword ? <Eye size={18} /> : <EyeSlash size={18} />}
               </button>
             </div>
-            <p className="mt-1.5 text-[11px] text-[#94a3b8]">
+            <p className="mt-1.5 text-[11px] text-[#6b7066]">
               {t("login_hint_password")}
             </p>
-            {error && <p className="mt-2 text-[13px] text-red-600">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-[13px] text-red-700">{error}</p>}
             <button
               onClick={sendRegisterCode}
               disabled={pending}
-              className="mt-4 w-full rounded-md bg-[#533afd] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
+              className="mt-4 w-full rounded-md bg-[#5b6350] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
             >
               {pending ? t("login_btn_sending") : t("login_btn_send")}
             </button>
             <button
               onClick={() => {
-                setStep("email-input");
+                changeStep("email-input");
                 setPassword("");
-                setError(null);
               }}
-              className="mt-3 w-full text-[12px] text-[#64748d] hover:underline"
+              disabled={pending}
+              className="mt-3 w-full text-[12px] text-[#6b7066] hover:underline"
             >
               {t("login_back_email")}
             </button>
@@ -475,18 +522,22 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         {/* ---------- Step: register-verify-code ---------- */}
         {step === "register-verify-code" && (
           <>
-            <label className="mb-2 block text-[13px] font-medium text-[#273951]">
+            <label htmlFor="register-code" className="mb-2 block text-[13px] font-medium text-[#262924]">
               {t("login_label_code")}
             </label>
             <input
+              id="register-code"
+              name="one-time-code"
+              autoComplete="one-time-code"
               type="text"
               inputMode="numeric"
               maxLength={6}
               value={code}
+              disabled={pending}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
               placeholder="000000"
               autoFocus
-              className="w-full rounded-md border border-[#e5edf5] px-3 py-2.5 text-center font-mono text-[18px] tracking-[0.4em] outline-none focus:border-[#533afd]"
+              className="w-full rounded-md border border-[#e5e5de] px-3 py-2.5 text-center font-mono text-[18px] tracking-[0.4em] outline-none focus:border-[#5b6350]"
               onKeyDown={(e) => e.key === "Enter" && verifyAndRegister()}
             />
             {devCode && (
@@ -495,29 +546,29 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
                 <b className="font-mono">{devCode}</b>
               </p>
             )}
-            {error && <p className="mt-2 text-[13px] text-red-600">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-[13px] text-red-700">{error}</p>}
             <button
               onClick={verifyAndRegister}
               disabled={pending}
-              className="mt-4 w-full rounded-md bg-[#533afd] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
+              className="mt-4 w-full rounded-md bg-[#5b6350] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
             >
               {pending ? t("login_btn_registering") : t("login_btn_register")}
             </button>
             <div className="mt-3 flex items-center justify-between text-[12px]">
               <button
                 onClick={() => {
-                  setStep("register-set-password");
+                  changeStep("register-set-password");
                   setCode("");
-                  setError(null);
                 }}
-                className="text-[#64748d] hover:underline"
+                disabled={pending}
+                className="text-[#6b7066] hover:underline"
               >
                 {t("login_back")}
               </button>
               <button
                 onClick={sendRegisterCode}
                 disabled={resendIn > 0 || pending}
-                className="text-[#533afd] disabled:cursor-not-allowed disabled:text-[#94a3b8]"
+                className="text-[#5b6350] disabled:cursor-not-allowed disabled:text-[#6b7066]"
               >
                 {resendIn > 0
                   ? t("login_resend_in", { s: resendIn })
@@ -530,18 +581,22 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         {/* ---------- Step: forgot-verify (magic-link fallback login) ---------- */}
         {step === "forgot-verify" && (
           <>
-            <label className="mb-2 block text-[13px] font-medium text-[#273951]">
+            <label htmlFor="forgot-code" className="mb-2 block text-[13px] font-medium text-[#262924]">
               {t("login_label_code")}
             </label>
             <input
+              id="forgot-code"
+              name="one-time-code"
+              autoComplete="one-time-code"
               type="text"
               inputMode="numeric"
               maxLength={6}
               value={code}
+              disabled={pending}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
               placeholder="000000"
               autoFocus
-              className="w-full rounded-md border border-[#e5edf5] px-3 py-2.5 text-center font-mono text-[18px] tracking-[0.4em] outline-none focus:border-[#533afd]"
+              className="w-full rounded-md border border-[#e5e5de] px-3 py-2.5 text-center font-mono text-[18px] tracking-[0.4em] outline-none focus:border-[#5b6350]"
               onKeyDown={(e) => e.key === "Enter" && verifyForgotCode()}
             />
             {devCode && (
@@ -550,29 +605,29 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
                 <b className="font-mono">{devCode}</b>
               </p>
             )}
-            {error && <p className="mt-2 text-[13px] text-red-600">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-[13px] text-red-700">{error}</p>}
             <button
               onClick={verifyForgotCode}
               disabled={pending}
-              className="mt-4 w-full rounded-md bg-[#533afd] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
+              className="mt-4 w-full rounded-md bg-[#5b6350] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
             >
               {pending ? t("login_btn_verifying") : t("login_btn_verify")}
             </button>
             <div className="mt-3 flex items-center justify-between text-[12px]">
               <button
                 onClick={() => {
-                  setStep("password-input");
+                  changeStep("password-input");
                   setCode("");
-                  setError(null);
                 }}
-                className="text-[#64748d] hover:underline"
+                disabled={pending}
+                className="text-[#6b7066] hover:underline"
               >
                 {t("login_back")}
               </button>
               <button
                 onClick={sendForgotCode}
                 disabled={resendIn > 0 || pending}
-                className="text-[#533afd] disabled:cursor-not-allowed disabled:text-[#94a3b8]"
+                className="text-[#5b6350] disabled:cursor-not-allowed disabled:text-[#6b7066]"
               >
                 {resendIn > 0
                   ? t("login_resend_in", { s: resendIn })
@@ -581,21 +636,6 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
             </div>
           </>
         )}
-      </div>
-    </div>
-  );
-}
-
-function EyeIcon({ open }: { open: boolean }) {
-  return open ? (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  ) : (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9.9 4.2A10.9 10.9 0 0 1 12 4c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3 4M6.6 6.6A17.6 17.6 0 0 0 2 11s3.5 7 10 7a10.9 10.9 0 0 0 4.1-.8" />
-      <path d="m2 2 20 20" />
-    </svg>
+    </Dialog>
   );
 }

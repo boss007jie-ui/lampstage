@@ -12,6 +12,8 @@
  * 失败兜底：推断超时/失败 → 用 DEFAULT_PROFILE 显示，提示"AI 识别暂时不可用"。
  */
 import { useEffect, useRef, useState } from "react";
+import { CheckCircle, SpinnerGap } from "@phosphor-icons/react";
+import { useLang } from "@/components/i18n/LangProvider";
 
 export type ProfileResp = {
   asset_id: string;
@@ -32,7 +34,7 @@ export type ProfileResp = {
 
 type Props = {
   assetId: string;
-  onReady?: (p: ProfileResp) => void;
+  onReady?: (p: ProfileResp | null) => void;
 };
 
 const LAMP_LABEL: Record<ProfileResp["lamp_type"], string> = {
@@ -77,7 +79,7 @@ const SIZE_REPRESENTATIVE_CM: Record<
 const TEMP_LABEL: Record<ProfileResp["color_temp"], string> = {
   warm_3000k: "暖光 3000K",
   neutral_4000k: "中性 4000K",
-  cool_5000k: "冷白 5500K",
+  cool_5000k: "冷白 5000K",
   tunable: "多档可调",
 };
 
@@ -145,6 +147,12 @@ const SPACE_OPTIONS: string[] = [
 const MAX_SPACES = 3;
 
 export function LampProfileCard({ assetId, onReady }: Props) {
+  const { lang } = useLang();
+  const copy = (zh: string, en: string) => lang === "zh" ? zh : en;
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const saveVersion = useRef(0);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const [profile, setProfile] = useState<ProfileResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -155,6 +163,9 @@ export function LampProfileCard({ assetId, onReady }: Props) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setProfile(null);
+    setUsingDefault(false);
+    onReady?.(null);
     setErrMsg(null);
     fetch(`/api/uploads/${assetId}/profile`, {
       method: "POST",
@@ -192,7 +203,7 @@ export function LampProfileCard({ assetId, onReady }: Props) {
       })
       .catch(() => {
         if (cancelled) return;
-        setErrMsg("AI 识别超时，已使用通用默认值。可手动调整。");
+        setErrMsg("AI 识别暂时不可用，已使用通用默认值。可手动调整。");
         setUsingDefault(true);
         setProfile({
           asset_id: assetId,
@@ -208,18 +219,18 @@ export function LampProfileCard({ assetId, onReady }: Props) {
       });
     return () => {
       cancelled = true;
+      if (patchTimer.current) window.clearTimeout(patchTimer.current);
     };
-  }, [assetId]);
+  }, [assetId, onReady]);
 
   // profile 就绪 → 通知父组件
   useEffect(() => {
-    if (profile && !loading) onReady?.(profile);
-  }, [profile, loading, onReady]);
+    onReady?.(profile && !loading && !saving && !saveError ? profile : null);
+  }, [profile, loading, saving, saveError, onReady]);
 
   // 更新字段（防抖 PATCH）
   const update = <K extends keyof ProfileResp>(key: K, value: ProfileResp[K]) => {
     if (!profile) return;
-    const patchBody: Partial<ProfileResp> = { [key]: value } as Partial<ProfileResp>;
     const next = { ...profile, [key]: value };
 
     // 尺寸类别变化时，本地立即联动估算 cm；后端 PATCH 也做同样兜底。
@@ -230,54 +241,54 @@ export function LampProfileCard({ assetId, onReady }: Props) {
       ];
       if (repCm) {
         next.size_hint_cm = repCm;
-        patchBody.size_hint_cm = repCm;
       }
     }
 
     setProfile(next);
-    if (patchTimer.current) window.clearTimeout(patchTimer.current);
-    patchTimer.current = window.setTimeout(() => {
-      fetch(`/api/uploads/${assetId}/profile`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(patchBody),
-      }).catch(() => {
-        // 不阻断 UI，DB 失败下次生成时会因 profile 不全导致 generate 报错——可接受
-      });
-    }, 600) as unknown as number;
+    queueSave(next);
   };
 
-  // 空间多选 toggle：点击切换，最多 MAX_SPACES 个，保持点击顺序（顺序=适合度）
+  // Save all editable fields together so rapid changes cannot discard an earlier edit.
+  const queueSave = (next: ProfileResp) => {
+    setSaving(true);
+    setSaveError(false);
+    onReady?.(null);
+    const version = ++saveVersion.current;
+    if (patchTimer.current) window.clearTimeout(patchTimer.current);
+    patchTimer.current = window.setTimeout(() => {
+      saveQueue.current = saveQueue.current.then(async () => {
+        try {
+          const response = await fetch(`/api/uploads/${assetId}/profile`, {
+            method: "PATCH", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ lamp_type: next.lamp_type, size_class: next.size_class, size_hint_cm: next.size_hint_cm, color_temp: next.color_temp, target_audience: next.target_audience, space_fit: next.space_fit }),
+          });
+          if (!response.ok) throw new Error("save_failed");
+          if (version === saveVersion.current) setSaveError(false);
+        } catch {
+          if (version === saveVersion.current) setSaveError(true);
+        } finally {
+          if (version === saveVersion.current) setSaving(false);
+        }
+      });
+    }, 600);
+  };
+
   const toggleSpace = (space: string) => {
     if (!profile) return;
     const current = profile.space_fit ?? [];
-    let next: string[];
-    if (current.includes(space)) {
-      next = current.filter((s) => s !== space);
-    } else {
-      if (current.length >= MAX_SPACES) return;
-      next = [...current, space];
-    }
-    setProfile({ ...profile, space_fit: next });
-    if (patchTimer.current) window.clearTimeout(patchTimer.current);
-    patchTimer.current = window.setTimeout(() => {
-      fetch(`/api/uploads/${assetId}/profile`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ space_fit: next }),
-      }).catch(() => {});
-    }, 600) as unknown as number;
+    if (!current.includes(space) && current.length >= MAX_SPACES) return;
+    update("space_fit", current.includes(space) ? current.filter(s => s !== space) : [...current, space]);
   };
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-[#e5edf5] bg-white p-5">
-        <div className="text-[13px] text-[#94a3b8]">AI 正在识别灯具档案…</div>
+      <div className="rounded-2xl border border-[#e5e5de] bg-white p-5">
+        <div role="status" className="flex items-center gap-2 text-[13px] text-[#6b7066]"><SpinnerGap size={18} className="animate-spin" />{copy("AI 正在识别商品信息…", "Recognizing product details…")}</div>
         <div className="mt-3 grid grid-cols-2 gap-3">
-          <div className="h-12 rounded-md bg-[#f1f5f9] animate-pulse" />
-          <div className="h-12 rounded-md bg-[#f1f5f9] animate-pulse" />
-          <div className="h-12 rounded-md bg-[#f1f5f9] animate-pulse" />
-          <div className="h-12 rounded-md bg-[#f1f5f9] animate-pulse" />
+          <div className="h-12 rounded-md bg-[#f4f4ef] animate-pulse" />
+          <div className="h-12 rounded-md bg-[#f4f4ef] animate-pulse" />
+          <div className="h-12 rounded-md bg-[#f4f4ef] animate-pulse" />
+          <div className="h-12 rounded-md bg-[#f4f4ef] animate-pulse" />
         </div>
       </div>
     );
@@ -294,13 +305,13 @@ export function LampProfileCard({ assetId, onReady }: Props) {
   const sizeRange = SIZE_RANGE[profile.lamp_type];
 
   return (
-    <div className="rounded-2xl border border-[#e5edf5] bg-white p-5">
+    <div className="rounded-2xl border border-[#e5e5de] bg-white p-5">
       <div className="flex items-center justify-between">
-        <div className="text-[13px] font-semibold tracking-tight text-[#171717]">
-          AI 识别 · 可手动调整
+        <div className="text-[13px] font-semibold tracking-tight text-[#5b6350]">
+          {copy("识别结果 · 请核对并调整", "Recognition · review and adjust")}
         </div>
         {profile.ai_inferred_at && !usingDefault && (
-          <div className="text-[11px] text-emerald-600">✓ 已识别</div>
+          <div className="flex items-center gap-1 text-[11px] text-[#5b6350]"><CheckCircle size={14} />{copy("已识别", "Recognized")}</div>
         )}
       </div>
 
@@ -310,6 +321,9 @@ export function LampProfileCard({ assetId, onReady }: Props) {
         </div>
       )}
 
+      <p className="mt-2 text-xs leading-5 text-[#6b7066]">{copy("识别信息仅作参考，请按真实商品规格确认。", "Recognition is a suggestion. Confirm details against your actual product specifications.")}</p>
+      {saving && <p role="status" className="mt-2 text-xs text-[#6b7066]">{copy("正在保存修改…", "Saving changes…")}</p>}
+      {saveError && <div role="alert" className="mt-2 text-xs text-red-700">{copy("修改未保存，请重试后继续。", "Changes were not saved. Retry before continuing.")} <button type="button" className="underline" onClick={() => queueSave(profile)}>{copy("重新保存", "Retry save")}</button></div>}
       {/* 类型 */}
       <Field label="类型">
         <div className="flex flex-wrap gap-1.5">
@@ -339,8 +353,8 @@ export function LampProfileCard({ assetId, onReady }: Props) {
             </Chip>
           ))}
         </div>
-        <div className="mt-2 text-[11px] text-[#94a3b8]">
-          AI 估算约 {profile.size_hint_cm}cm
+        <div className="mt-2 text-[11px] text-[#6b7066]">
+          {copy("参考尺寸约", "Approximate reference size")} {profile.size_hint_cm}cm
         </div>
       </Field>
 
@@ -357,7 +371,7 @@ export function LampProfileCard({ assetId, onReady }: Props) {
             </Chip>
           ))}
         </div>
-        <div className="mt-2 text-[11px] text-[#94a3b8]">
+        <div className="mt-2 text-[11px] text-[#6b7066]">
           按产品规格填，决定生成图里灯亮起来的颜色
         </div>
       </Field>
@@ -388,18 +402,20 @@ export function LampProfileCard({ assetId, onReady }: Props) {
             return (
               <button
                 key={sp}
+                type="button"
+                aria-pressed={active}
                 onClick={() => toggleSpace(sp)}
                 disabled={!active && atLimit}
                 className={`relative rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
                   active
-                    ? "bg-[#171717] text-white"
+                    ? "bg-[#5b6350] text-white"
                     : atLimit
-                      ? "cursor-not-allowed border border-[#eef2f6] bg-[#f8fafc] text-[#cbd5e1]"
-                      : "border border-[#e5edf5] bg-white text-[#374151] hover:bg-[#f8fafc]"
+                      ? "cursor-not-allowed border border-[#eef2f6] bg-[#f7f7f2] text-[#cbd5e1]"
+                      : "border border-[#e5e5de] bg-white text-[#262924] hover:bg-[#f7f7f2]"
                 }`}
               >
                 {active && (
-                  <span className="mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-[#171717]">
+                  <span className="mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-[#5b6350]">
                     {order + 1}
                   </span>
                 )}
@@ -408,7 +424,7 @@ export function LampProfileCard({ assetId, onReady }: Props) {
             );
           })}
         </div>
-        <div className="mt-2 text-[11px] text-[#94a3b8]">
+        <div className="mt-2 text-[11px] text-[#6b7066]">
           AI 按灯的风格判断最适合的空间。第 1 个最优先，生成图会用这些空间。
         </div>
       </Field>
@@ -418,8 +434,8 @@ export function LampProfileCard({ assetId, onReady }: Props) {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="mt-3 border-t border-[#f1f5f9] pt-3">
-      <div className="mb-2 text-[12px] font-medium text-[#64748d]">{label}</div>
+    <div className="mt-3 border-t border-[#f4f4ef] pt-3">
+      <div className="mb-2 text-[12px] font-medium text-[#6b7066]">{label}</div>
       {children}
     </div>
   );
@@ -440,12 +456,14 @@ function Chip({
 }) {
   return (
     <button
+      type="button"
+      aria-pressed={active}
       onClick={onClick}
       title={hint}
       className={`${fill ? "" : ""} rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
         active
-          ? "bg-[#171717] text-white"
-          : "border border-[#e5edf5] bg-white text-[#374151] hover:bg-[#f8fafc]"
+          ? "bg-[#5b6350] text-white"
+          : "border border-[#e5e5de] bg-white text-[#262924] hover:bg-[#f7f7f2]"
       } ${fill ? "w-full text-center" : ""}`}
     >
       {children}

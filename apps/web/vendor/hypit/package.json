@@ -1,0 +1,8 @@
+{
+  "name": "website-hypit-provider-root",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@hypit/hypit": "0.2.17"
+  }
+}

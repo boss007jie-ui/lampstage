@@ -25,7 +25,10 @@ import {
   refundCredits,
 } from "@/lib/credits";
 import { putGeneratedImage } from "@/lib/storage";
-import { getProviderForIndex } from "@/lib/providers";
+import { getProvider } from "@/lib/providers";
+import { getImageModel, validateImageSelection, type ImageModelId } from "@/lib/image-models";
+import { generateScene } from "@/lib/scene-generator";
+import { selectSceneSeed } from "@/lib/scene-seed";
 import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
 import type {
   ColorTemp,
@@ -55,6 +58,7 @@ const ASPECT_LABEL: Record<AspectRatio, string> = {
   "1_1": "1:1 square aspect ratio",
   "4_5": "4:5 portrait aspect ratio",
   "16_9": "16:9 wide aspect ratio",
+  "9_16": "9:16 portrait aspect ratio",
 };
 
 const STRICT_QUALITY = `Photoreal interior photography. Lamp appearance (material, color, shade shape) matches the reference image. The lamp and room share one coherent lighting system: correct ceiling perspective, contact shadows, ambient tint, depth of field and grain. No text or watermark.`.trim();
@@ -545,6 +549,7 @@ export async function createAndRunGenerationJob(args: {
   aspectRatio: AspectRatio;
   /** 顾客选择的出图数量 1-4。不传按默认 3。 */
   imageCount?: number;
+  imageModel?: ImageModelId;
 }): Promise<
   | { ok: true; jobId: string; creditBalance: number }
   | {
@@ -554,9 +559,15 @@ export async function createAndRunGenerationJob(args: {
         | "asset_not_found"
         | "template_not_found"
         | "missing_prompt"
-        | "profile_not_ready";
+        | "profile_not_ready"
+        | "bad_image_model"
+        | "unsupported_model_aspect";
     }
 > {
+  const selection = validateImageSelection(args.imageModel, args.aspectRatio);
+  if (!selection.ok) return selection;
+  const imageModel = selection.imageModel;
+  const model = getImageModel(imageModel);
   const imageCount = clampImageCount(args.imageCount);
   const creditCost = imageCount * CREDIT_PER_IMAGE;
 
@@ -608,7 +619,8 @@ export async function createAndRunGenerationJob(args: {
           space_fit: (asset.space_fit ?? "").split(",").filter(Boolean),
         };
         const fallbackShots = decideThreeShots(profile, args.platformStyle, args.aspectRatio);
-        const plannedShots = plannedPromptPlan?.shots;
+        // Single-reference editing uses a product-only prompt, never a room-first two-image prompt.
+        const plannedShots = model.maxReferences > 1 ? plannedPromptPlan?.shots : undefined;
         // 把候选镜头铺平成统一结构（planner 4 条 / fallback 3 条）
         const candidates = plannedShots
           ? plannedShots.map((shot) => ({
@@ -626,10 +638,22 @@ export async function createAndRunGenerationJob(args: {
             }));
         // 房间优先双图法：命中 scene-refs-v2 的空间，改用"锁定房间+放灯"精简提示词 + 房间参考图。
         // 未命中的自定义空间退回原纯文字提示词（compositionReferenceUrl 留空）。
-        // Default to single-image; opt into room refs only with USE_ROOM_REFERENCE=true.
-        const enriched = candidates.map((c) => {
-          if (process.env.USE_ROOM_REFERENCE !== "true") return c;
-          const roomRef = resolveRoomRef(c.room);
+        // C26: default to room references; fallback keeps generation alive when no seed exists.
+        const enriched = await Promise.all(candidates.map(async (c) => {
+          if (model.maxReferences === 1) return { ...c, compositionReferenceUrl: "" };
+          let roomRef = await selectSceneSeed({
+            sceneType: c.room,
+            targetAudience: profile.target_audience,
+            timeOfDay: c.lit ? "dusk" : "daylight",
+          });
+          if (!roomRef) {
+            roomRef = await generateScene({
+              sceneType: c.room,
+              targetAudience: profile.target_audience,
+              timeOfDay: c.lit ? "dusk" : "daylight",
+              imageModel,
+            }).catch(() => resolveRoomRef(c.room));
+          }
           if (!roomRef) return c;
           return {
             ...c,
@@ -641,7 +665,7 @@ export async function createAndRunGenerationJob(args: {
             ),
             compositionReferenceUrl: roomRef,
           };
-        });
+        }));
         // 适合空间数 = 非变体候选数；variant 下标 = 第一个 is_variant 的位置
         const mainCount = enriched.filter((c) => !c.is_variant).length;
         const variantIdx = enriched.findIndex((c) => c.is_variant);
@@ -655,7 +679,7 @@ export async function createAndRunGenerationJob(args: {
         compositionReferenceList = shots.map((s) => s.compositionReferenceUrl);
         // 存完整 prompts + room reference，便于排查“模型到底吃到了什么”。
         finalPrompt = [
-          plannedPromptPlan
+          plannedShots && plannedPromptPlan
             ? `prompt_planner=used\nusage_role=${plannedPromptPlan.usage_role}\nreasoning=${plannedPromptPlan.reasoning}`
             : "prompt_planner=fallback_local_rules",
           ...shots.map(
@@ -694,6 +718,7 @@ export async function createAndRunGenerationJob(args: {
           template_id: templateId,
           scene_kind: args.sceneKind ?? "profile",
           prompt_text: finalPrompt,
+          metadata: { image_model: imageModel, provider_model: model.apiModel },
           platform_style: args.platformStyle,
           aspect_ratio:
             args.aspectRatio === "1_1"
@@ -761,6 +786,7 @@ export async function createAndRunGenerationJob(args: {
     prompts,
     compositionReferenceUrls: result.compositionReferenceList ?? undefined,
     aspectRatio: args.aspectRatio,
+    imageModel,
   }).catch((err) => {
     console.error("[gen] uncaught error", err);
   });
@@ -797,6 +823,7 @@ async function runGenerationPipeline(args: {
   /** 每张图对应的房间/构图参考图。长度可少于 OUTPUT_COUNT，缺失则该张只用灯具图。 */
   compositionReferenceUrls?: string[];
   aspectRatio: AspectRatio;
+  imageModel: ImageModelId;
 }) {
   const { jobId, userId, referenceImageUrl, aspectRatio } = args;
   const prompts: string[] = Array.isArray(args.prompts)
@@ -816,11 +843,10 @@ async function runGenerationPipeline(args: {
     await setStage(jobId, "matching");
     await sleep(600);
 
-    // 阶段 3：实时生成保持稳定：3 张都走默认 provider（nano-banana）
-    // gpt-image-2 能用，但较慢，后续作为"高质量重绘"单独按钮异步调用，避免拖垮 60s 同步接口。
+    // Every output in this job uses the customer's persisted model choice.
     await setStage(jobId, "generating");
+    const provider = getProvider(args.imageModel);
     const calls = prompts.map((prompt, idx) => {
-      const provider = getProviderForIndex(idx);
       const compositionReferenceUrl = args.compositionReferenceUrls?.[idx];
       console.log(
         `[gen] output ${idx + 1}/${prompts.length} via ${provider.name}` +

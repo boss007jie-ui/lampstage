@@ -181,33 +181,53 @@ light bloom or exaggerated halo."
 
 FINAL PROMPT FORMAT
 
-Each prompt must be 60–90 English words.
+Each prompt must be 85–105 English words.
 
 Structure:
-1. room style and architecture
-2. furniture and styling
-3. daylight / atmosphere
-4. camera and composition
-5. one final short sentence describing the lamp
+1. room architecture and style (2-3 sentences)
+2. furniture, textures, styling details (2 sentences)
+3. daylight source, quality, atmosphere (1-2 sentences)
+4. camera position, lens, angle, what fills the frame (1 sentence)
+5. ONE final sentence describing the lamp as a functional detail
 
 Final lamp sentence example:
-"An unlit pendant matching the reference in silhouette, material, colour and construction hangs naturally above the table as a functional detail."
+"A pendant matching the reference hangs naturally above the table as a quiet functional detail."
 
-VALIDATION
+VALIDATION — MANDATORY SELF-CHECK BEFORE RETURNING EACH SHOT
 
-Before returning a shot prompt, reject and rewrite it if it contains:
-- cm
-- %
-- frame width
-- table depth
-- chair seat
-- scale lock
-- hero product
-- product catalogue
-- oversized
-- compact pendant
+Run ALL checks below on every shot prompt. If ANY check fails, do NOT return
+that shot — rewrite it until all checks pass.
 
-Also reject and rewrite if the lamp is mentioned more than once.
+1. FORBIDDEN WORDS
+   Reject if the prompt contains any of:
+   cm, %, frame width, table depth, chair seat, scale lock, hero product,
+   product catalogue, oversized, compact pendant, statement piece,
+   scale anchor, visual center, dominating
+
+2. LAMP POSITION — SINGLE FINAL SENTENCE
+   The word "pendant", "fixture", "lamp", or "chandelier" must appear
+   EXACTLY ONCE in the entire prompt, and ONLY inside the final sentence.
+
+   To verify: count occurrences of ["pendant", "fixture", "lamp", "chandelier",
+   "luminaire", "lighting fixture", "light fixture"] across the whole prompt.
+   If count != 1 → REJECT.
+   If the single occurrence is NOT in the final sentence → REJECT.
+
+3. ROOM DOMINANCE — ≥80% OF CONTENT
+   Estimate the proportion of the prompt that describes the room, furniture,
+   daylight, camera, and atmosphere (NOT the lamp).
+
+   Quick self-check: the lamp sentence must be 1 sentence out of at least 7
+   total sentences, AND the lamp sentence must be visibly shorter than the
+   average room-description sentence. If the prompt has fewer than 7 sentences
+   → REJECT and add more room detail.
+
+   Target word split: ≥90 words total, lamp line ≤15 words.
+
+4. REJECTION LOGIC
+   If any check fails — rewrite the ENTIRE prompt from scratch.
+   Do not try to patch a failing prompt by moving one sentence.
+   The failure means the room-first structure was not followed.
 
 SHOT PLAN
 
@@ -294,6 +314,221 @@ function normalizePlan(raw: unknown): PromptPlan | null {
   };
 }
 
+const LAMP_WORDS = [
+  "lighting fixture",
+  "light fixture",
+  "pendant",
+  "fixture",
+  "lamp",
+  "chandelier",
+  "luminaire",
+  "sconce",
+];
+
+type SanitizeResult = {
+  cleaned: string | null;
+  actions: string[];
+};
+
+const FORBIDDEN_PROMPT_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
+  { label: "cm", pattern: /\bcm\b/i },
+  { label: "%", pattern: /%/ },
+  { label: "frame width", pattern: /\bframe\s+width\b/i },
+  { label: "table depth", pattern: /\btable\s+depth\b/i },
+  { label: "chair seat", pattern: /\bchair\s+seat\b/i },
+  { label: "scale lock", pattern: /\bscale\s+lock\b/i },
+  { label: "hero product", pattern: /\bhero\s+product\b/i },
+  { label: "product catalogue", pattern: /\bproduct\s+catalogue\b/i },
+  { label: "compact pendant", pattern: /\bcompact\s+pendant\b/i },
+  { label: "statement piece", pattern: /\bstatement\s+piece\b/i },
+  { label: "scale anchor", pattern: /\bscale\s+anchor\b/i },
+  { label: "visual center", pattern: /\bvisual\s+center\b/i },
+  { label: "dominating", pattern: /\bdominating\b/i },
+];
+
+const ROOM_DETAIL_PAD_SENTENCE =
+  "Additional room texture remains visible in the surrounding surfaces, giving the composition a complete lived-in interior context.";
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function splitPromptSentences(prompt: string): string[] {
+  return prompt
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function countWords(s: string): number {
+  return s.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function countLampWordHits(text: string): number {
+  const hits: Array<{ start: number; end: number }> = [];
+  for (const lw of LAMP_WORDS) {
+    const re = new RegExp(`\\b${escapeRegExp(lw).replace(/\\\s\+/g, "\\s+")}\\b`, "gi");
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+      hits.push({ start: match.index, end: match.index + match[0].length });
+    }
+  }
+  hits.sort((a, b) => a.start - b.start || b.end - b.start - (a.end - a.start));
+  const accepted: Array<{ start: number; end: number }> = [];
+  for (const hit of hits) {
+    if (accepted.some((existing) => hit.start < existing.end && hit.end > existing.start)) {
+      continue;
+    }
+    accepted.push(hit);
+  }
+  return accepted.length;
+}
+
+function removeLampWords(text: string): string {
+  let cleaned = text;
+  for (const lw of LAMP_WORDS) {
+    const re = new RegExp(`\\b${escapeRegExp(lw).replace(/\\\s\+/g, "\\s+")}\\b`, "gi");
+    cleaned = cleaned.replace(re, "ceiling detail");
+  }
+  return cleaned.replace(/\s+/g, " ").trim();
+}
+
+function sanitizeShot(prompt: string): SanitizeResult {
+  const actions: string[] = [];
+  for (const { label, pattern } of FORBIDDEN_PROMPT_PATTERNS) {
+    if (pattern.test(prompt)) {
+      return { cleaned: null, actions: [`forbidden word: "${label}"`] };
+    }
+  }
+
+  let working = prompt;
+  // 处理 oversized：替换为中性描述或直接删除
+  if (working.toLowerCase().includes("oversized")) {
+    // 策略：删除 "oversized" 及前面可能的冠词，保留句子其余部分
+    working = working.replace(/\b(an?\s+)?oversized\b/gi, "");
+    // 清理双空格
+    working = working.replace(/\s{2,}/g, " ").trim();
+    actions.push("replaced 'oversized' with neutral wording");
+  }
+
+  const sentences = splitPromptSentences(working);
+  const lampSentenceIndices = sentences
+    .map((sentence, index) => (countLampWordHits(sentence) > 0 ? index : -1))
+    .filter((index) => index >= 0);
+  const midPromptLampIndices = lampSentenceIndices.filter(
+    (index) => index !== sentences.length - 1,
+  );
+  const cleanedSentences = sentences.map((sentence, index) =>
+    midPromptLampIndices.includes(index) ? removeLampWords(sentence) : sentence,
+  );
+  if (midPromptLampIndices.length > 0) {
+    actions.push(
+      `removed lamp wording from ${midPromptLampIndices.length} mid-prompt sentence(s)`,
+    );
+  }
+  let cleaned = cleanedSentences.join(" ").trim();
+  let finalSentences = splitPromptSentences(cleaned);
+
+  if (finalSentences.length < 5) {
+    return {
+      cleaned: null,
+      actions: [
+        ...actions,
+        `only ${finalSentences.length} sentences after sanitize (need ≥5)`,
+      ],
+    };
+  }
+
+  let wordCount = countWords(cleaned);
+  if (wordCount >= 70 && wordCount < 80) {
+    const finalSentence = finalSentences[finalSentences.length - 1];
+    const roomSentences = finalSentences.slice(0, -1);
+    cleaned = [...roomSentences, ROOM_DETAIL_PAD_SENTENCE, finalSentence].join(" ");
+    finalSentences = splitPromptSentences(cleaned);
+    wordCount = countWords(cleaned);
+    actions.push("added neutral room detail sentence to reach minimum length");
+  }
+  if (wordCount < 80) {
+    return {
+      cleaned: null,
+      actions: [...actions, `only ${wordCount} words after sanitize (need ≥80)`],
+    };
+  }
+
+  return { cleaned, actions };
+}
+
+type PlannerMessage = {
+  role: "system" | "user";
+  content: string;
+};
+
+type PlannerRequestBody = {
+  model: string;
+  messages: PlannerMessage[];
+  response_format: { type: "json_object" };
+  temperature: number;
+  thinking?: { type: "disabled" };
+};
+
+type PlannerAttemptResult =
+  | { ok: true; httpStatus: number; plan: PromptPlan }
+  | { ok: false; httpStatus?: number; error: string };
+
+async function requestPromptPlan(args: {
+  endpoint: string;
+  apiKey: string;
+  body: PlannerRequestBody;
+}): Promise<PlannerAttemptResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PLANNER_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(args.endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${args.apiKey}`,
+      },
+      body: JSON.stringify(args.body),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    return { ok: false, error: `network/timeout: ${String(e)}` };
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return {
+      ok: false,
+      httpStatus: res.status,
+      error: text.slice(0, 240) || `HTTP ${res.status}`,
+    };
+  }
+
+  try {
+    const data: unknown = await res.json();
+    if (!isRecord(data) || !Array.isArray(data.choices)) {
+      return { ok: false, httpStatus: res.status, error: "choices missing" };
+    }
+    const first = data.choices[0];
+    const message = isRecord(first) ? first.message : undefined;
+    const text = isRecord(message) ? message.content : undefined;
+    if (typeof text !== "string") {
+      return { ok: false, httpStatus: res.status, error: "message content missing" };
+    }
+    const plan = normalizePlan(JSON.parse(stripFence(text)));
+    if (!plan) {
+      return { ok: false, httpStatus: res.status, error: "normalizePlan returned null" };
+    }
+    return { ok: true, httpStatus: res.status, plan };
+  } catch (e) {
+    return { ok: false, httpStatus: res.status, error: `parse error: ${String(e)}` };
+  }
+}
+
 export async function planImagePrompts(args: {
   profile: ProductProfileForPlanner;
   platformStyle: PlatformStyle;
@@ -335,7 +570,7 @@ Aspect ratio: ${args.aspectRatio}
 
 Write 4 planned image-edit shots in the fixed order described in the system prompt. Only ONE image (the lamp product photo) is sent to the model.`;
 
-  const body = {
+  const body: PlannerRequestBody = {
     model: planner.model,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
@@ -348,76 +583,57 @@ Write 4 planned image-edit shots in the fixed order described in the system prom
       : {}),
   };
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PLANNER_TIMEOUT_MS);
-
-  let res: Response;
-  try {
-    res = await fetch(planner.endpoint, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${planner.apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } catch (e) {
-    console.warn("[prompt-planner] network/timeout error", e);
+  const attempt = await requestPromptPlan({
+    endpoint: planner.endpoint,
+    apiKey: planner.apiKey,
+    body,
+  });
+  if (!attempt.ok) {
+    console.warn(`[prompt-planner] ${attempt.error}`);
     void logToolCall({
       tool: "prompt_planner",
       model: planner.model,
       status: "failed",
+      httpStatus: attempt.httpStatus,
       durationMs: Date.now() - startedAt,
-      error: `network/timeout: ${String(e)}`,
-    });
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    console.warn(`[prompt-planner] HTTP ${res.status}: ${text.slice(0, 300)}`);
-    void logToolCall({
-      tool: "prompt_planner",
-      model: planner.model,
-      status: "failed",
-      httpStatus: res.status,
-      durationMs: Date.now() - startedAt,
-      error: text.slice(0, 240),
+      error: attempt.error,
     });
     return null;
   }
 
-  try {
-    const data: unknown = await res.json();
-    if (!isRecord(data) || !Array.isArray(data.choices)) return null;
-    const first = data.choices[0];
-    const message = isRecord(first) ? first.message : undefined;
-    const text = isRecord(message) ? message.content : undefined;
-    if (typeof text !== "string") return null;
-    const plan = normalizePlan(JSON.parse(stripFence(text)));
-    void logToolCall({
-      tool: "prompt_planner",
-      model: planner.model,
-      status: plan ? "ok" : "failed",
-      httpStatus: res.status,
-      durationMs: Date.now() - startedAt,
-      error: plan ? null : "normalizePlan returned null",
-      resultJson: plan ? JSON.stringify(plan) : null,
-    });
-    return plan;
-  } catch (e) {
-    console.warn("[prompt-planner] parse error", e);
-    void logToolCall({
-      tool: "prompt_planner",
-      model: planner.model,
-      status: "failed",
-      httpStatus: res.status,
-      durationMs: Date.now() - startedAt,
-      error: `parse error: ${String(e)}`,
-    });
-    return null;
+  const plan = attempt.plan;
+  const allActions: string[] = [];
+  const sanitizedShots: PlannedShot[] = [];
+  for (let i = 0; i < plan.shots.length; i++) {
+    const result = sanitizeShot(plan.shots[i].prompt);
+    if (!result.cleaned) {
+      const error = `shot ${i} unsanitizable: ${result.actions.join("; ")}`;
+      console.warn(`[prompt-planner] ${error}`);
+      void logToolCall({
+        tool: "prompt_planner",
+        model: planner.model,
+        status: "failed",
+        httpStatus: attempt.httpStatus,
+        durationMs: Date.now() - startedAt,
+        error,
+      });
+      return null;
+    }
+    if (result.actions.length > 0) {
+      allActions.push(`shot ${i}: ${result.actions.join("; ")}`);
+    }
+    sanitizedShots.push({ ...plan.shots[i], prompt: result.cleaned });
   }
+  plan.shots = sanitizedShots;
+
+  void logToolCall({
+    tool: "prompt_planner",
+    model: planner.model,
+    status: "ok",
+    httpStatus: attempt.httpStatus,
+    durationMs: Date.now() - startedAt,
+    error: allActions.length > 0 ? `sanitized: ${allActions.join(" | ")}` : null,
+    resultJson: JSON.stringify(plan),
+  });
+  return plan;
 }

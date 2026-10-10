@@ -1,0 +1,9 @@
+{
+  "name": "hypit-provider-runninghub-product-v6",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "hypit": { "activation": "./provider.js" },
+  "exports": { ".": "./provider.js" },
+  "dependencies": { "@hypit/hypit": "0.2.17" }
+}

@@ -7,6 +7,8 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { recordedImageModel } from "@/lib/image-models";
+import { publicGenerationFailure } from "@/lib/provider-errors";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -28,7 +30,7 @@ export async function GET() {
       id: j.id,
       status: j.status,
       stage_hint: j.stage_hint,
-      failure_reason: j.failure_reason,
+      failure_reason: publicGenerationFailure(j.failure_reason),
       created_at: j.created_at.toISOString(),
       template_name: j.template?.name ?? null,
       lamp_type: j.template?.lamp_type ?? null,
@@ -37,6 +39,7 @@ export async function GET() {
       prompt_text: j.prompt_text,
       platform_style: j.platform_style,
       aspect_ratio: j.aspect_ratio,
+      image_model: recordedImageModel(j.metadata),
       input_image_url: j.uploaded_asset.image_url,
       output_images: j.outputs.map((o) => ({
         id: o.id,

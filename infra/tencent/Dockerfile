@@ -13,7 +13,9 @@ RUN npm install --global --omit=dev @hypit/hypit@0.2.17
 
 WORKDIR /app
 COPY apps/web/package.json apps/web/package-lock.json ./apps/web/
-RUN cd apps/web && npm ci
+# Next builds with TypeScript/Tailwind, and the production worker runs through
+# tsx (currently a devDependency). Keep those packages in the runtime image.
+RUN cd apps/web && npm ci --include=dev
 COPY apps/web ./apps/web
 RUN cd apps/web/vendor/hypit && npm ci --omit=dev --ignore-scripts
 RUN cd apps/web && npm run build

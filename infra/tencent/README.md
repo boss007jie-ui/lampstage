@@ -6,10 +6,10 @@
 2. 创建 TencentDB for PostgreSQL 高可用实例和 `lampstage` 数据库。关闭公网访问，只允许 Web/Worker 安全组访问 5432。
 3. 创建两个 COS 标准私有桶：图片桶和视频桶。图片桶若继续返回公开图片 URL，再单独设置公开读取策略；视频桶保持私有。不要复用两个桶。
 4. 创建 CAM 角色/子账号，只授予图片桶必要的 `PutObject/GetObject/DeleteObject/ListBucket`，视频桶只授予 Worker 所需前缀。新 COS 桶使用虚拟主机式访问，所以 `.env.prod` 的 `*_FORCE_PATH_STYLE=false`。
-5. 创建 Linux CVM，建议起步 2 vCPU/4 GB、8 GB 系统盘和 50–100 GB 数据盘；视频并发固定为 1。安全组只放行 80/443，22 仅放行你的管理 IP。
+5. 创建 Ubuntu 22.04/24.04 CVM，建议起步 2 vCPU/4 GB、至少 50 GB 系统盘；如另配 50–100 GB 数据盘，先把 Docker 数据目录和视频工作目录挂载到数据盘。镜像构建、Docker 层和视频临时文件均占用磁盘，8 GB 系统盘不足以支撑首次构建。视频并发固定为 1。安全组只放行 80/443，22 仅放行你的管理 IP。
 6. 在腾讯 SSM/凭据管理中保存数据库 URL、COS 临时凭证、OpenLux、RunningHub account 01 等值。优先给 CVM 绑定 CAM 实例角色，避免在镜像中放长期 SecretId/SecretKey。
 7. 把仓库放到 CVM，复制 `.env.prod.example` 为 `.env.prod`，填入真实值；用 `scripts/configure-video-runtime.ts` 生成 account 01 的 Hypit runtime 文件，放进 `runtime/`。
-8. 执行 `sudo bash infra/tencent/bootstrap-ubuntu.sh`。首次运行会安装 Docker 并停在模板配置阶段，配置完成后再次运行；脚本会构建 Web/Worker、执行 Prisma migrations，并启动 Caddy、Web 和 Worker。
+8. 执行 `sudo bash infra/tencent/bootstrap-ubuntu.sh`。首次运行会从 [Docker 官方 Ubuntu apt 仓库](https://docs.docker.com/engine/install/ubuntu/)安装 Engine 和 Compose，并停在模板配置阶段，配置完成后再次运行；脚本会构建 Web/Worker、执行 Prisma migrations，并启动 Caddy、Web 和 Worker。重复运行只接受仓库的快进更新；若服务器仓库有本地修改，先提交或移走修改再运行脚本，避免覆盖文件。
 9. 把 `lampstage.com` 和 `www.lampstage.com` 的 DNS A 记录指向 CVM 公网 IP。Caddy 会自动申请 HTTPS；证书申请前确保 80/443 已放行。
 
 需要设置的关键变量见 [`.env.prod.example`](./.env.prod.example)。Web 和 Worker 必须使用同一个 `DATABASE_URL`、COS 视频桶和数据库迁移版本。`VIDEO_H3_SEGMENT_QUOTE_COINS` 为空时，系统会拒绝付费视频提交；这是预期的安全默认值。

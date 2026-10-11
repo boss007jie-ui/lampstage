@@ -78,7 +78,7 @@ export async function processVideoJob(initial: VideoJob, workerId: string): Prom
     if (job.phase === "prepare") {
       // Resuming an interrupted image attempt could duplicate a charged request; never infer its failure.
       if (data.imageCalls > 0) throw new VideoPipelineError("已有参考图调用记录，请人工核对；不会自动重试生成。");
-      if (!(process.env.YUNWU_IMAGE_KEY || process.env.YUNWU_API_KEY)) throw new VideoPipelineError("图像生成服务尚未配置。");
+      if (!process.env.OPENLUX_API_KEY?.trim()) throw new VideoPipelineError("图像生成服务尚未配置。");
       const info = await inspectSource(source);
       const product = await prisma.uploadedAsset.findFirst({ where: { id: job.product_asset_id, user_id: job.user_id } });
       if (!product) throw new VideoPipelineError("产品图片不存在或无权访问。");

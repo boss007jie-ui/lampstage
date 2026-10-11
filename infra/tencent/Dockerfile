@@ -15,6 +15,7 @@ WORKDIR /app
 COPY apps/web/package.json apps/web/package-lock.json ./apps/web/
 RUN cd apps/web && npm ci
 COPY apps/web ./apps/web
+RUN cd apps/web/vendor/hypit && npm ci --omit=dev --ignore-scripts
 RUN cd apps/web && npm run build
 
 WORKDIR /app/apps/web

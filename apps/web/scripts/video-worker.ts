@@ -19,7 +19,7 @@ async function main() {
       await prisma.videoJob.count();
       const media = await mediaReadiness();
       const runner = await runnerReadiness();
-      const image = Boolean(process.env.YUNWU_IMAGE_KEY || process.env.YUNWU_API_KEY) && media;
+      const image = Boolean(process.env.OPENLUX_API_KEY?.trim()) && media;
       const video = media && runner.ready;
       const fields = { heartbeat_at: new Date(), image_ready: image, video_ready: video, detail: media ? (runner.ready ? null : "account01 视频环境未就绪") : "FFmpeg 未就绪" };
       await prisma.videoWorker.upsert({ where: { id }, create: { id, ...fields }, update: fields });

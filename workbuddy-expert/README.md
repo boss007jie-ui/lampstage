@@ -1,10 +1,11 @@
 # Lampstage WorkBuddy Expert
 
-`lampstage-commerce-creator` is the publishable WorkBuddy Expert package for reference-video replication. It combines video understanding, segment/reference-frame preparation, image generation, Hypit-backed RunningHub Minimax H3 rendering and job polling. Commerce copy remains an optional follow-up skill.
+`lampstage-commerce-creator` is the WorkBuddy Expert package for creating images, recreating reference videos and producing grounded ecommerce content. It uses Lampstage's authenticated API for asset uploads, image jobs and video jobs. Product understanding and ecommerce keyword optimization run in the Expert; provider credentials and paid rendering stay server-side.
+
+The package follows WorkBuddy's Expert manifest contract: the manifest includes a marketplace avatar, category, three tags, three quick prompts and an Agent file with YAML frontmatter. Its primary MCP dependency is the HTTPS streamable endpoint at `/api/mcp`; the dependency-free stdio bridge remains in the package for local validation and fallback use.
 
 Before publishing, configure the MCP adapter with:
 
-- `LAMPSTAGE_API_BASE_URL` — normally `https://lampstage.com/api/v1`
-- `LAMPSTAGE_API_KEY` — a server-side Lampstage API key
+- `LAMPSTAGE_API_KEY` — the user's personal Lampstage API key, entered in WorkBuddy's token dialog
 
-Provider credentials stay in the persistent Lampstage video worker. The package contains no Hypit executable or provider secret; it calls the server-side Hypit/RunningHub adapter through the API. Each WorkBuddy user first registers at `https://lampstage.com`, creates a personal key at `/account`, and binds that key to the Expert connector. The connector then calls the live versioned endpoints under `/api/v1`; the platform keeps provider credentials, credits and task ownership server-side.
+Each WorkBuddy user registers at `https://lampstage.com`, creates a personal key at `/account`, and binds that key to the Expert connector. The MCP endpoint forwards to the versioned `/api/v1` endpoints while the Expert keeps the user's facts and creative intent consistent across image, video and commerce outputs.

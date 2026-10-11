@@ -1,10 +1,10 @@
 {
-  "name": "lampstage-video-replica",
-  "version": "0.1.0",
-  "description": "Use Lampstage to analyze a reference video, generate replacement frames and recreate the video through Hypit and RunningHub Minimax H3.",
+  "name": "lampstage-creative-expert",
+  "version": "0.2.0",
+  "description": "Create images, replicate reference videos and optimize ecommerce content in WorkBuddy through Lampstage API services.",
   "author": { "name": "Lampstage", "email": "hello@lampstage.com" },
   "license": "UNLICENSED",
-  "agents": ["./agents/lampstage-commerce-creator.md"],
+  "agents": ["./agents/lampstage-creative-expert.md"],
   "skills": [
     "./skills/product-understanding",
     "./skills/ecommerce-keyword-optimizer",
@@ -13,14 +13,24 @@
     "./skills/jobs-and-assets"
   ],
   "expertType": "agent",
-  "agentName": "lampstage-video-replica",
-  "displayName": { "en": "Lampstage Video Replica Expert", "zh": "创境视频复刻专家" },
-  "profession": { "en": "AI reference-video replication expert", "zh": "AI 参考视频复刻专家" },
-  "displayDescription": { "en": "Analyzes a reference video, generates replacement frames and recreates the final video with Hypit and RunningHub Minimax H3.", "zh": "拆解参考视频，生成替换分镜，并通过 Hypit 与 RunningHub Minimax H3 复刻最终视频。" },
-  "defaultInitPrompt": { "en": "Recreate this reference video with my product", "zh": "用我的产品复刻这个参考视频" },
-  "plugin": "lampstage-video-replica",
-  "dependencies": {
-    "mcpServers": ["lampstage"]
-  },
-  "keywords": ["lampstage", "ecommerce", "image-generation", "video-generation", "content-ops"]
+  "agentName": "lampstage-creative-expert",
+  "displayName": { "en": "Lampstage Creative Expert", "zh": "创境内容创作专家" },
+  "profession": { "en": "AI content creation and commerce workflow expert", "zh": "AI 内容创作与电商工作流专家" },
+  "displayDescription": { "en": "Understands source assets, creates images, recreates reference videos and produces grounded ecommerce copy through Lampstage.", "zh": "理解素材与事实，生成图片、复刻参考视频，优化电商关键词与商品内容，并通过 API 返回可交付结果。" },
+  "avatar": "avatars/expert.png",
+  "categoryId": "06-ContentCreative",
+  "defaultInitPrompt": { "en": "Create content from my source asset with Lampstage", "zh": "用我的素材通过 Lampstage 创建内容" },
+  "plugin": "lampstage-creative-expert",
+  "dependencies": { "mcpServers": "./.mcp.json" },
+  "keywords": ["lampstage", "workbuddy", "creative", "image-generation", "video-generation", "ecommerce"],
+  "tags": [
+    { "en": "Image creation", "zh": "图片创作" },
+    { "en": "Video workflows", "zh": "视频工作流" },
+    { "en": "Commerce content", "zh": "电商内容" }
+  ],
+  "quickPrompts": [
+    { "en": "Create content from my source asset with Lampstage", "zh": "用我的素材通过 Lampstage 创建内容" },
+    { "en": "Generate a product image and optimize its listing keywords", "zh": "生成产品图并优化商品关键词" },
+    { "en": "Recreate this reference video with my product", "zh": "用我的产品复刻这个参考视频" }
+  ]
 }

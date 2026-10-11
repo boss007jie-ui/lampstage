@@ -9,7 +9,7 @@ const copy = {
   zh: {
     title: "连接 WorkBuddy Expert，从这里开始", intro: "网站提供 API 密钥、能力目录和接入说明。Expert 负责理解任务，并通过 API 执行和查询。",
     prepare: "接入前准备好这三项", body: "创建个人 API 密钥，导入 Expert 包，再为连接器配置 API 地址和密钥。不要把完整密钥写入公开提示词或文档。",
-    requirements: ["一个可登录的网站账号和个人 API Key", "WorkBuddy 中导入的 Expert 与 MCP 连接器", "API 地址：https://lampstage.com/api/v1"],
+    requirements: ["一个可登录的网站账号和个人 API Key", "WorkBuddy 中导入的 Expert 与 MCP 连接器", "MCP 地址：https://lampstage.com/api/mcp"],
     steps: ["创建个人 API Key", "绑定 WorkBuddy 连接器", "查询能力并执行任务"],
     descriptions: ["在账户页生成并保存密钥，完整密钥只在创建时显示一次。", "使用 API 地址和 Authorization: Bearer 密钥配置 Expert 的 secret。", "先检查 health 和 capabilities，再提交素材与任务，按 job_id 跟踪结果。"],
     review: "任务状态是后续动作的依据", reviewBody: "提交后保存 job_id，先查询任务状态再决定是否重试。请求超时不等于任务停止；不确定时继续查询，避免重复执行或扣费。",
@@ -20,7 +20,7 @@ const copy = {
   en: {
     title: "Start connecting your WorkBuddy Expert", intro: "The site provides API keys, a capability catalog and integration guidance. Your Expert understands the request and runs or polls jobs through the API.",
     prepare: "Prepare these three things", body: "Create a personal API key, import the Expert package, then configure the connector with the API URL and key. Keep full keys out of public prompts and documents.",
-    requirements: ["A signed-in account and personal API key", "An imported Expert and MCP connector in WorkBuddy", "API base URL: https://lampstage.com/api/v1"],
+    requirements: ["A signed-in account and personal API key", "An imported Expert and MCP connector in WorkBuddy", "MCP URL: https://lampstage.com/api/mcp"],
     steps: ["Create a personal API key", "Bind the WorkBuddy connector", "Discover capabilities and run jobs"],
     descriptions: ["Create and store your key on the account page. The full key is shown only once.", "Configure the Expert secret with the API base URL and Authorization: Bearer key.", "Check health and capabilities first, then submit assets and jobs and track results by job_id."],
     review: "Let task status guide your next action", reviewBody: "Save the job_id after submission and query its state before retrying. A request timeout does not mean the job stopped. When uncertain, keep polling to avoid duplicate execution or charges.",

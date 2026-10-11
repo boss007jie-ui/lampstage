@@ -1,11 +1,34 @@
 {
   "mcpServers": {
     "lampstage": {
-      "command": "node",
-      "args": ["./scripts/lampstage-http.mjs"],
-      "env": {
-        "LAMPSTAGE_API_BASE_URL": "https://lampstage.com/api/v1",
-        "LAMPSTAGE_API_KEY": "${LAMPSTAGE_API_KEY}"
+      "type": "streamableHttp",
+      "url": "https://lampstage.com/api/mcp",
+      "headers": {
+        "Authorization": "Bearer ${LAMPSTAGE_API_KEY}"
+      },
+      "timeout": 90000,
+      "x-workbuddy": {
+        "displayName": { "en": "Lampstage API", "zh": "Lampstage API" },
+        "description": { "en": "Connect image, video and commerce workflows through a personal Lampstage API key.", "zh": "使用个人 Lampstage API Key 连接图片、视频和电商内容工作流。" },
+        "auth": {
+          "type": "token",
+          "tokenSchema": {
+            "title": { "en": "Connect Lampstage API", "zh": "连接 Lampstage API" },
+            "description": { "en": "Create a personal key at lampstage.com/account. The key is sent only as a Bearer credential.", "zh": "请在 lampstage.com/account 创建个人密钥。密钥仅作为 Bearer 凭据发送。" },
+            "docUrl": "https://lampstage.com/account",
+            "docLabel": { "en": "Create an API key", "zh": "创建 API 密钥" },
+            "fields": [
+              {
+                "key": "LAMPSTAGE_API_KEY",
+                "label": { "en": "Lampstage API key", "zh": "Lampstage API Key" },
+                "placeholder": { "en": "Paste your personal API key", "zh": "粘贴个人 API Key" },
+                "type": "password",
+                "required": true,
+                "description": { "en": "Never share this key or put provider keys in prompts.", "zh": "不要共享此密钥，也不要把供应商密钥写入提示词。" }
+              }
+            ]
+          }
+        }
       }
     }
   }

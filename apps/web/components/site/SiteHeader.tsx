@@ -11,8 +11,7 @@ import { BRAND } from "@/lib/brand";
 export function SiteHeader({ active }: { active?: "cases" | "help" | "credits" | "my" | "video" | "developers" | "account" }) {
   const { t, lang } = useLang();
   const [open, setOpen] = useState(false);
-  // Keep the legacy workspace routes available for existing links, but make the
-  // public navigation describe the API and WorkBuddy integration product.
+  // Keep the public navigation focused on API setup and WorkBuddy integration.
   const links = [
     { href: "/developers", label: t("nav_developers"), key: "developers" },
     { href: "/account", label: lang === "zh" ? "API 密钥" : "API keys", key: "account" },

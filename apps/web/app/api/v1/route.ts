@@ -13,7 +13,7 @@ export function GET() {
     service: "lampstage-api",
     version: "v1",
     status: "ready",
-    links: { health: "/api/v1/health", capabilities: "/api/v1/capabilities", developers: "/developers", account: "/account" },
+    links: { health: "/api/v1/health", capabilities: "/api/v1/capabilities", mcp: "/api/mcp", developers: "/developers", account: "/account" },
   }, { headers });
 }
 

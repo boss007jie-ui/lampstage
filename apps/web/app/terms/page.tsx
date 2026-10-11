@@ -26,8 +26,8 @@ export default function TermsPage() {
       <div className="mt-8 space-y-6 text-[15px] leading-7 text-[#454a40]">
         <Section title={zh ? "服务说明" : "The service"}>
           {zh
-            ? `${BRAND.cn}（${BRAND.en}）提供 AI 内容与媒体能力。你可以上传素材，调用图片、视频和电商内容任务，并通过 API 接入工作流。`
-            : `${BRAND.en} provides AI content and media capabilities. You can upload assets, call image, video and commerce content tasks, and connect workflows through the API.`}
+            ? `${BRAND.cn}（${BRAND.en}）提供连接 WorkBuddy Expert 的 AI 内容 API。你可以通过个人密钥提交素材，调用图片、视频和电商内容任务。`
+            : `${BRAND.en} provides an AI content API for WorkBuddy Experts. You can submit assets with a personal key and call image, video and commerce content tasks.`}
         </Section>
 
         <Section title={zh ? "账号与额度" : "Account & credits"}>

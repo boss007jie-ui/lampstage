@@ -30,7 +30,7 @@ export default function HomePage() {
     </section>
     <section className="home-preparation page-container">
       <div><span className="section-kicker">API v1</span><h2>{zh ? "为你的 Expert 准备一条清晰的接入路径。" : "Give your Expert a clear integration path."}</h2></div>
-      <div><p>{zh ? "先创建个人 API Key，再把 https://lampstage.com/api/v1 和 Bearer 密钥配置到 WorkBuddy Connector。开发者页提供发现接口、连接器约定和 Expert 包说明。" : "Create a personal API key, then configure https://lampstage.com/api/v1 and the Bearer secret in your WorkBuddy Connector. The Developers page has discovery endpoints, connector conventions and the Expert package details."}</p><Link href="/developers" className="text-link">{t("showcase_cta")}<ArrowRight size={17} aria-hidden /></Link></div>
+      <div><p>{zh ? "先创建个人 API Key，再把 https://lampstage.com/api/mcp 和 Bearer 密钥配置到 WorkBuddy Connector。开发者页提供发现接口、连接器约定和 Expert 包说明。" : "Create a personal API key, then configure https://lampstage.com/api/mcp and the Bearer secret in your WorkBuddy Connector. The Developers page has discovery endpoints, connector conventions and the Expert package details."}</p><Link href="/developers" className="text-link">{t("showcase_cta")}<ArrowRight size={17} aria-hidden /></Link></div>
     </section>
     <section className="home-start page-container"><div><h2>{zh ? "现在就把 WorkBuddy Expert 接上。" : "Connect your WorkBuddy Expert now."}</h2><p>{zh ? "创建密钥、导入 Expert，再从 API 目录开始第一次调用。" : "Create a key, import the Expert and make the first call from the API catalog."}</p></div>
       <div className="home-start-actions"><Link href="/developers" className="btn btn-primary">{t("hero_cta_primary")}<ArrowRight size={19} /></Link><Link href="/account" className="text-link">{t("hero_cta_secondary")}</Link></div>

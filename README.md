@@ -1,15 +1,15 @@
-# Lampstage · 创境 AI 内容与媒体平台
+# Lampstage · WorkBuddy Expert API 平台
 
-> Turn source assets into reusable AI workflows.
-> 把素材变成可复用的 AI 工作流。
+> Connect WorkBuddy to reusable image, video and commerce workflows.
+> 将 WorkBuddy 接入可复用的图片、视频和电商内容工作流。
 
-[lampstage.com](https://lampstage.com) — image generation, video generation and ecommerce content workflows, with a versioned API entry point.
+[lampstage.com](https://lampstage.com) — account registration, per-user API keys and a versioned API entry point for the WorkBuddy Creative Expert.
 
-2026-10-10：当前工作区已发布到 `lampstage.com`。公开首页、工作台、账号注册、API 密钥页、视频工作台与开发者入口可访问；生产任务仍需有效的 PostgreSQL/Supabase 连接、migrations 和独立 worker。用户可在 `/account` 创建个人 API Key，再由 WorkBuddy Expert 通过 Bearer 鉴权调用 `/api/v1` 的素材、图片任务、视频项目和任务查询接口。
+2026-10-11：网站入口已收敛为 WorkBuddy Expert/API 产品页、账号注册、个人 API 密钥和开发者接入说明。用户可在 `/account` 创建个人 API Key，再由 Creative Expert 通过 Bearer 鉴权调用 `/api/v1` 的素材、图片任务、视频项目和任务查询接口。旧的网页生成工作台已从公开入口移除；后端 API 保留以供 Expert 使用。
 
-本地新增[视频工作台](http://127.0.0.1:3000/video-workspace)：参考视频、源素材、参考画面确认、01 账号 H3 分段生成与合成。独立本地数据库、登录、素材上传和草稿保存已跑通，H3 01 已完成一次真实 5 秒验收；生产视频仍需独立 worker、私有 R2 和有效数据库。查看[本地使用说明](本地使用说明.md)与[视频实施说明](docs/implementation/2026-10-07-video-beta.md)。
+WorkBuddy Expert 的视频流程包含参考视频分段、首尾帧确认、预算确认和 Hypit/RunningHub H3 渲染；生产任务仍需有效的 PostgreSQL、migrations、对象存储和独立 worker。查看[本地使用说明](本地使用说明.md)与[视频实施说明](docs/implementation/2026-10-07-video-beta.md)。
 
-开发者入口：[`/developers`](https://lampstage.com/developers)，密钥管理：[`/account`](https://lampstage.com/account)。API 发现接口为 `/api/v1`、`/api/v1/health` 和 `/api/v1/capabilities`。可导入的 WorkBuddy 视频复刻 Expert 位于 `workbuddy-expert/lampstage-commerce-creator`：它通过网站 API 调用服务端 Hypit / RunningHub Minimax H3 worker，完成参考视频拆解、图片参考帧生成、用户确认和最终复刻，并随包提供 HTTP MCP 桥接脚本。
+开发者入口：[`/developers`](https://lampstage.com/developers)，密钥管理：[`/account`](https://lampstage.com/account)。API 发现接口为 `/api/v1`、`/api/v1/health` 和 `/api/v1/capabilities`。可导入的 WorkBuddy Creative Expert 位于 `workbuddy-expert/lampstage-commerce-creator`：它组合产品理解、电商关键词优化、图片生成、Hypit/RunningHub H3 视频复刻和任务查询，并随包提供 MCP 桥接脚本。
 
 ## 技术栈
 

@@ -39,7 +39,7 @@ export function detectLangFromBrowser(navLang: string | undefined): Lang {
 type Dict = Record<Lang, string>;
 
 const D = {
-  login_subtitle: {"zh": "登录后管理素材、调用 AI 能力，并保存生成结果。", "en": "Sign in to manage assets, call AI capabilities and save generated outputs."},
+  login_subtitle: {"zh": "登录后创建个人 API 密钥，连接 WorkBuddy 专家。", "en": "Sign in to create a personal API key and connect your WorkBuddy Expert."},
   footer_privacy: {"zh": "隐私政策", "en": "Privacy"},
   footer_terms: {"zh": "用户协议", "en": "Terms"},
   sample_note: {"zh": "示例用于展示内容方向，实际结果取决于上传素材、任务目标与模型状态。", "en": "Examples illustrate content directions. Results depend on your assets, task goal and model state."},
@@ -50,10 +50,10 @@ const D = {
   scene_bedroom: {"zh": "卧室", "en": "Bedroom"},
   scene_hotel: {"zh": "酒店", "en": "Hotel"},
   home_prepare_title: {"zh": "一份清晰的素材，是好的开始。", "en": "Start with a clear source asset."},
-  home_prepare_body: {"zh": "上传图片、视频或参考素材，确认任务目标，让图像生成、视频生成和内容优化围绕你的业务展开。", "en": "Upload an image, video or reference asset, define the goal, and let image generation, video generation and content optimization work around your workflow."},
+  home_prepare_body: {"zh": "创建个人 API Key，确认接入目标，让 WorkBuddy Expert 通过版本化 API 执行你的内容任务。", "en": "Create a personal API key, define the integration goal, and let the WorkBuddy Expert run content tasks through the versioned API."},
   home_prepare_link: {"zh": "查看素材要求", "en": "Asset guidelines"},
-  home_bottom_title: {"zh": "下一次生成，从一个可复用的工作流开始。", "en": "Start your next generation with a reusable workflow."},
-  home_bottom_body: {"zh": "登录工作台，调用 AI 能力，保存结果，并通过 API 接入你的产品流程。", "en": "Sign in to call AI capabilities, save outputs and connect the workflow through the API."},
+  home_bottom_title: {"zh": "下一次任务，从一条可复用的 API 工作流开始。", "en": "Start your next task with a reusable API workflow."},
+  home_bottom_body: {"zh": "创建密钥、连接 WorkBuddy Expert，并通过 API 追踪任务结果。", "en": "Create a key, connect your WorkBuddy Expert and track task results through the API."},
   home_contact: {"zh": "咨询 API 与工作流接入", "en": "Discuss API and workflow access"},
   cases_intro: {"zh": "浏览内容与视觉方向，再为你自己的工作流开始调用。", "en": "Explore content and visual directions, then start a workflow of your own."},
   cases_all: {"zh": "全部场景", "en": "All scenes"},
@@ -104,10 +104,10 @@ const D = {
   showcase_tag_brand: { zh: "独立站品牌版", en: "Brand site" },
 
   // 4 showcase items
-  showcase_item_1: { zh: "餐厅长桌吊灯", en: "Dining-room pendant" },
-  showcase_item_2: { zh: "卧室床头壁灯", en: "Bedroom wall sconce" },
-  showcase_item_3: { zh: "沙发旁落地灯", en: "Living-room floor lamp" },
-  showcase_item_4: { zh: "酒店大堂吊灯", en: "Hotel-lobby chandelier" },
+  showcase_item_1: { zh: "产品理解", en: "Product understanding" },
+  showcase_item_2: { zh: "关键词优化", en: "Keyword optimization" },
+  showcase_item_3: { zh: "素材管理", en: "Asset management" },
+  showcase_item_4: { zh: "任务查询", en: "Job retrieval" },
 
   // How it works
   how_title: {"zh": "三步把网站 API 接入 WorkBuddy Expert。", "en": "Connect the API to your WorkBuddy Expert in three steps."},
@@ -219,7 +219,7 @@ const D = {
   ws_failure_refunded: {"zh": "额度结算请以交易记录为准。", "en": "Check your transaction history for the credit settlement."},
 
   // Mismatch warning
-  ws_mismatch_title: { zh: "灯具类型与模板不匹配", en: "Lamp type mismatch" },
+  ws_mismatch_title: { zh: "素材类型与模板不匹配", en: "Asset type mismatch" },
   ws_mismatch_body: {
     zh: "该模板更适合「{template}」，当前上传图看起来是「{detected}」。继续生成可能在比例和安装方式上不稳定。",
     en: "This template was made for {template}, but the uploaded image looks like a {detected}. Generations may be inconsistent.",
@@ -235,8 +235,8 @@ const D = {
   login_signin_for: { zh: "登录账号：", en: "Signing in as" },
   login_register_for: { zh: "新账号：", en: "Creating account for" },
   login_desc: {
-    zh: "新账号注册可获赠 20 次额度，体验工作台里的 AI 内容能力。",
-    en: "New accounts receive 20 credits to try the AI content capabilities in the workspace.",
+    zh: "新账号注册可获赠 20 次额度，体验 WorkBuddy Expert 的 API 内容能力。",
+    en: "New accounts receive 20 credits to try the WorkBuddy Expert API content capabilities.",
   },
   login_label_id: { zh: "邮箱", en: "Email" },
   login_placeholder_id: { zh: "you@example.com", en: "you@example.com" },
@@ -337,10 +337,10 @@ const D = {
   // My works
   my_title: { zh: "我的作品", en: "My works" },
   my_empty: {
-    zh: "还没有生成记录。返回工作台上传素材并开始第一个任务。",
-    en: "No generations yet. Head back to the workspace to start your first task.",
+    zh: "还没有任务记录。连接 WorkBuddy 专家后发起第一个任务。",
+    en: "No tasks yet. Connect your WorkBuddy Expert to start your first task.",
   },
-  my_back: { zh: "返回工作台", en: "Back to workspace" },
+  my_back: { zh: "查看接入说明", en: "Read integration guide" },
   my_status_completed: { zh: "已完成", en: "Done" },
   my_status_generating: { zh: "生成中", en: "Generating" },
   my_status_failed: { zh: "失败", en: "Failed" },
@@ -368,30 +368,30 @@ const D = {
   plan_free_quota: {"zh": "20 次额度", "en": "20 credits"},
   plan_free_price: {"zh": "¥0", "en": "CNY 0"},
   plan_free_unit: { zh: "注册即送", en: "On signup" },
-  plan_free_desc: {"zh": "新账号注册赠送，用于体验场景图生成。", "en": "A new-account grant to try scene generation."},
+  plan_free_desc: {"zh": "新账号注册赠送，用于体验 Expert 发起的 API 任务。", "en": "A new-account grant for API tasks started by the Expert."},
   plan_basic_name: { zh: "体验包", en: "Starter" },
   plan_basic_quota: {"zh": "100 次额度", "en": "100 credits"},
   plan_basic_price: {"zh": "¥30", "en": "CNY 30"},
   plan_basic_unit: {"zh": "¥0.30 / 次额度", "en": "CNY 0.30 / credit"},
   plan_basic_desc: {
-    zh: "少量商品，尝试不同的场景方向。",
-    en: "Explore different scene directions for a few products.",
+    zh: "适合少量 API 任务与初次接入测试。",
+    en: "For a small number of API tasks and initial integration testing.",
   },
   plan_business_name: { zh: "标准包", en: "Standard" },
   plan_business_quota: {"zh": "400 次额度", "en": "400 credits"},
   plan_business_price: {"zh": "¥99", "en": "CNY 99"},
   plan_business_unit: {"zh": "约 ¥0.25 / 次额度", "en": "About CNY 0.25 / credit"},
   plan_business_desc: {
-    zh: "持续上新，为更多商品制作场景图。",
-    en: "Create scenes across more products as you add listings.",
+    zh: "适合持续通过 Expert 发起内容任务。",
+    en: "For ongoing content tasks through your Expert.",
   },
   plan_factory_name: { zh: "大包", en: "Bulk" },
   plan_factory_quota: {"zh": "1500 次额度", "en": "1500 credits"},
   plan_factory_price: {"zh": "¥299", "en": "CNY 299"},
   plan_factory_unit: {"zh": "约 ¥0.20 / 次额度", "en": "About CNY 0.20 / credit"},
   plan_factory_desc: {
-    zh: "较多商品与场景需求，单次额度价格更低。",
-    en: "For larger product and scene needs, with a lower price per credit.",
+    zh: "适合更多 API 任务，单次额度价格更低。",
+    en: "For more API tasks, with a lower price per credit.",
   },
   plan_btn_contact: {"zh": "选择额度包", "en": "Choose pack"},
   plan_btn_active: { zh: "已激活", en: "Active" },

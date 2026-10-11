@@ -1,10 +1,10 @@
 ---
 name: image-generation
-description: Create an asynchronous Lampstage image job with a source asset, prompt and output settings.
+description: Create an asynchronous Lampstage image job from a confirmed source asset and creative brief.
 ---
 
 # Image generation
 
-Before calling the tool, confirm the source asset, goal, aspect ratio, number of outputs and any locked product details. Write a concise prompt that preserves confirmed identity attributes and describes the intended composition.
+Confirm the source asset, goal, aspect ratio, output count and locked facts. Use the product understanding brief and write a concise prompt that preserves confirmed identity attributes without assuming a product category.
 
-Use the Lampstage MCP `create_image_job` tool. Store the returned `job_id`, poll with `get_job`, and report each output URL only after the job is complete. Ask the user to review shape, color, text and proportions before publication.
+Use `create_image_job`, store the returned `job_id`, poll with `get_job`, and report output URLs only after completion. Ask the user to review shape, color, text and proportions before publication.

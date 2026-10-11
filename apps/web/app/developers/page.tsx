@@ -19,7 +19,7 @@ export default function DevelopersPage() {
     <section style={{ maxWidth: 820, marginBottom: 48 }}>
       <span className="section-kicker">{zh ? "WorkBuddy 专家接入" : "WORKBUDDY EXPERT ACCESS"}</span>
       <h1 className="page-heading" style={{ margin: "14px 0" }}>{zh ? "把你的业务 API 接入 WorkBuddy Expert" : "Connect your business API to a WorkBuddy Expert"}</h1>
-      <p className="page-description">{zh ? "网站提供版本化 API、个人密钥和可导入的 Expert 包。网页只负责配置与发现，任务由 Expert 通过 Bearer 鉴权调用 /api/v1 完成。" : "The platform provides a versioned API, personal keys and an importable Expert package. Use the site to configure and discover the connection; the Expert calls /api/v1 with Bearer authentication."}</p>
+      <p className="page-description">{zh ? "网站提供版本化 API、个人密钥和可导入的 Expert 包。Expert 通过 https://lampstage.com/api/mcp 建立 MCP 连接，底层调用 /api/v1 完成任务。" : "The platform provides a versioned API, personal keys and an importable Expert package. The Expert connects through https://lampstage.com/api/mcp and uses /api/v1 underneath."}</p>
       <div className="flex flex-wrap gap-3" style={{ marginTop: 24 }}><Link href="/account" className="btn btn-primary">{zh ? "生成 API 密钥" : "Create API key"}<ArrowRight size={18} /></Link><a href="#quickstart" className="btn btn-outline">{zh ? "查看快速开始" : "View quickstart"}</a></div>
     </section>
 

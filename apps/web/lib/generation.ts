@@ -63,6 +63,16 @@ const ASPECT_LABEL: Record<AspectRatio, string> = {
 
 const STRICT_QUALITY = `Photoreal interior photography. Lamp appearance (material, color, shade shape) matches the reference image. The lamp and room share one coherent lighting system: correct ceiling perspective, contact shadows, ambient tint, depth of field and grain. No text or watermark.`.trim();
 
+// 通用商品路径使用独立约束；旧 profile/template 流程继续使用灯具约束。
+const GENERIC_PLATFORM_STYLE_RULES: Record<PlatformStyle, string> = {
+  domestic_ecommerce:
+    "Clean Chinese e-commerce lifestyle image: bright, tidy, realistic scene, with the product clearly understandable and naturally integrated into the setting.",
+  brand_site:
+    "Premium DTC/Shopify lifestyle image: natural light, calm editorial mood, realistic styling, subtle composition.",
+};
+const GENERIC_STRICT_QUALITY =
+  "Photoreal product photography. Preserve the uploaded product's identity, silhouette, materials, colors and proportions. Integrate it naturally with coherent perspective, contact shadows, ambient light, depth of field and grain. No text or watermark.";
+
 function buildPrompt(
   templatePrompt: string,
   platformStyle: PlatformStyle,
@@ -75,6 +85,14 @@ ${PLATFORM_STYLE_RULES[platformStyle]}
 Render at ${ASPECT_LABEL[aspect]}.
 
 ${STRICT_QUALITY}`;
+}
+
+function buildGenericPrompt(
+  templatePrompt: string,
+  platformStyle: PlatformStyle,
+  aspect: AspectRatio,
+): string {
+  return `${templatePrompt}\n\n${GENERIC_PLATFORM_STYLE_RULES[platformStyle]}\n\nRender at ${ASPECT_LABEL[aspect]}.\n\n${GENERIC_STRICT_QUALITY}`;
 }
 
 // ============================================================================
@@ -777,7 +795,9 @@ export async function createAndRunGenerationJob(args: {
   const prompts: string[] = result.promptList
     ? result.promptList
     : Array.from({ length: imageCount }, () =>
-        buildPrompt(result.finalPrompt, args.platformStyle, args.aspectRatio),
+        args.sceneKind === "custom"
+          ? buildGenericPrompt(result.finalPrompt, args.platformStyle, args.aspectRatio)
+          : buildPrompt(result.finalPrompt, args.platformStyle, args.aspectRatio),
       );
   await runGenerationPipeline({
     jobId: result.job.id,
@@ -799,9 +819,8 @@ export async function createAndRunGenerationJob(args: {
  * 用户可能只写一句"温馨客厅"，我们补上空间细节、灯光描述、电商风格、负向约束。
  */
 function expandCustomPrompt(userText: string): string {
-  return `Interior photo of a residential room described as: ${userText}.
-Real interior photography style with the user-uploaded lamp as the visual hero.
-Compose the scene around the lamp with appropriate furniture, materials, daylight or ambient bulbs, depth of field.`;
+  return `Create a photoreal product lifestyle image described as: ${userText}.
+Use the uploaded source asset as the product reference and visual hero. Preserve its exact identity, silhouette, materials, colors and proportions while composing a believable setting around it with appropriate objects, materials, lighting and depth of field.`;
 }
 
 async function setStage(

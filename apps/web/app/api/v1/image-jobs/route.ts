@@ -19,6 +19,13 @@ export async function POST(request: NextRequest) {
   const assetId = typeof body.uploaded_asset_id === "string" ? body.uploaded_asset_id : typeof body.asset_id === "string" ? body.asset_id : "";
   const platformStyle = typeof body.platform_style === "string" ? body.platform_style as PlatformStyle : "domestic_ecommerce";
   const aspectRatio = typeof body.aspect_ratio === "string" ? body.aspect_ratio as AspectRatio : "1_1";
+  const customPrompt = typeof body.custom_prompt === "string" ? body.custom_prompt.trim() : "";
+  const requestedSceneKind = body.scene_kind === "custom" || body.scene_kind === "recommended" || body.scene_kind === "template"
+    ? body.scene_kind
+    : undefined;
+  // Public API 的最小通用输入是 source asset + custom_prompt；不要求上传资源
+  // 先经过灯具 profile。显式 scene_kind 仍按旧流程处理，保持兼容。
+  const sceneKind = requestedSceneKind ?? (customPrompt ? "custom" : undefined);
   if (!assetId) return apiJson({ error: "missing_asset_id" }, { status: 400 });
   if (!VALID_PLATFORM.has(platformStyle)) return apiJson({ error: "bad_platform_style" }, { status: 400 });
   if (!VALID_ASPECT.has(aspectRatio)) return apiJson({ error: "bad_aspect_ratio" }, { status: 400 });
@@ -27,10 +34,10 @@ export async function POST(request: NextRequest) {
   const result = await createAndRunGenerationJob({
     userId: auth.auth.user.id,
     uploadedAssetId: assetId,
-    sceneKind: body.scene_kind === "custom" ? "custom" : body.scene_kind === "recommended" ? "recommended" : body.scene_kind === "template" ? "template" : undefined,
+    sceneKind,
     templateId: typeof body.template_id === "string" ? body.template_id : undefined,
     recommendedPromptEn: typeof body.recommended_prompt_en === "string" ? body.recommended_prompt_en : undefined,
-    customPrompt: typeof body.custom_prompt === "string" ? body.custom_prompt : undefined,
+    customPrompt: customPrompt || undefined,
     platformStyle, aspectRatio,
     imageCount: typeof body.image_count === "number" ? body.image_count : undefined,
     imageModel: selection.imageModel,

@@ -23,8 +23,8 @@ export async function POST(request: NextRequest) {
   const requestedSceneKind = body.scene_kind === "custom" || body.scene_kind === "recommended" || body.scene_kind === "template"
     ? body.scene_kind
     : undefined;
-  // Public API 的最小通用输入是 source asset + custom_prompt；不要求上传资源
-  // 先经过灯具 profile。显式 scene_kind 仍按旧流程处理，保持兼容。
+  // Public API 的最小通用输入是 source asset + custom_prompt；不要求先经过产品 profile。
+  // 显式 scene_kind 仍按旧流程处理，保持兼容。
   const sceneKind = requestedSceneKind ?? (customPrompt ? "custom" : undefined);
   if (!assetId) return apiJson({ error: "missing_asset_id" }, { status: 400 });
   if (!VALID_PLATFORM.has(platformStyle)) return apiJson({ error: "bad_platform_style" }, { status: 400 });

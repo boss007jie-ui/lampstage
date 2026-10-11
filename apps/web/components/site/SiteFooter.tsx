@@ -9,7 +9,7 @@ export function SiteFooter() {
   return <footer className="site-footer">
     <div><strong>{lang === "zh" ? `${BRAND.en} · ${BRAND.cn}` : BRAND.en}</strong><p>{t("footer_tagline")}</p></div>
     <nav aria-label={lang === "zh" ? "页脚导航" : "Footer navigation"}>
-      <Link href="/developers">{t("nav_developers")}</Link><Link href="/help">{t("nav_help")}</Link><Link href="/my">{t("my_title")}</Link>
+      <Link href="/developers">{t("nav_developers")}</Link><Link href="/help">{t("nav_help")}</Link><Link href="/account">{lang === "zh" ? "API 密钥" : "API keys"}</Link>
       <Link href="/privacy">{t("footer_privacy")}</Link><Link href="/terms">{t("footer_terms")}</Link>
     </nav>
     <small>© {new Date().getFullYear()} {BRAND.en} · {BRAND.domain}</small>

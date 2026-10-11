@@ -62,12 +62,12 @@ const D = {
   cases_check_title: {"zh": "生成结果后，建议核对", "en": "When reviewing your results"},
   cases_check_body: {"zh": "主体细节、比例、颜色、画面文字、动作与任务要求。", "en": "Check subject details, proportions, color, text, motion and task requirements."},
   // SEO / 元数据
-  meta_title: {"zh": "创境 Lampstage · AI 内容与媒体 API 平台", "en": "Lampstage · AI media and content API platform"},
-  meta_desc: {"zh": "统一管理素材，调用图像生成、视频生成与电商内容优化能力，并通过 API 接入你的工作流。", "en": "Manage assets in one place, call image generation, video generation and commerce content optimization, and connect your workflow through an API."},
+  meta_title: {"zh": "创境 Lampstage · WorkBuddy 专家 API 平台", "en": "Lampstage · WorkBuddy Expert API platform"},
+  meta_desc: {"zh": "为 WorkBuddy 专家提供安全的 API、素材处理与任务编排能力，把业务流程接入可复用的自动化工作流。", "en": "Secure APIs, asset handling and job orchestration for WorkBuddy Experts and reusable business workflows."},
 
   // Nav
-  nav_showcase: {"zh": "能力示例", "en": "Showcase"},
-  nav_product: {"zh": "如何使用", "en": "How it works"},
+  nav_showcase: {"zh": "API 能力", "en": "API capabilities"},
+  nav_product: {"zh": "接入流程", "en": "Integration"},
   nav_developers: {"zh": "开发者", "en": "Developers"},
   nav_styles: { zh: "风格", en: "Styles" },
   nav_pricing: { zh: "价格", en: "Pricing" },
@@ -75,17 +75,18 @@ const D = {
   nav_my_works: { zh: "我的作品", en: "My works" },
   nav_credits: { zh: "额度", en: "Credits" },
   nav_help: { zh: "帮助", en: "Help" },
-  nav_generate: {"zh": "我的工作台", "en": "Workspace"},
+  nav_generate: {"zh": "WorkBuddy 接入", "en": "Connect WorkBuddy"},
+  nav_connect: {"zh": "开始接入", "en": "Start integrating"},
 
   // Hero
-  hero_badge: {"zh": "AI 内容与媒体平台 · 支持 API 接入", "en": "AI content and media platform · API ready"},
-  hero_title: {"zh": "把素材，变成可复用的 AI 工作流。", "en": "Turn your assets into reusable AI workflows."},
-  hero_subtitle: {"zh": "在一个工作台里调用图像生成、视频生成和电商内容优化；登录即可开始，也可以通过 API 接入你的产品。", "en": "Call image generation, video generation and commerce content optimization from one workspace. Sign in to start or connect your product through the API."},
-  hero_cta_primary: {"zh": "进入工作台，开始调用", "en": "Open the workspace"},
-  hero_cta_secondary: {"zh": "查看能力示例", "en": "Explore capabilities"},
+  hero_badge: {"zh": "WorkBuddy 专家 · 版本化 API", "en": "WorkBuddy Expert · Versioned API"},
+  hero_title: {"zh": "让 WorkBuddy 专家直接调用你的业务能力。", "en": "Give your WorkBuddy Expert a reliable API to run your workflow."},
+  hero_subtitle: {"zh": "用一个安全的 API 连接素材、任务和结果。创建密钥、绑定 Expert，即可把可复用的业务流程接入 WorkBuddy。", "en": "Connect assets, jobs and outputs through one secure API. Create a key, bind your Expert and bring reusable business workflows into WorkBuddy."},
+  hero_cta_primary: {"zh": "查看 API 接入", "en": "View API integration"},
+  hero_cta_secondary: {"zh": "管理 API 密钥", "en": "Manage API keys"},
   hero_meta_speed: { zh: "按实际阶段查看进度", en: "Follow the current stage" },
-  hero_meta_count: { zh: "图片 / 视频 / 文案", en: "Images / video / copy" },
-  hero_meta_styles: { zh: "工作台 + API + Expert", en: "Workspace + API + Expert" },
+  hero_meta_count: { zh: "API / Expert / 任务", en: "API / Expert / jobs" },
+  hero_meta_styles: { zh: "安全鉴权 · 异步任务", en: "Secure auth · Async jobs" },
 
   // Stats
   stat_speed_value: { zh: "按阶段", en: "By stage" },
@@ -96,9 +97,9 @@ const D = {
   stat_credits_label: { zh: "新用户免费额度", en: "New-user credits" },
 
   // Showcase strip
-  showcase_eyebrow: {"zh": "场景示例", "en": "Scene examples"},
-  showcase_title: {"zh": "同一份素材，连接不同的内容任务", "en": "One source asset, many content workflows"},
-  showcase_cta: { zh: "立即生成自己的 →", en: "Generate yours →" },
+  showcase_eyebrow: {"zh": "API 能力", "en": "API capabilities"},
+  showcase_title: {"zh": "让 Expert 连接素材、任务和结果", "en": "Connect assets, jobs and outputs through your Expert"},
+  showcase_cta: { zh: "查看接入文档 →", en: "Read the integration guide →" },
   showcase_tag_domestic: { zh: "国内电商版", en: "Marketplace" },
   showcase_tag_brand: { zh: "独立站品牌版", en: "Brand site" },
 
@@ -109,16 +110,16 @@ const D = {
   showcase_item_4: { zh: "酒店大堂吊灯", en: "Hotel-lobby chandelier" },
 
   // How it works
-  how_title: {"zh": "你提供素材，创境负责把能力串起来。", "en": "Bring the asset. Lampstage connects the capabilities."},
-  how_step1_tag: { zh: "01 上传", en: "01 UPLOAD" },
-  how_step1_title: {"zh": "上传素材并定义目标", "en": "Upload an asset and define the goal"},
-  how_step1_desc: {"zh": "支持图片、视频和参考素材，按任务要求上传。", "en": "Upload an image, video or reference asset as the task requires."},
-  how_step2_tag: { zh: "02 模板", en: "02 TEMPLATE" },
-  how_step2_title: {"zh": "选择能力与工作流", "en": "Choose capabilities and a workflow"},
-  how_step2_desc: {"zh": "确认事实、目标市场、风格与输出比例。", "en": "Confirm facts, target market, style and output ratio."},
-  how_step3_tag: { zh: "03 导出", en: "03 EXPORT" },
-  how_step3_title: {"zh": "生成、核对并接入", "en": "Generate, review and connect"},
-  how_step3_desc: {"zh": "核对结果与源素材，再下载或通过 API 接入。", "en": "Review the output against the source, then download or connect through the API."},
+  how_title: {"zh": "三步把网站 API 接入 WorkBuddy Expert。", "en": "Connect the API to your WorkBuddy Expert in three steps."},
+  how_step1_tag: { zh: "01 创建密钥", en: "01 CREATE KEY" },
+  how_step1_title: {"zh": "创建并保存 API Key", "en": "Create and store an API key"},
+  how_step1_desc: {"zh": "在账户页生成个人密钥，只在创建时显示一次。", "en": "Create a personal key on the account page. It is shown only once."},
+  how_step2_tag: { zh: "02 绑定 Expert", en: "02 BIND EXPERT" },
+  how_step2_title: {"zh": "在 WorkBuddy 配置连接器", "en": "Configure the WorkBuddy connector"},
+  how_step2_desc: {"zh": "使用 API 地址和 Bearer 密钥，让 Expert 发现能力目录。", "en": "Use the API base URL and Bearer key so the Expert can discover capabilities."},
+  how_step3_tag: { zh: "03 执行任务", en: "03 RUN JOBS" },
+  how_step3_title: {"zh": "从 Expert 发起并跟踪任务", "en": "Start and track jobs from the Expert"},
+  how_step3_desc: {"zh": "上传素材、提交异步任务、查询状态并安全返回结果。", "en": "Upload assets, submit async jobs, poll status and return results safely."},
 
   // Styles section
   styles_domestic_title: { zh: "国内电商风格", en: "Marketplace style" },
@@ -133,7 +134,7 @@ const D = {
   },
 
   // Footer
-  footer_tagline: {"zh": "把素材变成可复用的 AI 工作流。", "en": "Turn source assets into reusable AI workflows."},
+  footer_tagline: {"zh": "让 WorkBuddy Expert 安全调用你的业务 API。", "en": "Securely connect your business API to WorkBuddy Experts."},
 
   // Workspace
   ws_title: {"zh": "把素材变成可交付的内容", "en": "Turn source assets into deliverable content"},

@@ -320,6 +320,10 @@ const D = {
   login_err_no_code: { zh: "尚未发送验证码", en: "Send a code first." },
   login_err_verify_generic: { zh: "验证失败：", en: "Verification failed: " },
   login_err_network: { zh: "网络错误：", en: "Network error: " },
+  login_err_service_unavailable: {
+    zh: "服务暂时不可用，请稍后再试。",
+    en: "Service temporarily unavailable. Please try again shortly.",
+  },
   login_close: { zh: "关闭", en: "Close" },
   login_dev_hint: {
     zh: "开发环境：验证码会输出到服务器控制台和返回体里，方便联调。",

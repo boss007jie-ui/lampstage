@@ -3,6 +3,10 @@
 .env.local
 .env.*.local
 
+# Tencent Cloud production secrets (see infra/tencent/.env.prod.example)
+infra/tencent/.env.prod
+infra/tencent/runtime/
+
 # next
 apps/web/.next/
 apps/web/out/

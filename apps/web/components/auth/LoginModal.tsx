@@ -31,6 +31,19 @@ type Step =
   | "register-verify-code"
   | "forgot-verify";
 
+type JsonRecord = Record<string, unknown>;
+
+async function readJsonRecord(response: Response): Promise<JsonRecord | null> {
+  try {
+    const value: unknown = await response.json();
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as JsonRecord)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function LoginModal({ open, onClose, onSignedIn }: Props) {
   const { t, lang } = useLang();
   const [step, setStep] = useState<Step>("email-input");
@@ -121,10 +134,16 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: id }),
       });
-      const data = await r.json();
+      // 后端异常时可能给出非 JSON 或空 body；直接 r.json() 会抛
+      // “Unexpected end of JSON input”，把真实原因盖掉。
+      const data = await readJsonRecord(r);
       if (!current(session)) return;
-      if (!r.ok) {
-        setError(t("login_err_send_generic") + (data.error || r.status));
+      if (!r.ok || !data || typeof data.exists !== "boolean" || typeof data.hasPassword !== "boolean") {
+        setError(
+          r.status === 503 || data?.error === "service_unavailable"
+            ? t("login_err_service_unavailable")
+            : t("login_err_send_generic") + (data?.error || r.status),
+        );
         return;
       }
       if (data.exists && data.hasPassword) {
@@ -155,16 +174,22 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password }),
       });
-      const data = await r.json();
+      const data = await readJsonRecord(r);
       if (!current(session)) return;
-      if (!r.ok) {
+      if (!r.ok || !data) {
         const msg =
-          data.error === "wrong_password"
-            ? t("login_err_wrong_password")
-            : data.error === "no_account"
-              ? t("login_err_no_account")
-              : t("login_err_verify_generic") + (data.error || r.status);
+          r.status === 503 || data?.error === "service_unavailable"
+            ? t("login_err_service_unavailable")
+            : data?.error === "wrong_password"
+              ? t("login_err_wrong_password")
+              : data?.error === "no_account"
+                ? t("login_err_no_account")
+                : t("login_err_verify_generic") + (data?.error || r.status);
         setError(msg);
+        return;
+      }
+      if (typeof data.user_id !== "string" || typeof data.credit_balance !== "number") {
+        setError(t("login_err_network") + String(r.status));
         return;
       }
       onSignedIn({
@@ -195,20 +220,26 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ identifier: email.trim() }),
       });
-      const data = await r.json();
+      const data = await readJsonRecord(r);
       if (!current(session)) return;
-      if (!r.ok) {
-        if (data.error === "rate_limited") {
+      if (!r.ok || !data) {
+        if (r.status === 503 || data?.error === "service_unavailable") {
+          setError(t("login_err_service_unavailable"));
+        } else if (data?.error === "rate_limited") {
           setError(t("login_err_rate"));
-        } else if (data.error === "invalid_identifier") {
+        } else if (data?.error === "invalid_identifier") {
           setError(t("login_err_invalid_id"));
         } else {
-          setError(t("login_err_send_generic") + (data.error || r.status));
+          setError(t("login_err_send_generic") + (data?.error || r.status));
         }
         return;
       }
+      if (data.sent !== true) {
+        setError(t("login_err_network") + String(r.status));
+        return;
+      }
       setStep("register-verify-code");
-      setDevCode(data.devCode || null);
+      setDevCode(typeof data.devCode === "string" ? data.devCode : null);
       setResendIn(60);
     } catch (e) {
       if (current(session)) setError(t("login_err_network") + String(e));
@@ -233,22 +264,28 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password, code }),
       });
-      const data = await r.json();
+      const data = await readJsonRecord(r);
       if (!current(session)) return;
-      if (!r.ok) {
+      if (!r.ok || !data) {
         const msg =
-          data.error === "wrong_code"
-            ? t("login_err_wrong")
-            : data.error === "expired"
-              ? t("login_err_expired")
-              : data.error === "no_code"
-                ? t("login_err_no_code")
-                : data.error === "weak_password"
-                  ? t("login_err_weak_password")
-                  : data.error === "already_registered"
-                    ? t("login_err_already_registered")
-                    : t("login_err_verify_generic") + (data.error || r.status);
+          r.status === 503 || data?.error === "service_unavailable"
+            ? t("login_err_service_unavailable")
+            : data?.error === "wrong_code"
+              ? t("login_err_wrong")
+              : data?.error === "expired"
+                ? t("login_err_expired")
+                : data?.error === "no_code"
+                  ? t("login_err_no_code")
+                  : data?.error === "weak_password"
+                    ? t("login_err_weak_password")
+                    : data?.error === "already_registered"
+                      ? t("login_err_already_registered")
+                      : t("login_err_verify_generic") + (data?.error || r.status);
         setError(msg);
+        return;
+      }
+      if (typeof data.user_id !== "string" || typeof data.credit_balance !== "number") {
+        setError(t("login_err_network") + String(r.status));
         return;
       }
       onSignedIn({
@@ -275,18 +312,24 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ identifier: email.trim() }),
       });
-      const data = await r.json();
+      const data = await readJsonRecord(r);
       if (!current(session)) return;
-      if (!r.ok) {
-        if (data.error === "rate_limited") {
+      if (!r.ok || !data) {
+        if (r.status === 503 || data?.error === "service_unavailable") {
+          setError(t("login_err_service_unavailable"));
+        } else if (data?.error === "rate_limited") {
           setError(t("login_err_rate"));
         } else {
-          setError(t("login_err_send_generic") + (data.error || r.status));
+          setError(t("login_err_send_generic") + (data?.error || r.status));
         }
         return;
       }
+      if (data.sent !== true) {
+        setError(t("login_err_network") + String(r.status));
+        return;
+      }
       setStep("forgot-verify");
-      setDevCode(data.devCode || null);
+      setDevCode(typeof data.devCode === "string" ? data.devCode : null);
       setResendIn(60);
     } catch (e) {
       if (current(session)) setError(t("login_err_network") + String(e));
@@ -310,16 +353,22 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ identifier: email.trim(), code }),
       });
-      const data = await r.json();
+      const data = await readJsonRecord(r);
       if (!current(session)) return;
-      if (!r.ok) {
+      if (!r.ok || !data) {
         const msg =
-          data.error === "wrong_code"
-            ? t("login_err_wrong")
-            : data.error === "expired"
-              ? t("login_err_expired")
-              : t("login_err_verify_generic") + (data.error || r.status);
+          r.status === 503 || data?.error === "service_unavailable"
+            ? t("login_err_service_unavailable")
+            : data?.error === "wrong_code"
+              ? t("login_err_wrong")
+              : data?.error === "expired"
+                ? t("login_err_expired")
+                : t("login_err_verify_generic") + (data?.error || r.status);
         setError(msg);
+        return;
+      }
+      if (typeof data.user_id !== "string" || typeof data.credit_balance !== "number" || typeof data.is_new_user !== "boolean") {
+        setError(t("login_err_network") + String(r.status));
         return;
       }
       onSignedIn({

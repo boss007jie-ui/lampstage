@@ -21,8 +21,15 @@ export async function POST(request: NextRequest) {
   }
   const auth = await authenticateMcp(request);
   if (!auth.ok) {
-    const authHeaders = auth.status === 401 ? { ...headers, "WWW-Authenticate": "Bearer" } : headers;
-    return NextResponse.json({ error: auth.message }, { status: auth.status, headers: authHeaders });
+    // 刻意不发 `WWW-Authenticate: Bearer`。
+    //
+    // 本服务只接受静态 Bearer API Key、**没有 OAuth**。而一个不带 resource_metadata 的
+    // `WWW-Authenticate: Bearer`，会让 MCP 客户端按授权规范去 /.well-known/* 做 OAuth 发现，
+    // 把调用引向一条我们根本没实现的路径；失败信息是与真实原因无关的
+    // “Invalid OAuth error response: Unexpected token '<'”，而真正的问题（没配 key）
+    // 被完全掩盖。去掉这个头等于声明“本资源不用 OAuth”。
+    // 配套：app/api/well-known/[...path]/route.ts 给那些路径返回 JSON 兜底。
+    return NextResponse.json({ error: auth.message }, { status: auth.status, headers });
   }
   const text = await readLimitedBody(request, 2 * 1024 * 1024);
   if (text === null) return response(rpcError(null, -32600, "Request body too large"), 413);

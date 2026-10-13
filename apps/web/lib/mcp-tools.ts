@@ -9,6 +9,7 @@ import { POST as prepareVideoPost } from "@/app/api/v1/video-jobs/[id]/prepare/r
 import { POST as renderVideoPost } from "@/app/api/v1/video-jobs/[id]/render/route";
 import { GET as jobsGet } from "@/app/api/v1/jobs/[id]/route";
 import { NextRequest } from "next/server";
+import { logMcpCall } from "@/lib/tool-log";
 
 export const MCP_TOOLS = [
   { name: "health", description: "Check Lampstage API health", inputSchema: { type: "object", properties: {} } },
@@ -44,6 +45,16 @@ function imageArgs(args: Record<string, unknown>) {
   if (!Number.isInteger(args.image_count) || (args.image_count as number) < 1 || (args.image_count as number) > 4) { const error = new Error("Invalid parameter: image_count must be an integer from 1 to 4") as Error & { code?: number }; error.code = -32602; throw error; }
   return { ...args, asset_id: asset, custom_prompt: prompt };
 }
+/**
+ * 从工具入参里取出可归因的 id，让日志能直接对上某个 job / asset。
+ * 不同工具的参数名不一样（create_video_job 用 source_asset_id / product_asset_id），
+ * 这里统一收敛成一个 assetId，避免日志里出现三种含义不同的列。
+ */
+function tracingIds(args: Record<string, unknown>) {
+  const pick = (key: string) => { const value = args[key]; return typeof value === "string" && value.trim() ? value : null; };
+  return { jobId: pick("job_id"), assetId: pick("asset_id") ?? pick("source_asset_id") ?? pick("product_asset_id") };
+}
+
 export async function invokeMcpTool(name: string, args: Record<string, unknown>, request: Request) {
   if (name === "health") return routeResult(await healthGet());
   if (name === "capabilities") return routeResult(await capabilitiesGet());
@@ -77,18 +88,33 @@ export function dispatchMcp(item: McpRpc, request: Request) {
     const params = item.params && typeof item.params === "object" ? item.params as Record<string, unknown> : {};
     const requested = typeof params.protocolVersion === "string" ? params.protocolVersion : "2025-03-26";
     const protocolVersion = ["2025-03-26", "2024-11-05"].includes(requested) ? requested : "2025-03-26";
+    // 这一条是"客户端确实到达了服务端"的唯一服务端证据 —— 排障时最先要看的就是它。
+    logMcpCall({ tool: "initialize", status: "ok" });
     return Promise.resolve({ jsonrpc: "2.0", id, result: { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "lampstage-mcp", version: "1.0.0" } } });
   }
-  if (item.method === "tools/list") return Promise.resolve({ jsonrpc: "2.0", id, result: { tools: MCP_TOOLS } });
+  if (item.method === "tools/list") {
+    logMcpCall({ tool: "tools_list", status: "ok" });
+    return Promise.resolve({ jsonrpc: "2.0", id, result: { tools: MCP_TOOLS } });
+  }
   if (item.method !== "tools/call") return Promise.resolve(rpcError(id, -32601, `Method not found: ${item.method}`));
   const params = item.params && typeof item.params === "object" ? item.params as Record<string, unknown> : {};
   if (typeof params.name !== "string") return Promise.resolve(rpcError(id, -32602, "tools/call requires a tool name"));
   if (!MCP_TOOLS.some((tool) => tool.name === params.name)) return Promise.resolve(rpcError(id, -32602, `Unknown tool: ${params.name}`));
   const args = params.arguments === undefined ? {} : params.arguments;
   if (!args || typeof args !== "object" || Array.isArray(args)) return Promise.resolve(rpcError(id, -32602, "tools/call arguments must be an object"));
-  return invokeMcpTool(params.name, args as Record<string, unknown>, request).then((value) => ({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value } })).catch((error: unknown) => {
-    if (error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === -32602) return rpcError(id, -32602, error instanceof Error ? error.message : String(error));
+  const toolName = params.name as string;
+  const toolArgs = args as Record<string, unknown>;
+  const ids = tracingIds(toolArgs);
+  const startedAt = Date.now();
+  return invokeMcpTool(toolName, toolArgs, request).then((value) => {
+    logMcpCall({ tool: toolName, status: "ok", durationMs: Date.now() - startedAt, ...ids });
+    return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value } };
+  }).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
+    // routeResult 会把上游路由的 HTTP 状态挂在 error.status 上，有就记下来（否则留 null，不猜）。
+    const failedStatus = error && typeof error === "object" && "status" in error && typeof (error as { status?: unknown }).status === "number" ? (error as { status: number }).status : null;
+    logMcpCall({ tool: toolName, status: "failed", durationMs: Date.now() - startedAt, httpStatus: failedStatus, error: message, ...ids });
+    if (error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === -32602) return rpcError(id, -32602, message);
     return { jsonrpc: "2.0", id, result: { isError: true, content: [{ type: "text", text: message }] } };
   });
 }

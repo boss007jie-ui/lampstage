@@ -1,55 +1,20 @@
-'use client';
+import { notFound } from "next/navigation";
+import DebugEmailForm from "./debug-email-form";
 
-import { useState } from "react";
+/**
+ * 调试页门禁：生产环境整体关停，与 POST /api/debug/email 保持同一口径。
+ *
+ * 为什么要连页面一起关：光关接口会留下一个公开的 /debug/email 页面，
+ * 上面还挂着一个 "Send test email" 按钮 —— 点了必然 404，属于废 UI；
+ * 更糟的是它等于对外的接口广告，与「接口返回 404 而不是 403，
+ * 不暴露这里曾经有个接口」的初衷直接矛盾。
+ *
+ * NODE_ENV 在构建期被内联，所以这里是常量折叠：生产镜像里该分支恒为真，
+ * 页面在构建期就变成 404。本地 / 开发环境保留，用于排查 email_send_failed。
+ */
+const DISABLED_IN_PRODUCTION = process.env.NODE_ENV === "production";
 
 export default function DebugEmailPage() {
-  const [email, setEmail] = useState("");
-  const [result, setResult] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const onSend = async () => {
-    setLoading(true);
-    setResult(null);
-    try {
-      const resp = await fetch("/api/debug/email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: email }),
-      });
-      const data = await resp.json();
-      setResult(JSON.stringify(data, null, 2));
-    } catch (e) {
-      setResult("Error: " + String(e));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <main className="max-w-lg mx-auto p-4">
-      <h1 className="text-xl font-semibold mb-4">Resend Email Debug</h1>
-      <label className="block mb-2">
-        Enter email address:
-        <input
-          type="email"
-          className="w-full mt-1 p-2 border rounded"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          placeholder="you@example.com"
-        />
-      </label>
-      <button
-        className="bg-indigo-600 text-white py-2 px-4 rounded disabled:opacity-50"
-        disabled={loading || !email}
-        onClick={onSend}
-      >
-        {loading ? "Sending..." : "Send test email"}
-      </button>
-      {result && (
-        <pre className="mt-4 whitespace-pre-wrap bg-gray-100 p-3 rounded text-sm text-gray-800">
-          {result}
-        </pre>
-      )}
-    </main>
-  );
+  if (DISABLED_IN_PRODUCTION) notFound();
+  return <DebugEmailForm />;
 }

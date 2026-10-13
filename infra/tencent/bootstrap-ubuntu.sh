@@ -43,6 +43,40 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 systemctl enable --now docker
+
+# Docker Hub (registry-1.docker.io) is not reliably reachable from mainland
+# China CVMs. Without a registry mirror the very first build step —
+# `FROM node:22-bookworm-slim` — fails with an i/o timeout, and so does pulling
+# caddy for the edge service. Tencent Cloud provides an in-VPC accelerator.
+#
+# Guard rails:
+#   * Probe the mirror first, so hosts that do not need it stay untouched and
+#     we never add an unreachable mirror that would only cost latency.
+#   * Never overwrite an existing daemon.json; only an absent file is created.
+#   * Restart Docker only when we actually wrote the file, so re-running this
+#     script never bounces a running deployment.
+#   * Set DOCKER_REGISTRY_MIRROR to an empty value to opt out entirely.
+#     Note the single-dash form below: `:-` would substitute the default for an
+#     explicitly empty value too, which makes the opt-out impossible.
+DOCKER_REGISTRY_MIRROR=${DOCKER_REGISTRY_MIRROR-https://mirror.ccs.tencentyun.com}
+DAEMON_JSON=/etc/docker/daemon.json
+if [ -f "$DAEMON_JSON" ]; then
+  if grep -q 'registry-mirrors' "$DAEMON_JSON"; then
+    echo "$DAEMON_JSON already configures registry-mirrors; leaving it unchanged."
+  else
+    echo "WARNING: $DAEMON_JSON exists but has no registry-mirrors. If the image build cannot reach registry-1.docker.io, add one manually." >&2
+  fi
+elif [ -n "$DOCKER_REGISTRY_MIRROR" ]; then
+  if curl -fsS -m 8 -o /dev/null "$DOCKER_REGISTRY_MIRROR/v2/" 2>/dev/null; then
+    printf '{\n  "registry-mirrors": ["%s"]\n}\n' "$DOCKER_REGISTRY_MIRROR" > "$DAEMON_JSON"
+    chmod 644 "$DAEMON_JSON"
+    systemctl restart docker
+    echo "Configured Docker registry mirror: $DOCKER_REGISTRY_MIRROR"
+  else
+    echo "Registry mirror $DOCKER_REGISTRY_MIRROR is not reachable; using the default registries." >&2
+  fi
+fi
+
 install -d -m 0755 "$ROOT"
 if [ ! -d "$ROOT/repo/.git" ]; then
   git clone --branch "$BRANCH" "$REPO_URL" "$ROOT/repo"

@@ -1,3 +1,5 @@
-{$LAMPSTAGE_DOMAIN:lampstage.com} {
+# apex 与 www 都要在站点地址里列出，否则 Caddy 不会为 www 申请证书，
+# 访问 www.<domain> 会在 TLS 握手阶段直接失败。
+{$LAMPSTAGE_DOMAIN:lampstage.com}, www.{$LAMPSTAGE_DOMAIN:lampstage.com} {
   reverse_proxy web:3000
 }

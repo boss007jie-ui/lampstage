@@ -1,4 +1,32 @@
 services:
+  # 自建 PostgreSQL，替代原来的腾讯云托管 TencentDB。
+  #
+  # 为什么自建：库只有 8.5 MB，托管版 2核4G 要 ¥408/月（香港 ¥684/月），
+  # 而三容器加起来只用 617 MiB 内存，同机跑一个 PG 容器的边际成本是 0。
+  # 代价是备份要自己做 —— 用 /srv/lampstage/backup-db.sh 加定时任务。
+  #
+  # 刻意不用 env_file：那不是把整个 .env.prod（含 DeepSeek/OpenLux/RunningHub 等
+  # 全部密钥）灌进数据库容器。这里只给 POSTGRES_* 三个变量。
+  db:
+    image: postgres:16-alpine
+    environment:
+      # 版本必须与迁移来源一致（源库为 PostgreSQL 16.15），
+      # 用 17/18 还原会因数据目录格式差异失败。
+      POSTGRES_USER: lampstage_admin
+      POSTGRES_DB: lampstage
+      # 冒号问号形式：缺失时直接报错，而不是静默起一个没有密码的库。
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD is required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lampstage_admin -d lampstage"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    networks: [lampstage]
+
   web:
     build:
       context: ../..
@@ -16,6 +44,9 @@ services:
     command: ["npm", "run", "start"]
     expose:
       - "3000"
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     networks: [lampstage]
 
@@ -31,6 +62,9 @@ services:
     volumes:
       - video-work:/srv/lampstage/video-work
       - ./runtime:/srv/lampstage/runtime:ro
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     networks: [lampstage]
 
@@ -50,6 +84,7 @@ services:
     networks: [lampstage]
 
 volumes:
+  pgdata:
   video-work:
   caddy-data:
   caddy-config:

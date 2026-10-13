@@ -1,5 +1,6 @@
 ﻿import { getObjectBytes } from "@/lib/storage";
 import { logToolCall } from "@/lib/tool-log";
+import { THINKING_DISABLED, chatApiKey, chatEndpoint, chatModel } from "@/lib/deepseek";
 
 export type SceneQualityParams = {
   sceneType: string;
@@ -13,9 +14,8 @@ export type SceneQualityResult = {
   issues: string[];
 };
 
-const ENDPOINT =
-  process.env.SCENE_QUALITY_ENDPOINT || "https://yunwu.ai/v1/chat/completions";
-const MODEL = process.env.SCENE_QUALITY_MODEL || "claude-opus-4-8";
+const ENDPOINT = chatEndpoint(process.env.SCENE_QUALITY_ENDPOINT);
+const MODEL = chatModel(process.env.SCENE_QUALITY_MODEL);
 
 function extractJsonObject(value: string): string {
   const trimmed = value.trim();
@@ -79,7 +79,7 @@ export async function qualityCheckScene(
   params: SceneQualityParams,
 ): Promise<SceneQualityResult> {
   const startedAt = Date.now();
-  const apiKey = process.env.YUNWU_API_KEY;
+  const apiKey = chatApiKey();
   if (!apiKey) {
     return { passed: false, score: 0, issues: ["missing_api_key"] };
   }
@@ -121,6 +121,9 @@ Return STRICT JSON: {"has_lamp": boolean, "reasonable_layout": boolean, "correct
           },
         ],
         response_format: { type: "json_object" },
+        // 关闭思考：本任务只要 4 个字段的布尔/分数判定，思维链会挤占正文预算
+        max_tokens: 1000,
+        thinking: THINKING_DISABLED,
       }),
     });
   } catch (error) {

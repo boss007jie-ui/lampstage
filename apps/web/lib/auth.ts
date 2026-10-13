@@ -2,7 +2,7 @@
  * 验证码登录 + cookie session 工具。
  *
  * 设计要点：
- * - 验证码 6 位数字，5 分钟过期，存进 VerificationCode 表（hash 存盘，不存明文）
+ * - 验证码 6 位数字，10 分钟过期，存进 VerificationCode 表（hash 存盘，不存明文）
  * - 验证通过后，新用户自动 grant 20 次额度（在事务里写 CreditTransaction(grant)）
  * - Session：cuid 字符串塞 cookie，30 天有效期；server 端用 Session 表查
  * - 不引入 NextAuth 第三方包，自己实现，控制力最大
@@ -14,7 +14,10 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
 
-const CODE_TTL_MS = 5 * 60 * 1000; // 5 分钟
+// 有效期单一来源：邮件文案也用它，避免「代码 5 分钟 / 文案 10 分钟」这类漂移。
+// 2026-10-13 之前是 5 分钟，实测「发码 → 收信 → 回填」一次往返就超时，故放宽到 10 分钟。
+const CODE_TTL_MINUTES = 10;
+const CODE_TTL_MS = CODE_TTL_MINUTES * 60 * 1000;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 天
 const SESSION_COOKIE = "lamp_session";
 const NEW_USER_GRANT = 20;
@@ -90,7 +93,7 @@ export async function sendCode(identifier: string): Promise<{
   // Production: send email via Resend (only email identifier supported)
   if (type === "email") {
     const { sendVerificationEmail } = await import("@/lib/email");
-    const result = await sendVerificationEmail(id, code);
+    const result = await sendVerificationEmail(id, code, CODE_TTL_MINUTES);
     if (!result.ok) {
       // eslint-disable-next-line no-console
       console.error(`[email] send failed for ${id}: ${result.error}`);

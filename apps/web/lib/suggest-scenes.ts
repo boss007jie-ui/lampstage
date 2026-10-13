@@ -1,14 +1,17 @@
 /**
- * 场景推荐：用 GPT-5-mini 看灯具图，返回 4 个针对性场景方案。
+ * 场景推荐：让视觉模型看灯具图，返回 4 个针对性场景方案。
  *
- * 走 yunwu.ai 的 OpenAI 兼容接口（/v1/chat/completions），这套也是 vision 友好的。
- * 输出严格 JSON 数组（4 项），每项含 title/pitch/prompt_en/best_for。
+ * 走 DeepSeek chat completions（OpenAI 兼容），模型 deepseek-flash
+ * （支持 text + image 输入）。输出严格 JSON 数组（4 项），每项含
+ * title/pitch/prompt_en/best_for。
+ * 见 lib/deepseek.ts 的两个坑（推理模型吃 max_tokens、错模型 id 静默回落）。
  */
 import path from "node:path";
 import { promises as fs } from "node:fs";
+import { THINKING_DISABLED, chatApiKey, chatEndpoint, chatModel } from "@/lib/deepseek";
 
-const ENDPOINT = process.env.SCENE_SUGGEST_ENDPOINT || "https://yunwu.ai/v1/chat/completions";
-const MODEL = process.env.SCENE_SUGGEST_MODEL || "gpt-5.5";
+const ENDPOINT = chatEndpoint(process.env.SCENE_SUGGEST_ENDPOINT);
+const MODEL = chatModel(process.env.SCENE_SUGGEST_MODEL);
 
 export type Scene = {
   /** 场景标签（中/英文短名），≤6 字 */
@@ -72,8 +75,8 @@ function isScene(x: unknown): x is Scene {
 }
 
 export async function suggestScenes(refUrlOrPath: string): Promise<Scene[]> {
-  const apiKey = process.env.YUNWU_API_KEY;
-  if (!apiKey) throw new Error("YUNWU_API_KEY not set");
+  const apiKey = chatApiKey();
+  if (!apiKey) throw new Error("DEEPSEEK_API_KEY not set");
 
   const img = await readImageAsBase64(refUrlOrPath);
 
@@ -95,7 +98,11 @@ export async function suggestScenes(refUrlOrPath: string): Promise<Scene[]> {
         ],
       },
     ],
-    max_completion_tokens: 2000,
+    // 用 max_tokens（实测 max_completion_tokens 会被收下但不一定生效）。
+    // 真实规模实测：开思考时 completion_tokens≈990；关思考后≈650。4000 有充足余量。
+    max_tokens: 4000,
+    // 关闭思考，避免思维链挤占正文预算（见 lib/deepseek.ts）
+    thinking: THINKING_DISABLED,
   };
 
   const res = await fetch(ENDPOINT, {

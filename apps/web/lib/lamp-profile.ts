@@ -8,13 +8,15 @@
  *   - color_temp: warm_3000k / neutral_4000k / cool_5000k / tunable
  *   - target_audience: modern_luxury / nordic / wabi_sabi / industrial / new_chinese / french
  *
- * 走 yunwu 的 OpenAI 兼容接口。失败时返回默认值（不让前端阻塞）。
+ * 走 DeepSeek chat completions（OpenAI 兼容）。失败时返回默认值（不让前端阻塞）。
+ * 见 lib/deepseek.ts 的两个坑（推理模型吃 max_tokens、错模型 id 静默回落）。
  */
 import { getObjectBytes } from "@/lib/storage";
 import { logToolCall } from "@/lib/tool-log";
+import { THINKING_DISABLED, chatApiKey, chatEndpoint, chatModel } from "@/lib/deepseek";
 
-const ENDPOINT = process.env.LAMP_PROFILE_ENDPOINT || "https://yunwu.ai/v1/chat/completions";
-const MODEL = process.env.LAMP_PROFILE_MODEL || "gpt-5.4-nano";
+const ENDPOINT = chatEndpoint(process.env.LAMP_PROFILE_ENDPOINT);
+const MODEL = chatModel(process.env.LAMP_PROFILE_MODEL);
 
 export type LampType =
   | "pendant"
@@ -209,9 +211,9 @@ export async function inferLampProfile(
   refUrlOrPath: string,
 ): Promise<LampProfile> {
   const startedAt = Date.now();
-  const apiKey = process.env.YUNWU_API_KEY;
+  const apiKey = chatApiKey();
   if (!apiKey) {
-    console.warn("[lamp-profile] YUNWU_API_KEY missing, using default");
+    console.warn("[lamp-profile] DEEPSEEK_API_KEY missing, using default");
     return { ...DEFAULT_PROFILE };
   }
 
@@ -242,6 +244,9 @@ export async function inferLampProfile(
       },
     ],
     response_format: { type: "json_object" },
+    // 关闭思考，避免思维链挤占正文预算（见 lib/deepseek.ts）
+    max_tokens: 2000,
+    thinking: THINKING_DISABLED,
   };
 
   let res;

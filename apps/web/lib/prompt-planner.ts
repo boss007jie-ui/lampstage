@@ -2,9 +2,10 @@
  * Prompt Planner
  *
  * 作用：不要再用固定模板硬拼生图 prompt。
- * 让 GPT 根据产品卡 + 业务目标 + 可用场景参考图，输出 3 个 nano-banana 图生图 shot。
+ * 让 DeepSeek 根据产品卡 + 业务目标 + 可用场景参考图，输出 4 个 nano-banana 图生图 shot。
  *
  * 注意：planner 只负责写 prompt，不负责生图。失败时 generation.ts 会 fallback 到旧规则。
+ * provider 历史上有 yunwu / deepseek 两条路，2026-10-13 起 yunwu 完全剔除，只剩 DeepSeek。
  */
 import type {
   ColorTemp,
@@ -14,54 +15,29 @@ import type {
 } from "@/lib/lamp-profile";
 import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
 import { logToolCall } from "@/lib/tool-log";
+import {
+  THINKING_DISABLED,
+  chatApiKey,
+  chatEndpoint,
+  chatModel,
+} from "@/lib/deepseek";
 
-const DEEPSEEK_MODEL = "deepseek-v4-flash";
-const DEFAULT_PLANNER_MODEL = DEEPSEEK_MODEL;
-const YUNWU_MODEL = "gpt-5.5";
-const YUNWU_ENDPOINT = "https://yunwu.ai/v1/chat/completions";
-const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 const PLANNER_TIMEOUT_MS = Number(process.env.PROMPT_PLANNER_TIMEOUT_MS || 60000);
 
-type PlannerProvider = "yunwu" | "deepseek";
-
-function normalizeBaseUrl(url: string): string {
-  return url.replace(/\/+$/, "");
-}
-
 function getPlannerConfig(): {
-  provider: PlannerProvider;
   endpoint: string;
   model: string;
   apiKey?: string;
   apiKeyName: string;
 } {
-  const requestedModel = process.env.PROMPT_PLANNER_MODEL;
-  const providerEnv = process.env.PROMPT_PLANNER_PROVIDER?.toLowerCase();
-  const provider: PlannerProvider =
-    providerEnv === "yunwu" ||
-    requestedModel === "gpt-5.5" ||
-    (!!requestedModel &&
-      !requestedModel.startsWith("deepseek-") &&
-      providerEnv !== "deepseek")
-      ? "yunwu"
-      : "deepseek";
-  if (provider === "deepseek") {
-    return {
-      provider,
-      endpoint:
-        process.env.DEEPSEEK_ENDPOINT ||
-        `${normalizeBaseUrl(process.env.DEEPSEEK_BASE_URL || DEEPSEEK_BASE_URL)}/chat/completions`,
-      model: requestedModel || DEFAULT_PLANNER_MODEL,
-      apiKey: process.env.DEEPSEEK_API_KEY,
-      apiKeyName: "DEEPSEEK_API_KEY",
-    };
-  }
+  // 只剩 DeepSeek 一家。模型默认 deepseek-flash（支持 text+image）。
+  // 注意 PROMPT_PLANNER_MODEL 若被设成别的厂商模型名，DeepSeek 会**静默回落**
+  // 到默认模型而不会报错，见 lib/deepseek.ts。
   return {
-    provider,
-    endpoint: process.env.PROMPT_PLANNER_ENDPOINT || YUNWU_ENDPOINT,
-    model: requestedModel || YUNWU_MODEL,
-    apiKey: process.env.YUNWU_API_KEY,
-    apiKeyName: "YUNWU_API_KEY",
+    endpoint: chatEndpoint(process.env.PROMPT_PLANNER_ENDPOINT),
+    model: chatModel(process.env.PROMPT_PLANNER_MODEL),
+    apiKey: chatApiKey(),
+    apiKeyName: "DEEPSEEK_API_KEY",
   };
 }
 
@@ -578,9 +554,9 @@ Write 4 planned image-edit shots in the fixed order described in the system prom
     ],
     response_format: { type: "json_object" },
     temperature: 0.2,
-    ...(planner.provider === "deepseek"
-      ? { thinking: { type: "disabled" as const } }
-      : {}),
+    // 关闭思考：deepseek-flash 是推理模型，思维链与正文共享 max_tokens 预算
+    // （见 lib/deepseek.ts）。此处保持原有行为，只是精简掉已废弃的 provider 分支。
+    thinking: THINKING_DISABLED,
   };
 
   const attempt = await requestPromptPlan({

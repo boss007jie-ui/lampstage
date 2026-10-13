@@ -29,6 +29,12 @@ export type SendResult = {
 export async function sendVerificationEmail(
   to: string,
   code: string,
+  /**
+   * 有效期（分钟）。由调用方传入，不在这里写死 ——
+   * 历史上这里硬编码「10 minutes」而 VerificationCode 实际只活 5 分钟，文案与实现漂移。
+   * 现在唯一来源是 lib/auth.ts 的 CODE_TTL_MINUTES。
+   */
+  ttlMinutes: number,
 ): Promise<SendResult> {
   const client = getResend();
   if (!client) {
@@ -52,8 +58,8 @@ export async function sendVerificationEmail(
       Your sign-in code · 你的验证码
     </h1>
     <p style="font-size: 14px; color: #64748d; margin: 0 0 24px;">
-      Enter this 6-digit code to finish signing in. It expires in 10 minutes.<br/>
-      请输入下方 6 位验证码完成登录，10 分钟内有效。
+      Enter this 6-digit code to finish signing in. It expires in ${ttlMinutes} minutes.<br/>
+      请输入下方 6 位验证码完成登录，${ttlMinutes} 分钟内有效。
     </p>
     <div style="font-family: 'SF Mono', 'Cascadia Mono', Menlo, monospace; font-size: 36px; font-weight: 700; letter-spacing: 6px; color: #533afd; padding: 20px; background: #faf7ed; border: 1px solid #eadfcb; border-radius: 12px; text-align: center; margin-bottom: 24px;">
       ${code}
@@ -73,7 +79,7 @@ export async function sendVerificationEmail(
     `${BRAND.en} · ${BRAND.cn}\n\n` +
     `Your sign-in code: ${code}\n` +
     `验证码: ${code}\n\n` +
-    `It expires in 10 minutes. 10 分钟内有效。\n\n` +
+    `It expires in ${ttlMinutes} minutes. ${ttlMinutes} 分钟内有效。\n\n` +
     `If you didn't request this, ignore this email.\n` +
     `如果你没有发起此次登录请求，可以忽略此邮件。\n\n` +
     `— ${BRAND.en}, ${BRAND.domain}`;

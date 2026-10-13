@@ -3,13 +3,14 @@
  *
  * 用来做 PRD §6 的"模板不匹配提醒"——上传图后 vs 选定的模板 lamp_type。
  *
- * 实现：调 yunwu 上的 OpenAI 兼容 chat completions 接口，让 vision 模型分类。
- * 走 gemini-2.5-flash-all（在 yunwu 上验证可用，便宜）。
+ * 实现：调 DeepSeek chat completions（OpenAI 兼容），让视觉模型做 1 词分类。
+ * 模型 deepseek-flash（支持图片输入）。见 lib/deepseek.ts 的两个坑。
  */
 import { getObjectBytes } from "@/lib/storage";
+import { THINKING_DISABLED, chatApiKey, chatEndpoint, chatModel } from "@/lib/deepseek";
 
-const ENDPOINT = "https://yunwu.ai/v1/chat/completions";
-const MODEL = "gemini-2.5-flash-all";
+const ENDPOINT = chatEndpoint();
+const MODEL = chatModel();
 
 export type LampType =
   | "pendant"
@@ -37,7 +38,7 @@ async function imageAsBase64(refUrlOrPath: string): Promise<{ b64: string; mime:
 export async function detectLampType(
   refUrlOrPath: string,
 ): Promise<LampType> {
-  const apiKey = process.env.YUNWU_API_KEY;
+  const apiKey = chatApiKey();
   if (!apiKey) return "unknown";
 
   let img;
@@ -61,8 +62,11 @@ export async function detectLampType(
         ],
       },
     ],
-    max_tokens: 16,
+    // 关闭思考，否则思维链会吃掉 max_tokens 预算、content 返回空串
+    // （实测开思考 + max_tokens=16 → content=""）。关闭后本任务只用 2 个 token。
+    max_tokens: 64,
     temperature: 0,
+    thinking: THINKING_DISABLED,
   };
 
   try {

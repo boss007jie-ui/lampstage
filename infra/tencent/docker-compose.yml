@@ -3,6 +3,12 @@ services:
     build:
       context: ../..
       dockerfile: infra/tencent/Dockerfile
+      # Empty by default: builds outside mainland China keep the upstream
+      # sources. bootstrap-ubuntu.sh probes Tencent's in-VPC mirrors and exports
+      # these when they answer. See the note at the top of the Dockerfile.
+      args:
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-}
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
     image: lampstage-web:latest
     env_file: .env.prod
     environment:

@@ -77,6 +77,37 @@ elif [ -n "$DOCKER_REGISTRY_MIRROR" ]; then
   fi
 fi
 
+# The same problem exists one layer down, inside the build container: apt and
+# npm both reach their upstream hosts but far too slowly. Measured on a Tencent
+# CVM in this VPC, deb.debian.org served 1.35 MB/s and registry.npmjs.org
+# 216 KB/s, against 39.3 MB/s and 1.39 MB/s from Tencent's in-VPC mirrors.
+# Building then took tens of minutes, almost all of it waiting on downloads.
+#
+# Guard rails mirror the registry-mirror block above: probe before using, and
+# keep the value to ourselves (exported for compose build-arg interpolation) so
+# nothing is written to disk. Single-dash defaults again, so an explicit empty
+# value opts out.
+WANT_DEBIAN_MIRROR=${DEBIAN_MIRROR-http://mirrors.cloud.tencent.com}
+WANT_NPM_REGISTRY=${NPM_REGISTRY-https://mirrors.cloud.tencent.com/npm}
+DEBIAN_MIRROR=""
+NPM_REGISTRY=""
+if [ -n "$WANT_DEBIAN_MIRROR" ] \
+   && curl -fsS -m 8 -o /dev/null "$WANT_DEBIAN_MIRROR/debian/dists/bookworm/Release" 2>/dev/null \
+   && curl -fsS -m 8 -o /dev/null "$WANT_DEBIAN_MIRROR/debian-security/dists/bookworm-security/Release" 2>/dev/null; then
+  DEBIAN_MIRROR="$WANT_DEBIAN_MIRROR"
+  echo "Image build will use the Debian mirror $DEBIAN_MIRROR."
+else
+  echo "Debian mirror ${WANT_DEBIAN_MIRROR:-<disabled>} has no usable package indexes; the image build will use deb.debian.org." >&2
+fi
+if [ -n "$WANT_NPM_REGISTRY" ] \
+   && curl -fsS -m 8 -o /dev/null -r 0-1023 "$WANT_NPM_REGISTRY/lodash/-/lodash-4.17.21.tgz" 2>/dev/null; then
+  NPM_REGISTRY="$WANT_NPM_REGISTRY"
+  echo "Image build will use the npm registry $NPM_REGISTRY."
+else
+  echo "npm registry ${WANT_NPM_REGISTRY:-<disabled>} is not reachable; the image build will use registry.npmjs.org." >&2
+fi
+export DEBIAN_MIRROR NPM_REGISTRY
+
 install -d -m 0755 "$ROOT"
 if [ ! -d "$ROOT/repo/.git" ]; then
   git clone --branch "$BRANCH" "$REPO_URL" "$ROOT/repo"

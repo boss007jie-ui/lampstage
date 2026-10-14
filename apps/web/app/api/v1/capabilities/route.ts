@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { videoMaintenanceReason } from "@/lib/video/control";
 import { VIDEO_MAX_SECONDS, VIDEO_MIN_SECONDS } from "@/lib/video/types";
+import { DIRECT_REFERENCE_CAPABILITY } from "@/lib/video/reference-inputs";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,8 +31,9 @@ export function GET() {
         kind: "async_job",
         // 只有这里表达"现在能不能用"：暂停/未开放时是 maintenance，不是 available。
         status: maintenance ? "maintenance" : "available",
-        description: "Analyze a reference video, prepare reviewable frames and render an approved product video through the configured worker.",
+        description: "Prepare a source video and explicit product, character or scene references, then render after reference and budget approval.",
         limits: { min_seconds: VIDEO_MIN_SECONDS, max_seconds: VIDEO_MAX_SECONDS, aspect_ratio: "9:16", resolution: "768P" },
+        modes: { legacy_frames: { generated_endpoint_frames: true }, direct_references: DIRECT_REFERENCE_CAPABILITY },
         ...(maintenance ? { reason: maintenance } : {}),
       },
       { id: "assets.upload", kind: "asset", status: "available", description: "Store source assets for an authenticated workflow." },

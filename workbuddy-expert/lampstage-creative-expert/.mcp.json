@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "lampstage": {
-      "type": "streamableHttp",
+      "type": "streamable-http",
       "url": "https://lampstage.com/api/mcp",
       "headers": {
         "Authorization": "Bearer ${LAMPSTAGE_API_KEY}"

@@ -4,7 +4,8 @@ import { apiJson, requireApiUser } from "@/lib/public-api";
 import { isProviderMigrationError, publicGenerationFailure } from "@/lib/provider-errors";
 import { recordedImageModel } from "@/lib/image-models";
 import { privateMediaUrl } from "@/lib/video/storage";
-import { videoData } from "@/lib/video/types";
+import { isVideoPreparation, segmentCoinQuote, videoData } from "@/lib/video/types";
+import { generationMode, preparedReferencesReady } from "@/lib/video/reference-inputs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,19 +33,30 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   });
   if (!videoJob) return apiJson({ error: "not_found" }, { status: 404 });
   const data = videoData(videoJob.data);
+  const mode = generationMode(data);
+  const quote = segmentCoinQuote();
+  const references = await Promise.all((data.referenceImages ?? []).map(async (ref, i) => ({
+    picture: i + 1, asset_id: ref.assetId, role: ref.role, label: ref.label,
+    url: ref.key ? await privateMediaUrl(ref.key, "image/png") : null, sha256: ref.sha256 ?? null,
+  })));
   const outputUrl = data.outputKey ? await privateMediaUrl(data.outputKey, "video/mp4", `${videoJob.id}.mp4`) : null;
   const segments = await Promise.all(data.segments.map(async (segment) => ({
     index: segment.index,
     start: segment.start,
     duration: segment.duration,
+    trim_start: segment.trimStart,
+    keep_duration: Math.min(segment.duration - segment.trimStart, (data.sourceDuration ?? 0) - segment.start - segment.trimStart),
+    source_url: segment.clipKey ? await privateMediaUrl(segment.clipKey, "video/mp4") : null,
     opening_url: segment.openingKey ? await privateMediaUrl(segment.openingKey, "image/png") : null,
     ending_url: segment.endingKey ? await privateMediaUrl(segment.endingKey, "image/png") : null,
     candidate_url: segment.candidateKey ? await privateMediaUrl(segment.candidateKey, "video/mp4", `${videoJob.id}-${segment.index}.mp4`) : null,
   })));
   return apiJson({
     id: videoJob.id, type: "video", status: videoJob.status, stage: videoJob.stage,
-    phase: videoJob.phase, error: videoJob.error, output_url: outputUrl, segments,
-    estimate: { segments: data.segments.length, image_calls: data.imageCalls, video_coins: data.renderConsent?.estimatedCoins ?? null },
+    generation_mode: mode, reference_assets: references, source_duration: data.sourceDuration ?? null,
+    references_ready: mode === "direct_references" ? preparedReferencesReady(data) : data.segments.length > 0 && data.segments.every(s => s.openingKey && s.endingKey && s.clipKey),
+    phase: isVideoPreparation(videoJob.phase) ? "prepare" : videoJob.phase, error: videoJob.error, output_url: outputUrl, segments,
+    estimate: { segments: data.segments.length, image_calls: data.imageCalls, video_coins: quote === null ? null : data.segments.length ? quote * data.segments.filter(s => !s.candidateKey).length : null },
     created_at: videoJob.created_at.toISOString(), updated_at: videoJob.updated_at.toISOString(),
   });
 }

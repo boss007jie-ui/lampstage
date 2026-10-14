@@ -1,6 +1,7 @@
 import { Prisma, type VideoAsset, type VideoJob } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { segmentCoinQuote, videoData, type VideoJobData, type VideoJobView, type VideoStatus } from "./types";
+import { isVideoPreparation, segmentCoinQuote, videoData, type VideoJobData, type VideoJobView, type VideoStatus } from "./types";
+import { generationMode, preparedReferencesReady } from "./reference-inputs";
 
 export const LEASE_MS = 90_000;
 type RepositoryDb = Pick<typeof prisma, "videoJob">;
@@ -13,7 +14,11 @@ export function jobView(job: VideoJob & { source_asset?: VideoAsset }): VideoJob
   return {
     id: job.id, title: job.title, status: job.status as VideoStatus, stage: job.stage,
     instructions: job.instructions, preserve_audio: job.preserve_audio,
-    source_url: media("source"), product_url: media("product"), source_duration: data.sourceDuration ?? null,
+    generation_mode: generationMode(data),
+    references_ready: generationMode(data) === "direct_references" ? preparedReferencesReady(data) : data.segments.length > 0 && data.segments.every(s => Boolean(s.openingKey && s.endingKey && s.clipKey)),
+    reference_assets: (data.referenceImages ?? []).map((ref, i) => ({ picture: i + 1, asset_id: ref.assetId, role: ref.role, label: ref.label,
+      url: ref.key ? media("reference", i) : null, sha256: ref.sha256 ?? null })),
+    source_url: media("source"), product_url: generationMode(data) === "direct_references" && data.referenceImages?.[0]?.key ? media("reference", 0) : media("product"), source_duration: data.sourceDuration ?? null,
     error: job.error, created_at: job.created_at.toISOString(), updated_at: job.updated_at.toISOString(),
     // 业务进展与数据库 updated_at 分开：后者会被 20 秒一次的租约心跳刷新，不能当业务推进的证据。
     progress_updated_at: data.progress?.lastProgressAt ?? null,
@@ -39,7 +44,7 @@ export async function claimJob(workerId: string, db: RepositoryDb = prisma): Pro
   for (const candidate of candidates) {
     const claimed = await db.videoJob.updateMany({
       where: { id: candidate.id, status: "queued", revision: candidate.revision, lease_owner: null },
-      data: { status: candidate.phase === "prepare" ? "preparing" : "generating", lease_owner: workerId,
+      data: { status: isVideoPreparation(candidate.phase) ? "preparing" : "generating", lease_owner: workerId,
         lease_until: new Date(Date.now() + LEASE_MS), revision: { increment: 1 }, error: null },
     });
     if (claimed.count === 1) return db.videoJob.findFirst({ where: { id: candidate.id, lease_owner: workerId } });

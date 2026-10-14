@@ -113,7 +113,7 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
     } catch { return { ready: false, reason: 'RunningHub account 01 runtime or credential is unavailable. Configure the isolated video runtime.' }; }
   }
   async function submitH3(input: {
-    workspace: string; sourcePath: string; productPath: string; openingPath: string; endingPath: string;
+    workspace: string; sourcePath: string;
     prompt: string; duration: 4 | 5; onBuildId: (id: string) => Promise<void>;
     /**
      * 付费提交前的最后一道闸门：读**当前数据库状态**核对开关、租约、revision 与已保存的
@@ -121,9 +121,19 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
      * 那时再拒绝会把任务卡进人工核对。
      */
     beforeSubmit?: () => Promise<void>;
-  }): Promise<{ buildId: string }> {
+  } & (
+    { productPath: string; openingPath: string; endingPath: string; referencePaths?: never } |
+    { referencePaths: readonly [string, string, string]; productPath?: never; openingPath?: never; endingPath?: never }
+  )): Promise<{ buildId: string }> {
     if (input.duration !== 4 && input.duration !== 5) throw new Error('H3 requires a 4 or 5 second source window.');
     if (!input.prompt.trim() || input.prompt.length > 20000) throw new Error('Invalid H3 prompt.');
+    const direct = 'referencePaths' in input;
+    if (direct && ('productPath' in input || 'openingPath' in input || 'endingPath' in input))
+      throw new Error('H3 input cannot mix direct and legacy references.');
+    const references = direct ? input.referencePaths : [input.productPath, input.openingPath, input.endingPath];
+    if (!Array.isArray(references) || references.length !== 3 ||
+      references.some(file => typeof file !== 'string' || !file.trim()))
+      throw new Error('H3 requires exactly three nonempty image paths.');
     // 快速失败：付费开关关闭时连本地 check/plan 都不做，绝不触碰 build。
     // 用 runner 自己的 env，避免模拟测试误读生产环境。
     assertVideoPaidGenerationEnabled(env);
@@ -133,7 +143,7 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
     await mkdir(input.workspace, { recursive: true });
     const workspace = await realpath(input.workspace);
     // Every asset is admitted from the job workspace, including after symlink resolution.
-    const paths = await Promise.all([input.productPath, input.openingPath, input.endingPath, input.sourcePath].map(async file => {
+    const paths = await Promise.all([...references, input.sourcePath].map(async file => {
       const actual = await realpath(file);
       if (!inside(workspace, actual)) throw new Error('Video inputs must belong to the job workspace.');
       return `./${path.relative(workspace, actual).split(path.sep).join('/')}`;

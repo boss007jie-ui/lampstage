@@ -96,14 +96,19 @@ export function segmentTimeline(seconds: number): VideoSegment[] {
   return result;
 }
 
-export async function prepareSegment(source: string, segment: VideoSegment, workspace: string, signal?: AbortSignal) {
+export async function prepareMotionSegment(source: string, segment: VideoSegment, workspace: string, signal?: AbortSignal): Promise<string> {
   const clip = path.join(workspace, `source-${segment.index}.mp4`);
-  const opening = path.join(workspace, `source-${segment.index}-opening.png`);
-  const ending = path.join(workspace, `source-${segment.index}-ending.png`);
   await run(ffmpeg(), ["-nostdin", "-y", "-v", "error", "-protocol_whitelist", "file,pipe", "-ss", String(segment.start), "-i", source,
     "-map", "0:v:0", "-an", "-vf", `scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,tpad=stop_mode=clone:stop_duration=1`,
     "-t", String(segment.duration), "-c:v", "libx264", "-preset", "fast", "-crf", "20", "-maxrate", "8M", "-bufsize", "16M", "-pix_fmt", "yuv420p", "-movflags", "+faststart", clip], 180_000, signal);
   if ((await stat(clip)).size > 30 * 1024 * 1024) throw new VideoPipelineError("参考片段超过 30MB，无法提交。");
+  return clip;
+}
+
+export async function prepareSegment(source: string, segment: VideoSegment, workspace: string, signal?: AbortSignal) {
+  const clip = await prepareMotionSegment(source, segment, workspace, signal);
+  const opening = path.join(workspace, `source-${segment.index}-opening.png`);
+  const ending = path.join(workspace, `source-${segment.index}-ending.png`);
   for (const [position, out] of [[0, opening], [segment.duration - 1 / 30, ending]] as const) {
     await run(ffmpeg(), ["-nostdin", "-y", "-v", "error", "-ss", String(position), "-i", clip, "-frames:v", "1", out], 180_000, signal);
   }

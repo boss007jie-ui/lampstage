@@ -23,6 +23,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   let key: string | undefined; let mime = "video/mp4";
   if (kind === "source") { key = job.source_asset.storage_key; mime = job.source_asset.mime; }
   else if (kind === "output") key = data.outputKey;
+  else if (kind === "reference") {
+    const raw = request.nextUrl.searchParams.get("segment");
+    const index = Number(raw);
+    if (raw === null || !Number.isInteger(index) || index < 0 || index >= 3) throw new VideoHttpError(400, "参考图索引无效。");
+    key = data.referenceImages?.[index]?.key;
+    mime = "image/png";
+  }
   else if (["opening", "ending", "candidate"].includes(kind || "")) {
     const indexString = request.nextUrl.searchParams.get("segment");
     const index = Number(indexString);

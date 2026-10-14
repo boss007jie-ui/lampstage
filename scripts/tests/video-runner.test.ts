@@ -61,6 +61,45 @@ test('preflight, one detached build, and durable receipt before callback', async
   await assert.rejects(f.runner.submitH3(f.input));
   assert.equal(f.calls.filter(x => x[0] === 'build').length, 1);
 });
+test('direct H3 input authors three generic references in caller order without endpoint images', async () => {
+  const f = await fixture();
+  const references = ['third & detail.png', 'first.png', 'second.png'].map(name => path.join(f.workspace, name)) as [string, string, string];
+  await Promise.all(references.map(file => writeFile(file, 'image')));
+  const { productPath: _productPath, openingPath: _openingPath, endingPath: _endingPath, ...common } = f.input;
+  await f.runner.submitH3({ ...common, referencePaths: references });
+  const source = await readFile(path.join(f.workspace, 'video.svml'), 'utf8');
+  assert.match(source, /<asset:Image id="image0" src="\.\/third &amp; detail\.png"\/>/);
+  assert.match(source, /<asset:Image id="image1" src="\.\/first\.png"\/>/);
+  assert.match(source, /<asset:Image id="image2" src="\.\/second\.png"\/>/);
+  assert.equal((source.match(/<h3:Reference image=/g) ?? []).length, 3);
+  assert.equal((source.match(/<h3:Reference video=/g) ?? []).length, 1);
+  assert.doesNotMatch(source, /firstFrame|lastFrame|product\.png|opening\.png|ending\.png/);
+  assert.deepEqual(f.calls.map(call => call[0]), ['auth', 'check', 'plan', 'build']);
+});
+test('direct H3 input rejects missing or mixed reference paths before CLI work', async () => {
+  for (const referencePaths of [[], ['only.png'], ['a.png', 'b.png', 'c.png', 'd.png'], ['a.png', '', 'c.png']]) {
+    const f = await fixture();
+    const { productPath: _productPath, openingPath: _openingPath, endingPath: _endingPath, ...common } = f.input;
+    await assert.rejects(f.runner.submitH3({ ...common, referencePaths } as Parameters<typeof f.runner.submitH3>[0]));
+    assert.equal(f.calls.length, 0);
+  }
+  const f = await fixture();
+  await assert.rejects(f.runner.submitH3({ ...f.input, referencePaths: [f.input.productPath, f.input.openingPath, f.input.endingPath] } as Parameters<typeof f.runner.submitH3>[0]));
+  assert.equal(f.calls.length, 0);
+});
+test('direct H3 references stay in the workspace and honor the final submission guard', async () => {
+  const f = await fixture();
+  const { productPath: _productPath, openingPath: _openingPath, endingPath: _endingPath, ...common } = f.input;
+  const outside = path.join(f.root, 'outside.png');
+  await writeFile(outside, 'image');
+  await assert.rejects(f.runner.submitH3({ ...common, referencePaths: [f.input.productPath, outside, f.input.endingPath] }), /workspace/);
+  assert.ok(!f.calls.some(call => call[0] === 'build'));
+  const g = await fixture();
+  const { productPath: _p, openingPath: _o, endingPath: _e, ...direct } = g.input;
+  await assert.rejects(g.runner.submitH3({ ...direct, referencePaths: [g.input.productPath, g.input.openingPath, g.input.endingPath], beforeSubmit: async () => { throw new Error('lease changed'); } }), /lease changed/);
+  assert.deepEqual(g.calls.map(call => call[0]), ['auth', 'check', 'plan']);
+  await assert.rejects(readFile(path.join(g.workspace, 'hypit-submission-intent.json')));
+});
 test('account02 and face swap profiles fail closed without invoking CLI', async () => {
   const f = await fixture();
   f.profile.endpoints[H3_ENDPOINT].config.apiKey.key = 'runninghub.api_key_02';

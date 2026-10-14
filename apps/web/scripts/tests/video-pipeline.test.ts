@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { assembleVideo, inspectSource, prepareSegment, probeMedia, segmentTimeline } from "../../lib/video/media";
+import { assembleVideo, inspectSource, prepareMotionSegment, prepareSegment, probeMedia, segmentTimeline } from "../../lib/video/media";
 import { VIDEO_MAX_SECONDS } from "../../lib/video/types";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -147,6 +147,23 @@ test("partial reconciliation recovers an existing build while leaving later unsu
 });
 
 const MEDIA_CASES = [{ seconds: 16.3, expectedSegments: 4 }, { seconds: 30, expectedSegments: 6 }] as const;
+
+test("direct preparation writes only an action clip, with no opening or ending image", { skip: process.env.RUN_VIDEO_MEDIA_TESTS !== "1" }, async () => {
+  const root = path.resolve(os.tmpdir());
+  const workspace = await mkdtemp(path.join(root, "lamp-direct-media-"));
+  try {
+    const source = path.join(workspace, "source.mp4");
+    await promisify(execFile)(process.env.VIDEO_FFMPEG_PATH || "ffmpeg", ["-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=180x320:rate=30", "-t", "4", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", source], { windowsHide: true });
+    const clip = await prepareMotionSegment(source, segmentTimeline(4)[0], workspace);
+    assert.deepEqual((await readdir(workspace)).sort(), ["source-0.mp4", "source.mp4"]);
+    assert.ok(Math.abs((await probeMedia(clip)).duration - 4) < 0.05);
+  } finally {
+    const resolved = path.resolve(workspace);
+    assert.equal(path.dirname(resolved), root);
+    assert.ok(path.basename(resolved).startsWith("lamp-direct-media-"));
+    await rm(resolved, { recursive: true, force: true });
+  }
+});
 
 test("local synthetic media: 16.3s and 30s sources keep the full tail with and without audio", { skip: process.env.RUN_VIDEO_MEDIA_TESTS !== "1" }, async () => {
   const root = path.resolve(os.tmpdir());

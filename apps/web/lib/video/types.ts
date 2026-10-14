@@ -1,6 +1,18 @@
 /** Public contracts contain media URLs only; storage keys and provider receipts stay server-side. */
 export type VideoStatus = "draft" | "queued" | "preparing" | "review" | "generating" | "assembling" | "completed" | "failed" | "attention";
-export type VideoPhase = "prepare" | "render" | "reconcile";
+export type VideoPhase = "prepare" | "prepare_references" | "render" | "reconcile";
+/** Older workers reject this new phase instead of treating direct preparation as paid image work. */
+export const isVideoPreparation = (phase: string): boolean => phase === "prepare" || phase === "prepare_references";
+export type VideoGenerationMode = "legacy_frames" | "direct_references";
+export type VideoReferenceRole = "product" | "character" | "scene" | "product_detail";
+export interface VideoReferenceImage {
+  assetId: string;
+  role: VideoReferenceRole;
+  label: string;
+  /** Frozen normalized bytes used for rendering, never a mutable source URL. */
+  key?: string;
+  sha256?: string;
+}
 
 export interface VideoSegment {
   index: number;
@@ -19,12 +31,15 @@ export interface VideoSegment {
 
 export interface VideoJobData {
   version: 1;
+  /** Missing on existing jobs means legacy_frames; never reinterpret old consent. */
+  generationMode?: VideoGenerationMode;
+  referenceImages?: VideoReferenceImage[];
   sourceDuration?: number;
   sourceHasAudio?: boolean;
   segments: VideoSegment[];
   outputKey?: string;
   imageCalls: number;
-  renderConsent?: { at: string; maxCoins: number; estimatedCoins: number; perSegmentCoins: number; segmentIndices: number[] };
+  renderConsent?: { at: string; maxCoins: number; estimatedCoins: number; perSegmentCoins: number; segmentIndices: number[]; referenceDigest?: string };
   /**
    * 业务进展。刻意放进 JSON 而不是加数据库列：这次改动不值得一次 schema 迁移，
    * 且旧读取器忽略未知字段即可兼容。
@@ -39,6 +54,9 @@ export interface VideoJobView {
   stage: string;
   instructions: string;
   preserve_audio: boolean;
+  generation_mode: VideoGenerationMode;
+  references_ready: boolean;
+  reference_assets: { picture: number; asset_id: string; role: VideoReferenceRole; label: string; url: string | null; sha256: string | null }[];
   source_url: string;
   product_url: string;
   source_duration: number | null;

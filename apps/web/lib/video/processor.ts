@@ -1,4 +1,5 @@
 import type { VideoJob } from "@prisma/client";
+import { createHash } from "node:crypto";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
@@ -6,11 +7,12 @@ import { prisma } from "@/lib/db";
 import { getObjectBytes } from "@/lib/storage";
 import { generateReference, videoDirection } from "./image-reference";
 import { collectH3, inspectH3, recoverH3Submission, resumeH3Worker, runnerReadiness, submitH3 } from "./hypit-runner";
-import { assembleVideo, inspectSource, prepareSegment, segmentTimeline, VideoPipelineError } from "./media";
+import { assembleVideo, inspectSource, prepareMotionSegment, prepareSegment, segmentTimeline, VideoPipelineError } from "./media";
 import { assertVideoPaidGenerationEnabled, paidBoundaryProblem } from "./control";
 import { heartbeatLease, LeaseLostError, patchJob, releaseJob } from "./repository";
 import { privateDownloadTo, privateUploadFile, privateWrite } from "./storage";
-import { VIDEO_MAX_BYTES, segmentCoinQuote, videoData, type VideoJobData, type VideoSegment } from "./types";
+import { VIDEO_MAX_BYTES, isVideoPreparation, segmentCoinQuote, videoData, type VideoJobData, type VideoSegment } from "./types";
+import { generationMode, referenceDigest, referenceImagesFor, referenceVideoDirection, snapshotReferenceImages, VideoReferenceInputError } from "./reference-inputs";
 
 /** 免费网络操作总超时：产品图 30 秒（源片/视频对象走 storage 层的 120 秒默认值）。 */
 const PRODUCT_IMAGE_TIMEOUT_MS = 30_000;
@@ -30,6 +32,9 @@ export function reconciliationPlan(segments: VideoSegment[]) {
 
 export function verifyRenderConsent(data: VideoJobData, currentQuote: number | null, submittingIndex?: number): void {
   const consent = data.renderConsent;
+  if (generationMode(data) === "direct_references" && (!consent?.referenceDigest || consent.referenceDigest !== referenceDigest(data))) {
+    throw new VideoPipelineError("参考图或角色说明与费用确认时不一致，请重新核对素材与预算。");
+  }
   const indices = consent?.segmentIndices;
   if (!consent || !Number.isFinite(Date.parse(consent.at)) || !Number.isInteger(consent.maxCoins) || consent.maxCoins <= 0 ||
       !Number.isInteger(consent.perSegmentCoins) || consent.perSegmentCoins <= 0 || currentQuote === null ||
@@ -96,7 +101,14 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
       { workerId, revision: job.revision },
     );
     if (problem) throw new LeaseLostError();
-    if (job.phase === "render") verifyRenderConsent(videoData(current!.data), segmentCoinQuote());
+    if (job.phase === "render") {
+      const currentData = videoData(current!.data);
+      verifyRenderConsent(currentData, segmentCoinQuote());
+      if (generationMode(currentData) !== generationMode(data) ||
+        (generationMode(data) === "direct_references" && referenceDigest(currentData) !== referenceDigest(data))) {
+        throw new VideoPipelineError("当前素材与已准备的提交输入不一致，请重新核对。");
+      }
+    }
   };
   /**
    * 记录业务阶段。与租约心跳严格分开：心跳每 20 秒刷 updated_at，但那只说明进程活着；
@@ -114,6 +126,7 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
     await save({ ...(extra.status ? { status: extra.status } : {}), stage: stageText });
   };
   try {
+    const direct = generationMode(data) === "direct_references";
     if (!/^[a-zA-Z0-9_-]+$/.test(job.id)) throw new VideoPipelineError("任务标识无效。");
     const workspace = path.resolve(process.env.VIDEO_WORK_ROOT || path.join(process.cwd(), ".video-work"), job.id);
     await mkdir(workspace, { recursive: true });
@@ -125,21 +138,46 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
     // 不只信上游的 Content-Length：用数据库记录的真实字节数核对落盘长度，不符即失败。
     await privateDownloadTo(sourceAsset.storage_key, source, { expectedBytes: sourceAsset.size_bytes, signal });
 
-    if (job.phase === "prepare") {
+    if (isVideoPreparation(job.phase)) {
       // Resuming an interrupted image attempt could duplicate a charged request; never infer its failure.
       if (data.imageCalls > 0) throw new VideoPipelineError("已有参考图调用记录，请人工核对；不会自动重试生成。");
-      if (!process.env.OPENLUX_API_KEY?.trim()) throw new VideoPipelineError("图像生成服务尚未配置。");
+      if (!direct && !process.env.OPENLUX_API_KEY?.trim()) throw new VideoPipelineError("图像生成服务尚未配置。");
       // 素材合法性必须在任何付费意图之前确定：时长/比例不对就快速拒绝，不进参考帧生成。
       await setStage("source_validate", "正在校验原视频时长与画面比例");
       const info = await inspectSource(source, signal);
-      const product = await prisma.uploadedAsset.findFirst({ where: { id: job.product_asset_id, user_id: job.user_id } });
-      if (!product) throw new VideoPipelineError("产品图片不存在或无权访问。");
-      await setStage("product_download", "正在读取产品图");
-      const productData = await getObjectBytes(product.image_url, { signal, timeoutMs: PRODUCT_IMAGE_TIMEOUT_MS });
+      let productData: Awaited<ReturnType<typeof getObjectBytes>> | undefined;
+      if (direct) {
+        const refs = referenceImagesFor(data);
+        if (refs[0].assetId !== job.product_asset_id) throw new VideoPipelineError("产品图与参考记录不一致。");
+        await setStage("reference_snapshot", "正在校验并保存产品、人物与场景参考图");
+        // Look up every asset with the current owner again; upload alone never implies permission.
+        data.referenceImages = await snapshotReferenceImages(refs, job.id, {
+          read: async assetId => {
+            await checkLease();
+            const asset = await prisma.uploadedAsset.findFirst({ where: { id: assetId, user_id: job.user_id } });
+            if (!asset) throw new VideoPipelineError("参考图片不存在或无权访问。");
+            return (await getObjectBytes(asset.image_url, { signal, timeoutMs: PRODUCT_IMAGE_TIMEOUT_MS, maxBytes: 30 * 1024 * 1024 })).bytes;
+          },
+          write: async (key, bytes) => { await checkLease(); await privateWrite(key, bytes, "image/png", { signal }); },
+        });
+        await save();
+      } else {
+        const product = await prisma.uploadedAsset.findFirst({ where: { id: job.product_asset_id, user_id: job.user_id } });
+        if (!product) throw new VideoPipelineError("产品图片不存在或无权访问。");
+        await setStage("product_download", "正在读取产品图");
+        productData = await getObjectBytes(product.image_url, { signal, timeoutMs: PRODUCT_IMAGE_TIMEOUT_MS });
+      }
       data = { ...data, sourceDuration: info.duration, sourceHasAudio: info.hasAudio, segments: segmentTimeline(info.duration) };
-      await setStage("segment_extract", "正在提取分段和首尾画面");
+      await setStage("segment_extract", direct ? "正在提取原视频动作片段" : "正在提取分段和首尾画面");
       for (const segment of data.segments) {
         await checkLease();
+        if (direct) {
+          const clip = await prepareMotionSegment(source, segment, workspace, signal);
+          segment.clipKey = `videos/${job.id}/segments/${segment.index}/source.mp4`;
+          await privateUploadFile(segment.clipKey, clip, "video/mp4", { signal });
+          await setStage("segment_extract", `第 ${segment.index + 1} 段动作片段已保存`);
+          continue;
+        }
         const files = await prepareSegment(source, segment, workspace, signal);
         segment.clipKey = `videos/${job.id}/segments/${segment.index}/source.mp4`;
         await privateUploadFile(segment.clipKey, files.clip, "video/mp4", { signal });
@@ -151,7 +189,7 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
           await verifyPaidBoundary();
           data.imageCalls += 1;
           await setStage("reference_generate", `正在生成第 ${segment.index + 1} 段${endpoint === "opening" ? "首" : "尾"}帧参考图`);
-          const result = await generateReference({ product: productData, frame, endpoint, instructions: job.instructions, jobId: job.id,
+          const result = await generateReference({ product: productData!, frame, endpoint, instructions: job.instructions, jobId: job.id,
             signal, beforeSubmit: verifyPaidBoundary });
           const key = `videos/${job.id}/segments/${segment.index}/${endpoint}.png`;
           await privateWrite(key, result.bytes, result.mime, { signal });
@@ -159,7 +197,7 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
           await save();
         }
       }
-      await save({ status: "review", stage: "参考图已就绪，请逐段检查首尾画面" });
+      await save({ status: "review", stage: direct ? "参考图与动作片段已就绪，请确认图片角色和费用" : "参考图已就绪，请逐段检查首尾画面" });
       return "safe";
     }
 
@@ -181,12 +219,24 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
     const needsRunner = plan.recoverable.some(s => !s.candidateKey);
     if (needsRunner && !(await runnerReadiness()).ready) throw new VideoPipelineError("Minimax H3 account01 工作环境尚未就绪。");
     let productPath = "";
+    const directPaths: string[] = [];
     if (!reconcile && data.segments.some(s => segmentAction(s, false) === "submit")) {
-      const product = await prisma.uploadedAsset.findFirst({ where: { id: job.product_asset_id, user_id: job.user_id } });
-      if (!product) throw new VideoPipelineError("产品图片不存在或无权访问。");
-      const productData = await getObjectBytes(product.image_url, { signal, timeoutMs: PRODUCT_IMAGE_TIMEOUT_MS, maxBytes: VIDEO_MAX_BYTES });
-      productPath = path.join(workspace, "product-image.png");
-      await writeFile(productPath, await sharp(productData.bytes).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).png().toBuffer());
+      if (direct) {
+        for (const [index, ref] of referenceImagesFor(data).entries()) {
+          const file = path.join(workspace, `reference-${index}.png`);
+          await privateDownloadTo(ref.key!, file, { signal, maxBytes: 30 * 1024 * 1024 });
+          if (createHash("sha256").update(await readFile(file)).digest("hex") !== ref.sha256) {
+            throw new VideoPipelineError("参考图快照校验失败，请重新核对；没有提交生成。");
+          }
+          directPaths.push(file);
+        }
+      } else {
+        const product = await prisma.uploadedAsset.findFirst({ where: { id: job.product_asset_id, user_id: job.user_id } });
+        if (!product) throw new VideoPipelineError("产品图片不存在或无权访问。");
+        const productData = await getObjectBytes(product.image_url, { signal, timeoutMs: PRODUCT_IMAGE_TIMEOUT_MS, maxBytes: VIDEO_MAX_BYTES });
+        productPath = path.join(workspace, "product-image.png");
+        await writeFile(productPath, await sharp(productData.bytes).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).png().toBuffer());
+      }
     }
     for (const segment of plan.recoverable) {
       const action = segmentAction(segment, reconcile);
@@ -196,19 +246,27 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
       await mkdir(segmentWorkspace, { recursive: true });
       if (action === "submit") {
         verifyRenderConsent(data, segmentCoinQuote(), segment.index);
-        if (!segment.clipKey || !segment.openingKey || !segment.endingKey) throw new VideoPipelineError("分段参考素材缺失，请先核对参考图。");
+        if (!segment.clipKey || (!direct && (!segment.openingKey || !segment.endingKey))) throw new VideoPipelineError("分段参考素材缺失，请先核对参考图。");
         const sourcePath = path.join(segmentWorkspace, "source.mp4");
         const openingPath = path.join(segmentWorkspace, "opening.png");
         const endingPath = path.join(segmentWorkspace, "ending.png");
         const segmentProductPath = path.join(segmentWorkspace, "product.png");
-        await copyFile(productPath, segmentProductPath);
         await privateDownloadTo(segment.clipKey, sourcePath, { signal });
-        await privateDownloadTo(segment.openingKey, openingPath, { signal });
-        await privateDownloadTo(segment.endingKey, endingPath, { signal });
+        let referencePaths: [string, string, string] | undefined;
+        if (direct) {
+          if (directPaths.length !== 3) throw new VideoPipelineError("三张参考图快照尚未就绪。");
+          referencePaths = [0, 1, 2].map(i => path.join(segmentWorkspace, `reference-${i}.png`)) as [string, string, string];
+          for (let i = 0; i < 3; i++) await copyFile(directPaths[i], referencePaths[i]);
+        } else {
+          await copyFile(productPath, segmentProductPath);
+          await privateDownloadTo(segment.openingKey!, openingPath, { signal });
+          await privateDownloadTo(segment.endingKey!, endingPath, { signal });
+        }
         segment.submissionIntentAt = new Date().toISOString();
         await setStage("video_submit", `正在提交第 ${segment.index + 1} 段视频`);
-        const receipt = await submitH3({ workspace: segmentWorkspace, sourcePath, productPath: segmentProductPath, openingPath, endingPath,
-          duration: segment.duration, prompt: videoDirection(job.instructions),
+        const receipt = await submitH3({ workspace: segmentWorkspace, sourcePath,
+          ...(referencePaths ? { referencePaths } : { productPath: segmentProductPath, openingPath, endingPath }),
+          duration: segment.duration, prompt: direct ? referenceVideoDirection(referenceImagesFor(data), job.instructions) : videoDirection(job.instructions),
           beforeSubmit: verifyPaidBoundary,
           onBuildId: async buildId => { segment.buildId = buildId; await setStage("video_wait", `第 ${segment.index + 1} 段已提交，等待生成`); },
         });
@@ -261,7 +319,7 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
     await save({ status: "completed", stage: "完整视频已生成，可预览并下载", error: null });
   } catch (error) {
     if (!(error instanceof LeaseLostError) && !leaseLost) {
-      const message = error instanceof VideoPipelineError ? error.message : "视频处理暂未完成；已保留处理记录，请人工核对后继续。";
+      const message = error instanceof VideoPipelineError || error instanceof VideoReferenceInputError ? error.message : "视频处理暂未完成；已保留处理记录，请人工核对后继续。";
       try { await save({ status: data.imageCalls > 0 || data.segments.some(s => s.submissionIntentAt || s.buildId) ? "attention" : "failed", stage: "处理暂停，请核对任务", error: message }); } catch { /* A newer lease/revision owns the record. */ }
     }
   } finally {

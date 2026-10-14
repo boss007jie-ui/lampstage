@@ -74,14 +74,20 @@ export function extractModelFiles(graph: WorkflowGraph, limit = 20): string[] {
   return Array.from(found).slice(0, limit);
 }
 
-/** 请求构造：官方示例要求 Bearer 头；密钥只从进程环境读取，绝不写进日志或报告。 */
+/**
+ * 请求构造。**两处都要给凭据**：
+ *   - `Authorization: Bearer <key>`（官方示例要求）
+ *   - body 里的 `apiKey`（缺了返回 code 1601 `param apiKey is required`）
+ * 实测：只给 Bearer 不给 body apiKey ⇒ "param apiKey is required"；只给 body 不给 Bearer ⇒ 鉴权失败。
+ * 密钥只从进程环境读取，绝不写进日志或报告。
+ */
 export function readOnlyRequest(path: string, apiKey: string, body: Record<string, unknown>): { url: string; init: RequestInit } {
   return {
     url: `${RUNNINGHUB_BASE}${path}`,
     init: {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ apiKey, ...body }),
       signal: AbortSignal.timeout(30_000),
     },
   };

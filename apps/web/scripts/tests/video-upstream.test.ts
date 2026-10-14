@@ -57,14 +57,14 @@ test("both wrapped and flat prompt graphs are accepted; model extraction is scop
   assert.deepEqual(extractModelFiles({ "1": { inputs: { unet_name: "a.safetensors" } }, "2": { inputs: { steps: 4 } } }), ["a.safetensors"]);
 });
 
-test("the read-only request carries a Bearer header and keeps the key out of the URL and body", () => {
+test("the read-only request carries both a Bearer header and a body apiKey, and never puts the key in the URL", () => {
   const key = "test-key-value-not-a-real-secret";
   const { url, init } = readOnlyRequest(WORKFLOW_PATH, key, { workflowId: "2102537586127491074" });
   const headers = init.headers as Record<string, string>;
   assert.equal(headers.Authorization, `Bearer ${key}`);
-  // Key 只允许出现在请求头；URL 与请求体都不得携带
+  // 实测过：只给 Bearer 会被判 "param apiKey is required"，所以 body 必须也带 apiKey。
+  assert.deepEqual(JSON.parse(String(init.body)), { apiKey: key, workflowId: "2102537586127491074" });
+  // 但 Key 绝不能出现在 URL 里（会被日志/代理记录）
   assert.equal(url.includes(key), false);
-  assert.equal(String(init.body).includes(key), false);
-  assert.deepEqual(JSON.parse(String(init.body)), { workflowId: "2102537586127491074" });
   assert.equal(init.method, "POST");
 });

@@ -36,7 +36,7 @@ export async function readImageReferences(input: GenInput, maxReferences: number
 }
 
 /** Decode downloaded bytes before a request can count as a successful generation. */
-export async function resolveImageBytes(image: { b64: string } | { url: string }): Promise<ImageReference> {
+export async function resolveImageBytes(image: { b64: string } | { url: string }, signal?: AbortSignal): Promise<ImageReference> {
   let bytes: Buffer;
   if ("b64" in image) bytes = Buffer.from(image.b64, "base64");
   else if (image.url.startsWith("data:")) {
@@ -46,7 +46,8 @@ export async function resolveImageBytes(image: { b64: string } | { url: string }
   } else {
     const remote = new URL(image.url);
     if (remote.protocol !== "https:" || remote.username || remote.password) throw new Error("Invalid image download address.");
-    const response = await fetch(remote, { signal: AbortSignal.timeout(60_000) });
+    const deadline = AbortSignal.timeout(60_000);
+    const response = await fetch(remote, { signal: signal ? AbortSignal.any([signal, deadline]) : deadline });
     if (!response.ok) throw new Error(`Image download failed (${response.status}).`);
     bytes = Buffer.from(await response.arrayBuffer());
   }

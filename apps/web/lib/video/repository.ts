@@ -15,6 +15,9 @@ export function jobView(job: VideoJob & { source_asset?: VideoAsset }): VideoJob
     instructions: job.instructions, preserve_audio: job.preserve_audio,
     source_url: media("source"), product_url: media("product"), source_duration: data.sourceDuration ?? null,
     error: job.error, created_at: job.created_at.toISOString(), updated_at: job.updated_at.toISOString(),
+    // 业务进展与数据库 updated_at 分开：后者会被 20 秒一次的租约心跳刷新，不能当业务推进的证据。
+    progress_updated_at: data.progress?.lastProgressAt ?? null,
+    stage_code: data.progress?.stageCode ?? null,
     segments: data.segments.map(s => ({ index: s.index, start: s.start, duration: s.duration,
       opening_url: s.openingKey ? media("opening", s.index) : null,
       ending_url: s.endingKey ? media("ending", s.index) : null,

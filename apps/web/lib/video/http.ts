@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { privateStorageReady } from "./storage";
-import { VIDEO_MAX_BYTES, segmentCoinQuote, type VideoCapabilities } from "./types";
+import { videoMaintenanceReason, videoWorkerPaused } from "./control";
+import { VIDEO_MAX_BYTES, VIDEO_MAX_SECONDS, VIDEO_MIN_SECONDS, segmentCoinQuote, type VideoCapabilities } from "./types";
 
 export class VideoHttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -29,6 +30,9 @@ export async function workerState() {
   return prisma.videoWorker.findFirst({ where: { heartbeat_at: { gt: new Date(Date.now() - 60000) } }, orderBy: { heartbeat_at: "desc" } });
 }
 export async function requireVideoWorker(video = false) {
+  // 运维暂停 / 付费开关关闭时统一在入口拦下：不写意图、不领任务、不产生付费调用。
+  const maintenance = videoMaintenanceReason();
+  if (maintenance) throw new VideoHttpError(503, maintenance);
   if (!privateStorageReady()) throw new VideoHttpError(503, "私有视频存储尚未配置。");
   const worker = await workerState();
   if (!worker) throw new VideoHttpError(503, "视频处理服务尚未启动，暂时无法提交。");
@@ -36,9 +40,12 @@ export async function requireVideoWorker(video = false) {
   if (video && !worker.video_ready) throw new VideoHttpError(503, "RunningHub 01 视频服务尚未就绪。");
 }
 export async function videoCapabilities(): Promise<VideoCapabilities> {
+  const maintenance = videoMaintenanceReason();
+  const paused = videoWorkerPaused() || maintenance !== null;
   const result: VideoCapabilities = { beta: true, signed_in: false, eligible: false, database_ready: false,
     storage_ready: privateStorageReady(), worker_ready: false, image_ready: false, video_ready: false, ready: false, reason: null,
-    limits: { min_seconds: 4, max_seconds: 15, max_bytes: VIDEO_MAX_BYTES, aspect_ratio: "9:16", resolution: "768P" },
+    paused, maintenance,
+    limits: { min_seconds: VIDEO_MIN_SECONDS, max_seconds: VIDEO_MAX_SECONDS, max_bytes: VIDEO_MAX_BYTES, aspect_ratio: "9:16", resolution: "768P" },
     pricing: { per_segment_coins: segmentCoinQuote(), image_billing: "internal_beta" } };
   try {
     const user = await getCurrentUser();
@@ -50,8 +57,10 @@ export async function videoCapabilities(): Promise<VideoCapabilities> {
     result.image_ready = worker?.image_ready ?? false;
     result.video_ready = worker?.video_ready ?? false;
   } catch { result.reason = "数据库连接或视频数据表尚未就绪。"; }
-  result.ready = result.database_ready && result.storage_ready && result.worker_ready && result.image_ready && result.video_ready && result.pricing.per_segment_coins !== null;
-  result.reason ??= !result.storage_ready ? "私有视频存储尚未配置。" : !result.worker_ready ? "视频处理服务尚未启动。" : !result.image_ready ? "图片生成工具尚未就绪。" : !result.video_ready ? "RunningHub 01 视频连接待配置。" : result.pricing.per_segment_coins === null ? "视频费用预估尚未配置。" : null;
+  // ready 表示"现在真的能跑"：暂停/未开放时即使数据库和密钥都在，也不能显示为可用。
+  result.ready = !paused && result.database_ready && result.storage_ready && result.worker_ready && result.image_ready && result.video_ready && result.pricing.per_segment_coins !== null;
+  result.reason ??= paused ? maintenance
+    : !result.storage_ready ? "私有视频存储尚未配置。" : !result.worker_ready ? "视频处理服务尚未启动。" : !result.image_ready ? "图片生成工具尚未就绪。" : !result.video_ready ? "RunningHub 01 视频连接待配置。" : result.pricing.per_segment_coins === null ? "视频费用预估尚未配置。" : null;
   return result;
 }
 export async function videoRoute(action: () => Promise<Response>): Promise<Response> {

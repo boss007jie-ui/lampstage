@@ -1,0 +1,17 @@
+---
+name: video-generation
+description: Use when a user requests reference-video replication, product or character replacement, infant clothing demonstrations, background changes, or review of a generated video.
+---
+
+# Video generation
+
+For 婴儿服装、童装、宝宝穿衣、换宝宝、换妈妈 or 床单换色, **read [infant-clothing.md](references/infant-clothing.md) before planning or calling generation tools**. Use [replication-review-template.md](references/replication-review-template.md) for the production brief, attempts and final review. These references ship inside this package.
+
+1. Collect the source, product, approved identities, changes, preserved elements, audio instructions and existing budget authorization. Reuse already confirmed facts. Separate identity, product structure, scene, final dressed state and motion references; a final-state image does not demonstrate the missing action. List required actions with before → contact/operation → after states.
+2. Check `health`, `capabilities` and actual tool input schemas. A generic `available` or healthy API is not proof that a worker or requested control works. Reference clips must be **4–30 seconds** and 9:16 vertical; the platform splits a longer source into upstream-sized 4–5 second segments, so the whole clip is never sent to the model as one long generation. The current `create_video_job` accepts `source_asset_id`, `product_asset_id`, `title`, `instructions`, `preserve_audio`; it has no independent baby/mother identity slots, custom timeline, mask recoloring, selected-segment submission or narration mixing. Uploaded anchors and text instructions do not establish those controls. If an essential requirement lacks a supported input or tool, prepare the brief and explain the exact gap; do not submit a paid approximation. Do not invent parameters, change tools or accounts, or silently relax the requirement.
+3. `prepare_video_job` generates reference images as well as inspecting video; it may consume generation credits. Confirm that existing authorization covers this work and its known cost/budget before calling it. If cost is unavailable, state that fact and resolve the allowed scope; do not call it free. Use `create_video_job`, keep the ID, then prepare once within authorization.
+4. Review the actual segments and opening/ending frames against the brief. Present the current estimate and obtain approval of the frames and rendering budget before `render_video_job` with `max_coins`. Reuse valid prior authorization instead of asking again. Do not treat an estimate or requested cap as a guaranteed upstream cost limit. If a critical action is cut, missing, or unsupported, resolve it before rendering.
+5. Poll the same ID with `get_job` and bounded backoff. A timeout is unknown: query the existing job; never rebuild or re-submit just to escape a wait. Surface failed/attention states. Record every attempt, including unused paid outputs and unsettled costs; any paid repair must fit authorized scope and remaining budget.
+6. After completion, inspect the actual encoded video for identity, product, action order, contact/occlusion, joins, background and audio. A completed job or decodable file is not quality approval. Mark unperformed playback/listening checks as pending and return the result as awaiting review. Preserve approved versions and repair only affected material where the available tools support that scope. Never promise one-shot success from isolated cases.
+
+Keep credentials secret. Do not publish content without the user's authorization.

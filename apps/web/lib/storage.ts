@@ -159,7 +159,12 @@ export async function deleteObject(urlOrKey: string): Promise<void> {
  */
 export async function getObjectBytes(
   urlOrKey: string,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<{ bytes: Buffer; mime: string }> {
+  // 不传 signal/timeoutMs 时行为与以前完全一致（图片通道不受影响）。
+  const signal = options.signal
+    ? (options.timeoutMs ? AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs)]) : options.signal)
+    : (options.timeoutMs ? AbortSignal.timeout(options.timeoutMs) : undefined);
   // 还原成 key
   let key = urlOrKey;
   const base = publicBase();
@@ -167,7 +172,7 @@ export async function getObjectBytes(
     key = key.slice(base.length + 1);
   } else if (key.startsWith("http://") || key.startsWith("https://")) {
     // 远程 URL 但不是我们的 R2 公开域名：直接 fetch
-    const r = await fetch(key);
+    const r = await fetch(key, { signal });
     if (!r.ok) {
       throw new Error(`fetch ${key} failed: ${r.status}`);
     }
@@ -186,6 +191,7 @@ export async function getObjectBytes(
         Bucket: process.env.R2_BUCKET!,
         Key: key,
       }),
+      { abortSignal: signal },
     );
     const stream = obj.Body as unknown as AsyncIterable<Uint8Array>;
     const chunks: Buffer[] = [];

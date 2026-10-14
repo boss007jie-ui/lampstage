@@ -4,14 +4,21 @@ import { randomUUID } from "node:crypto";
 loadEnvConfig(process.cwd());
 
 async function main() {
-  const [{ prisma }, { claimJob }, { processVideoJob }, { runnerReadiness }, { mediaReadiness }] = await Promise.all([
-    import("../lib/db"), import("../lib/video/repository"), import("../lib/video/processor"), import("../lib/video/hypit-runner"), import("../lib/video/media"),
+  const [{ prisma }, { claimJob }, { processVideoJob }, { runnerReadiness }, { mediaReadiness }, { shouldClaimJobs, videoMaintenanceReason }] = await Promise.all([
+    import("../lib/db"), import("../lib/video/repository"), import("../lib/video/processor"), import("../lib/video/hypit-runner"), import("../lib/video/media"), import("../lib/video/control"),
   ]);
   const id = `video-${randomUUID()}`;
   let stopping = false;
+  // 付费结果不明（已写 intent / 已产生 imageCalls 而进入 attention）时必须停手等人工核对，
+  // 不能接着领下一个任务继续花钱。保留心跳，让外部能看到"worker 还在但已停领"。
+  let halted = false;
   let beatBusy = false;
-  process.on("SIGINT", () => { stopping = true; });
-  process.on("SIGTERM", () => { stopping = true; });
+  // SIGTERM/SIGINT 不只是置一个"等任务结束才读"的布尔值：同时 abort 进行中的可取消 I/O。
+  // 但容器被终止仍可能在上游留下未知状态，所以这不等于"可以安全重试"。
+  const stopController = new AbortController();
+  const requestStop = () => { stopping = true; stopController.abort(); };
+  process.on("SIGINT", requestStop);
+  process.on("SIGTERM", requestStop);
   const beat = async () => {
     if (beatBusy) return;
     beatBusy = true;
@@ -19,21 +26,42 @@ async function main() {
       await prisma.videoJob.count();
       const media = await mediaReadiness();
       const runner = await runnerReadiness();
+      const paused = !shouldClaimJobs();
       const image = Boolean(process.env.OPENLUX_API_KEY?.trim()) && media;
       const video = media && runner.ready;
-      const fields = { heartbeat_at: new Date(), image_ready: image, video_ready: video, detail: media ? (runner.ready ? null : "account01 视频环境未就绪") : "FFmpeg 未就绪" };
+      // 暂停期间照常心跳：这是"进程还活着、但按维护态不干活"的唯一证据。
+      const detail = paused ? (videoMaintenanceReason() ?? "已暂停")
+        : halted ? "有待人工核对的任务，已停止领取新任务"
+        : media ? (runner.ready ? null : "account01 视频环境未就绪") : "FFmpeg 未就绪";
+      const fields = { heartbeat_at: new Date(), image_ready: image, video_ready: video, detail };
       await prisma.videoWorker.upsert({ where: { id }, create: { id, ...fields }, update: fields });
     } finally { beatBusy = false; }
   };
   await beat();
   console.info("Video worker started; paid work requires a queued job and persisted consent.");
+  let announcedPause = !shouldClaimJobs();
+  if (announcedPause) console.info("Video worker paused; will not claim jobs.", videoMaintenanceReason());
   const timer = setInterval(() => { void beat().catch(() => console.error("Video worker heartbeat failed.")); }, 20_000);
   try {
     while (!stopping) {
       try {
+        // 暂停时**完全不碰队列**：claimJob 有副作用（会把租约过期的任务批量置为 attention），
+        // 不能拿它当"只读检查"。免费预检走独立 CLI，不靠放开领取开关运行。
+        if (!shouldClaimJobs() || halted) {
+          if (!announcedPause) { console.info("Video worker paused; will not claim jobs.", videoMaintenanceReason()); announcedPause = true; }
+          await new Promise(resolve => setTimeout(resolve, 5_000));
+          continue;
+        }
+        announcedPause = false;
         const job = await claimJob(id);
-        if (job) await processVideoJob(job, id);
-        else await new Promise(resolve => setTimeout(resolve, 2_000));
+        if (job) {
+          await processVideoJob(job, id, { signal: stopController.signal });
+          const after = await prisma.videoJob.findFirst({ where: { id: job.id }, select: { status: true } });
+          if (after?.status === "attention") {
+            halted = true;
+            console.error("Video worker halted: job needs manual review; not claiming further jobs.", job.id);
+          }
+        } else await new Promise(resolve => setTimeout(resolve, 2_000));
       } catch { console.error("Video worker queue check failed."); await new Promise(resolve => setTimeout(resolve, 5_000)); }
     }
   } finally {

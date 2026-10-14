@@ -33,6 +33,11 @@ export interface GenInput {
   outputCount: number;
   /** 可选：关联的生成任务 id，仅用于调用日志（ToolCallLog） */
   jobId?: string;
+  /**
+   * 可选：父级取消信号（视频任务 STOP 时用）。
+   * 不传时行为与以前完全一致——图片通道不受影响。
+   */
+  signal?: AbortSignal;
 }
 
 /** 单次调用结果：要么拿到 1 张图，要么失败。 */

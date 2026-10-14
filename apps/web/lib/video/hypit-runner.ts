@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { access, copyFile, mkdir, open, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { assertVideoPaidGenerationEnabled } from './control';
 
 export const H3_PROVIDER = 'hypit-provider-runninghub-product-v6';
 export const H3_CAPABILITY = '@hypit/minimax-h3@1#minimax-h3';
@@ -114,9 +115,18 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
   async function submitH3(input: {
     workspace: string; sourcePath: string; productPath: string; openingPath: string; endingPath: string;
     prompt: string; duration: 4 | 5; onBuildId: (id: string) => Promise<void>;
+    /**
+     * 付费提交前的最后一道闸门：读**当前数据库状态**核对开关、租约、revision 与已保存的
+     * renderConsent。放在 intent 落库之前——一旦写了 intent 就进入"意图已持久化"的模糊区，
+     * 那时再拒绝会把任务卡进人工核对。
+     */
+    beforeSubmit?: () => Promise<void>;
   }): Promise<{ buildId: string }> {
     if (input.duration !== 4 && input.duration !== 5) throw new Error('H3 requires a 4 or 5 second source window.');
     if (!input.prompt.trim() || input.prompt.length > 20000) throw new Error('Invalid H3 prompt.');
+    // 快速失败：付费开关关闭时连本地 check/plan 都不做，绝不触碰 build。
+    // 用 runner 自己的 env，避免模拟测试误读生产环境。
+    assertVideoPaidGenerationEnabled(env);
     const cfg = await configuration();
     const ready = await runnerReadiness();
     if (!ready.ready) throw new Error(ready.reason);
@@ -144,6 +154,7 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
       plan.preflight?.ok !== true || !Array.isArray(plan.providers) || plan.providers.length !== 1 ||
       plan.providers[0].endpoint !== H3_ENDPOINT || plan.providers[0].use !== H3_PROVIDER || plan.providers[0].status !== 'resolved')
       throw new Error('H3 preflight did not resolve exactly one account 01 video request.');
+    await input.beforeSubmit?.();
     await writeFile(path.join(workspace, 'hypit-submission-intent.json'), JSON.stringify({ account: '01', output: OUTPUT, createdAt: new Date().toISOString() }), { flag: 'wx' });
     let buildId: string | undefined;
     try {

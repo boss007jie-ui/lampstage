@@ -40,18 +40,22 @@ export function createOpenLuxImageProvider(id: ImageModelId, overrides: Partial<
         const key = dependencies.apiKey();
         const references = await dependencies.readReferences(input, model.maxReferences);
         const body = isNano ? JSON.stringify(buildNano21Request(input.prompt, references)) : buildImage25Request(input.prompt, references);
+        // 发送前再确认一次父信号：避免"外层等待已取消，图片请求照旧发出去"。
+        input.signal?.throwIfAborted();
+        const deadline = AbortSignal.timeout(input.requestTimeoutMs || 180_000);
         const response = await dependencies.fetch(isNano ? NANO_21_ENDPOINT : IMAGE_25_ENDPOINT, {
           method: "POST",
           headers: { Authorization: `Bearer ${key}`, ...(isNano ? { "Content-Type": "application/json" } : {}) },
           body,
-          signal: AbortSignal.timeout(input.requestTimeoutMs || 180_000),
+          // 父信号与本次 deadline 合并：任一触发都真正中断 HTTP 请求。
+          signal: input.signal ? AbortSignal.any([input.signal, deadline]) : deadline,
         });
         httpStatus = response.status;
         if (!response.ok) throw new Error("provider_http_error");
         const payload: unknown = await response.json();
         const image = isNano ? extractGeminiImage(payload) : extractOpenAiImage(payload);
         if (!image) throw new Error("provider_no_image");
-        const verified = await dependencies.resolveImage(image);
+        const verified = await dependencies.resolveImage(image, input.signal);
         result = { ok: true, ...verified };
       } catch {
         // Provider bodies and download URLs can contain secrets or signed links; never expose them.

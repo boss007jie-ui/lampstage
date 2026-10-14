@@ -33,7 +33,9 @@ async function fixture(processOverride?: CliProcess) {
   };
   const files = ['source.mp4', 'product.png', 'opening.png', 'ending.png'].map(file => path.join(workspace, file));
   await Promise.all(files.map(file => writeFile(file, 'test')));
-  const runner = createHypitRunner({ env: { VIDEO_HYPIT_RUNTIME: runtime, VIDEO_HYPIT_CLI: cli }, process: processOverride ?? mock });
+  // 显式注入"允许付费生成"：runner 的付费闸门默认关闭（fail-closed），
+  // 模拟测试必须自己声明允许值，不能依赖真实环境变量或真实密钥。
+  const runner = createHypitRunner({ env: { VIDEO_HYPIT_RUNTIME: runtime, VIDEO_HYPIT_CLI: cli, VIDEO_PAID_GENERATION_ENABLED: 'true' }, process: processOverride ?? mock });
   const input = { workspace, sourcePath: files[0], productPath: files[1], openingPath: files[2], endingPath: files[3], duration: 4 as const, prompt: 'A & B <camera> "focus"', onBuildId: async (_id: string) => {} };
   return { root, runtime, workspace, profile, runner, input, calls, mock };
 }

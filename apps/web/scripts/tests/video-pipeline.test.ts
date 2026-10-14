@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { assembleVideo, inspectSource, prepareSegment, probeMedia, segmentTimeline } from "../../lib/video/media";
+import { VIDEO_MAX_SECONDS } from "../../lib/video/types";
 import { execFile } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
@@ -11,8 +12,8 @@ import type { VideoJobData } from "../../lib/video/types";
 import type { prisma } from "../../lib/db";
 import { claimJob, heartbeatLease, LeaseLostError, patchJob } from "../../lib/video/repository";
 
-test("4–15 second source windows cover the entire timeline without omitted tail", () => {
-  for (const seconds of [4, 4.01, 4.9, 5, 5.01, 6, 7.5, 8, 9.99, 10, 10.01, 11, 12, 14.99, 15]) {
+test("4–30 second source windows cover the entire timeline without omitted tail", () => {
+  for (const seconds of [4, 4.01, 4.9, 5, 5.01, 6, 7.5, 8, 9.99, 10, 10.01, 11, 12, 14.99, 15, 15.01, 16.3, 20, 25, 29.99, 30]) {
     const segments = segmentTimeline(seconds);
     let cursor = 0;
     let assembledDuration = 0;
@@ -25,12 +26,42 @@ test("4–15 second source windows cover the entire timeline without omitted tai
       cursor += length;
     }
     assert.ok(Math.abs(assembledDuration - seconds) < 0.00001);
-    assert.ok(segments.length <= 3);
+    // 新契约：30 秒上限 ⇒ 最多 6 段（每段上游固定 4/5 秒）。仍要求完整覆盖时间轴，不放松。
+    assert.ok(segments.length <= Math.ceil(VIDEO_MAX_SECONDS / 4));
+    assert.equal(segments.length, segmentTimeline(seconds).length);
   }
 });
 
 test("invalid source durations reject before generation", () => {
-  for (const value of [NaN, Infinity, 0, 3.99, 15.001, 15.1]) assert.throws(() => segmentTimeline(value));
+  // 平台契约：参考片总时长 4–30 秒（单一来源 VIDEO_MIN_SECONDS / VIDEO_MAX_SECONDS）。
+  for (const value of [NaN, Infinity, 0, 3.99, 30.001]) assert.throws(() => segmentTimeline(value));
+  for (const value of [4, 4.01, 5, 5.01, 15, 15.01, 16.3, 29.99, 30]) assert.doesNotThrow(() => segmentTimeline(value));
+});
+
+test("a 16.3 second source is covered end to end without losing or duplicating the tail", () => {
+  const segments = segmentTimeline(16.3);
+  assert.deepEqual(segments.map(s => ({
+    start: Number(s.start.toFixed(3)), duration: s.duration,
+    trimStart: Number(s.trimStart.toFixed(3)),
+  })), [
+    { start: 0, duration: 5, trimStart: 0 },
+    { start: 5, duration: 5, trimStart: 0 },
+    { start: 10, duration: 5, trimStart: 0 },
+    { start: 12.3, duration: 4, trimStart: 2.7 },
+  ]);
+  // 每一段都必须在源片范围内，且时间轴连续覆盖到片尾。
+  for (const segment of segments) assert.ok(segment.start + segment.duration <= 16.3 + 1e-6);
+  const tail = segments[segments.length - 1];
+  assert.equal(Number((tail.start + tail.duration).toFixed(3)), 16.3);
+  assert.equal(segments[segments.length - 1].index, segments.length - 1);
+});
+
+test("30 seconds uses six upstream-sized segments, never a single long one", () => {
+  const segments = segmentTimeline(30);
+  assert.equal(segments.length, 6);
+  for (const segment of segments) assert.ok(segment.duration === 4 || segment.duration === 5);
+  const tail = segments[segments.length - 1];
+  assert.equal(Number((tail.start + tail.duration).toFixed(3)), 30);
 });
 
 test("an ambiguous submission can never be submitted again", () => {

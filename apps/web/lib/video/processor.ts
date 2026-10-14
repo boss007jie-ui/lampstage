@@ -73,7 +73,8 @@ export async function processVideoJob(initial: VideoJob, workerId: string): Prom
     const sourceAsset = await prisma.videoAsset.findFirst({ where: { id: job.source_asset_id, user_id: job.user_id, status: "ready" } });
     if (!sourceAsset) throw new VideoPipelineError("原视频不存在或不可用。");
     const source = path.join(workspace, "source.mp4");
-    await privateDownloadTo(sourceAsset.storage_key, source);
+    // 不只信上游的 Content-Length：用数据库记录的真实字节数核对落盘长度，不符即失败。
+    await privateDownloadTo(sourceAsset.storage_key, source, { expectedBytes: sourceAsset.size_bytes });
 
     if (job.phase === "prepare") {
       // Resuming an interrupted image attempt could duplicate a charged request; never infer its failure.

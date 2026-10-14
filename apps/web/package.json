@@ -14,7 +14,7 @@
     "local:stop": "tsx scripts/local-control.ts stop",
     "local:test": "tsx scripts/tests/local-smoke.ts",
     "video:runtime": "tsx ../../scripts/configure-video-runtime.ts",
-    "video:test": "tsx --test scripts/tests/video-boundaries.test.ts scripts/tests/video-pipeline.test.ts ../../scripts/tests/video-runner.test.ts",
+    "video:test": "tsx --test scripts/tests/video-download.test.ts scripts/tests/video-boundaries.test.ts scripts/tests/video-pipeline.test.ts ../../scripts/tests/video-runner.test.ts",
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",

@@ -1,39 +1,79 @@
 "use client";
+
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, CheckCircle, Key, PlugsConnected, BracketsCurly } from "@phosphor-icons/react";
+import { useState } from "react";
+import { ArrowRight, ArrowUpRight, Play, X } from "@phosphor-icons/react";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { Dialog } from "@/components/ui/Dialog";
 import { useLang } from "@/components/i18n/LangProvider";
+import styles from "./home.module.css";
 
-const cards = [
-  { icon: Key, title: { zh: "个人 API 密钥", en: "Personal API keys" }, body: { zh: "每个账号独立管理密钥、额度和调用记录，创建后只显示一次完整密钥。", en: "Each account manages its own keys, credits and usage history. The full key is shown only once." } },
-  { icon: PlugsConnected, title: { zh: "WorkBuddy Expert 连接", en: "WorkBuddy Expert connection" }, body: { zh: "用 Bearer 鉴权绑定 Expert，让它发现 API 能力并按规则执行任务。", en: "Bind an Expert with Bearer authentication so it can discover capabilities and run governed jobs." } },
-  { icon: BracketsCurly, title: { zh: "版本化 API 与任务", en: "Versioned APIs and jobs" }, body: { zh: "通过稳定的 v1 入口上传素材、创建异步任务、查询状态并取得结果。", en: "Use the stable v1 entry point to upload assets, create async jobs, poll status and retrieve results." } },
-];
+type Study = "image" | "product" | "motion";
 
 export default function HomePage() {
   const { t, lang } = useLang();
-  const zh = lang === "zh";
-  return <><SiteHeader /><main>
-    <section className="home-intro page-container">
-      <div><span className="home-eyebrow">{t("hero_badge")}</span><h1>{t("hero_title")}</h1><p>{t("hero_subtitle")}</p></div>
-      <div className="flex flex-wrap gap-3"><Link href="/developers" className="btn btn-primary">{t("hero_cta_primary")}<ArrowRight size={22} aria-hidden /></Link><Link href="/account" className="btn btn-outline">{t("hero_cta_secondary")}</Link></div>
-    </section>
+  const [study, setStudy] = useState<Study | null>(null);
+  const studyTitle = t(study === "motion" ? "gallery_motion_note" : study === "product" ? "gallery_product" : "gallery_images");
 
-    <section className="page-container py-10 md:py-16" aria-labelledby="api-capabilities-title">
-      <div className="mb-7 max-w-2xl"><span className="section-kicker">{t("showcase_eyebrow")}</span><h2 id="api-capabilities-title" className="page-heading mt-3">{t("showcase_title")}</h2></div>
-      <div className="grid gap-4 md:grid-cols-3">{cards.map(({ icon: Icon, title, body }) => <article className="surface p-6" key={title.en}><div className="mb-5 grid h-11 w-11 place-items-center rounded-xl bg-[#f0f1e9] text-[var(--color-accent)]"><Icon size={23} /></div><h3 className="text-lg font-semibold">{zh ? title.zh : title.en}</h3><p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">{zh ? body.zh : body.en}</p></article>)}</div>
-    </section>
-    <section id="how-it-works" className="home-how page-container">
-      <div><h2>{t("how_title")}</h2><p>{zh ? "从创建密钥到任务查询，网站只保留接入 WorkBuddy 所需的关键路径。" : "From key creation to job polling, the site keeps the path focused on connecting WorkBuddy."}</p></div>
-      <ol><li><span className="step-icon"><Key size={24} aria-hidden /></span><span>{t("how_step1_title")}</span></li><li><ArrowRight className="step-arrow" size={20} aria-hidden /><span className="step-icon"><PlugsConnected size={24} aria-hidden /></span><span>{t("how_step2_title")}</span></li><li><ArrowRight className="step-arrow" size={20} aria-hidden /><span className="step-icon"><CheckCircle size={24} aria-hidden /></span><span>{t("how_step3_title")}</span></li></ol>
-    </section>
-    <section className="home-preparation page-container">
-      <div><span className="section-kicker">API v1</span><h2>{zh ? "为你的 Expert 准备一条清晰的接入路径。" : "Give your Expert a clear integration path."}</h2></div>
-      <div><p>{zh ? "先创建个人 API Key，再把 https://lampstage.com/api/mcp 和 Bearer 密钥配置到 WorkBuddy Connector。开发者页提供发现接口、连接器约定和 Expert 包说明。" : "Create a personal API key, then configure https://lampstage.com/api/mcp and the Bearer secret in your WorkBuddy Connector. The Developers page has discovery endpoints, connector conventions and the Expert package details."}</p><Link href="/developers" className="text-link">{t("showcase_cta")}<ArrowRight size={17} aria-hidden /></Link></div>
-    </section>
-    <section className="home-start page-container"><div><h2>{zh ? "现在就把 WorkBuddy Expert 接上。" : "Connect your WorkBuddy Expert now."}</h2><p>{zh ? "创建密钥、导入 Expert，再从 API 目录开始第一次调用。" : "Create a key, import the Expert and make the first call from the API catalog."}</p></div>
-      <div className="home-start-actions"><Link href="/developers" className="btn btn-primary">{t("hero_cta_primary")}<ArrowRight size={19} /></Link><Link href="/account" className="text-link">{t("hero_cta_secondary")}</Link></div>
-    </section>
-  </main><SiteFooter /></>;
+  return <>
+    <SiteHeader />
+    <main id="main-content" className={styles.home}>
+      <section className={styles.intro} aria-labelledby="gallery-title">
+        <h1 id="gallery-title" className={lang === "en" ? styles.englishTitle : undefined}>
+          <span>{t("gallery_headline_first")}</span><span>{t("gallery_headline_second")}</span>
+        </h1>
+        <div className={styles.introSide}>
+          <p>{t("gallery_intro")}</p>
+          <div className={styles.actions}>
+            <Link href="/developers" className={styles.primary}>{t("gallery_connect")}<ArrowUpRight size={20} aria-hidden /></Link>
+            <Link href="/developers#quickstart" className={styles.secondary}>{t("gallery_read_guide")}<ArrowRight size={19} aria-hidden /></Link>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.gallery} aria-label={t("gallery_label")}>
+        <figure className={styles.heroFigure}>
+          <button type="button" className={styles.photo} onClick={() => setStudy("image")} aria-label={t("gallery_view_image")}>
+            <Image src="/brand-gallery/campaign-bottle.webp" alt={t("gallery_bottle_alt")} fill priority sizes="(max-width: 700px) 92vw, 60vw" />
+          </button>
+          <figcaption><span><b>01</b>{t("gallery_label")}</span><span>/ &nbsp; {t("gallery_images")}</span></figcaption>
+        </figure>
+        <div className={styles.sideGallery}>
+          <figure>
+            <button type="button" className={styles.photo} onClick={() => setStudy("product")} aria-label={t("gallery_view_product")}>
+              <Image src="/brand-gallery/sculptural-lamp.webp" alt={t("gallery_lamp_alt")} fill priority sizes="(max-width: 700px) 92vw, 36vw" />
+            </button>
+            <figcaption><span><b>02</b>{t("gallery_label")}</span><span>/ &nbsp; {t("gallery_product")}</span></figcaption>
+          </figure>
+          <figure>
+            <button type="button" className={`${styles.photo} ${styles.motionPhoto}`} onClick={() => setStudy("motion")} aria-label={t("gallery_play_video")}>
+              <Image src="/brand-gallery/lamp-film-poster.webp" alt={t("gallery_film_alt")} fill sizes="(max-width: 700px) 92vw, 36vw" />
+              <span className={styles.play}><Play size={27} weight="fill" aria-hidden /></span>
+              <span className={styles.duration} aria-hidden>00:08</span>
+            </button>
+            <figcaption><span><b>03</b>{t("gallery_film_label")}</span><span>/ &nbsp; {t("gallery_video")}</span></figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section id="how-it-works" className={styles.next}>
+        <h2>{t("gallery_next_title")}</h2>
+        <p>{t("gallery_next_body")}</p>
+        <Link href="/developers#quickstart" className={styles.nextLink} aria-label={t("gallery_read_guide")}><ArrowUpRight size={32} aria-hidden /></Link>
+      </section>
+    </main>
+    <SiteFooter />
+
+    <Dialog open={study !== null} onClose={() => setStudy(null)} titleId="study-title" className={styles.studyDialog}>
+      <div className={styles.studyHeading}>
+        <div><span>{t(study === "motion" ? "gallery_film_label" : "gallery_label")}</span><h2 id="study-title">{studyTitle}</h2></div>
+        <button type="button" className="icon-button" onClick={() => setStudy(null)} aria-label={t("gallery_close")}><X size={23} aria-hidden /></button>
+      </div>
+      {study === "motion" ? <video className={styles.studyVideo} src="/brand-gallery/lamp-day-to-light.mp4" poster="/brand-gallery/lamp-film-poster.webp" controls autoPlay muted playsInline tabIndex={0} aria-label={t("gallery_motion_note")} aria-describedby="study-note" /> :
+        <Image src={study === "product" ? "/brand-gallery/sculptural-lamp.webp" : "/brand-gallery/campaign-bottle.webp"} alt={t(study === "product" ? "gallery_lamp_alt" : "gallery_bottle_alt")} width={study === "product" ? 1200 : 1322} height={study === "product" ? 800 : 1190} className={styles.studyImage} />}
+      <p id="study-note" className={styles.studyNote}>{t(study === "motion" ? "gallery_motion_description" : "gallery_detail_note")}</p>
+    </Dialog>
+  </>;
 }

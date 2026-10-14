@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 import { LangProvider } from "@/components/i18n/LangProvider";
 import { type Lang, t } from "@/lib/brand";
+import { BrandMotionProvider } from "@/components/brand/BrandMotion";
 
 function readLangFromCookies(): Lang {
   const v = cookies().get("lang")?.value;
@@ -34,7 +35,7 @@ export default function RootLayout({
   return (
     <html lang={lang === "zh" ? "zh-CN" : "en"}>
       <body className="antialiased">
-        <LangProvider initialLang={lang}>{children}</LangProvider>
+        <LangProvider initialLang={lang}><BrandMotionProvider>{children}</BrandMotionProvider></LangProvider>
       </body>
     </html>
   );

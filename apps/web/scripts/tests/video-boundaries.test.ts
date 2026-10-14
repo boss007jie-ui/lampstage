@@ -10,14 +10,20 @@ import type { VideoJobData } from "../../lib/video/types";
 function data(): VideoJobData {
   return { version: 1, imageCalls: 4, segments: [0, 1].map(index => ({ index, start: index * 5, duration: 5, trimStart: 0, clipKey: "clip", openingKey: "opening", endingKey: "ending" })) };
 }
-test("render requires known quote, complete refs and sufficient explicit budget", () => {
-  assert.equal(validateRenderConsent(data(), 1000, null).ok, false);
+test("render requires complete refs and sufficient explicit budget; unpriced mode still demands a cap", () => {
+  // 未定价模式（explicit）：单段报价未配置时不再硬拒，但必须给出明确的整数上限，
+  // 并标记为 unpriced_technical_cap，让核算知道这不是已定价报价。
+  assert.equal(validateRenderConsent(data(), 0, null).ok, false);
+  assert.equal(validateRenderConsent(data(), 1.5, null).ok, false);
+  assert.equal(validateRenderConsent(data(), 2_000_000, null).ok, false);
+  assert.deepEqual(validateRenderConsent(data(), 1000, null),
+    { ok: true, estimate: null, maxCoins: 1000, quote: null, pricingBasis: "unpriced_technical_cap", segmentIndices: [0, 1] });
   assert.equal(validateRenderConsent(data(), 199, 100).ok, false);
   assert.equal(validateRenderConsent(data(), "200", 100).ok, false);
   const incomplete = data(); delete incomplete.segments[0].openingKey;
   assert.equal(validateRenderConsent(incomplete, 200, 100).ok, false);
   const allowed = validateRenderConsent(data(), 200, 100);
-  assert.deepEqual(allowed, { ok: true, estimate: 200, maxCoins: 200, quote: 100, segmentIndices: [0, 1] });
+  assert.deepEqual(allowed, { ok: true, estimate: 200, maxCoins: 200, quote: 100, pricingBasis: "configured_quote", segmentIndices: [0, 1] });
 });
 test("an ambiguous prior submission cannot be purchased again; completed segments are reused", () => {
   const ambiguous = data(); ambiguous.segments[0].submissionIntentAt = new Date().toISOString();
@@ -25,7 +31,7 @@ test("an ambiguous prior submission cannot be purchased again; completed segment
   ambiguous.segments[0].buildId = "bld-existing";
   assert.equal(validateRenderConsent(ambiguous, 200, 100).ok, false);
   ambiguous.segments[0].candidateKey = "saved-candidate";
-  assert.deepEqual(validateRenderConsent(ambiguous, 100, 100), { ok: true, estimate: 100, maxCoins: 100, quote: 100, segmentIndices: [1] });
+  assert.deepEqual(validateRenderConsent(ambiguous, 100, 100), { ok: true, estimate: 100, maxCoins: 100, quote: 100, pricingBasis: "configured_quote", segmentIndices: [1] });
 });
 test("private keys cannot traverse or escape the video namespace", () => {
   for (const key of ["../public/a.mp4", "videos/u/../a.mp4", "/videos/u/a.mp4", "uploads/u/a.mp4", "videos/u/a\\b.mp4", "videos/u/a?key=secret"]) assert.throws(() => validatePrivateKey(key));

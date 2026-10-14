@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db";
 import { readVideoJson, requireVideoUser, requireVideoWorker, videoRoute, VideoHttpError } from "@/lib/video/http";
 import { ownedVideoJob, viewVideoJob } from "@/lib/video/projects";
 import { isVideoPreparation, segmentCoinQuote, videoData } from "@/lib/video/types";
-import { validateRenderConsent } from "@/lib/video/consent";
+import { checkReviewToken, validateRenderConsent } from "@/lib/video/consent";
+import { reviewToken } from "@/lib/video/review-token";
 import { generationMode } from "@/lib/video/reference-inputs";
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) { return videoRoute(async () => {
   const user = await requireVideoUser(request);
@@ -14,10 +15,14 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const input = await readVideoJson(request);
   if (input.confirm_references !== true || input.accept_estimate !== true) throw new VideoHttpError(400, "请确认参考图并接受本次费用预估。");
   const data = videoData(job.data);
+  // 旧入口同样必须回传审阅标识：不能让"网页/旧路径"绕过展示与提交之间的版本绑定。
+  const review = checkReviewToken(input.review_token, reviewToken({ jobId: job.id, data, quote: segmentCoinQuote() }));
+  if (!review.ok) throw new VideoHttpError(review.status, review.reason);
   const consent = validateRenderConsent(data, input.max_coins, segmentCoinQuote());
   if (!consent.ok) throw new VideoHttpError(400, consent.reason);
   await requireVideoWorker(true, generationMode(data) !== "direct_references");
-  data.renderConsent = { at: new Date().toISOString(), maxCoins: consent.maxCoins, estimatedCoins: consent.estimate, perSegmentCoins: consent.quote, segmentIndices: consent.segmentIndices,
+  data.renderConsent = { at: new Date().toISOString(), maxCoins: consent.maxCoins, estimatedCoins: consent.estimate, perSegmentCoins: consent.quote,
+    pricingBasis: consent.pricingBasis, segmentIndices: consent.segmentIndices,
     ...(consent.referenceDigest ? { referenceDigest: consent.referenceDigest } : {}) };
   const update = await prisma.videoJob.updateMany({ where: { id: job.id, user_id: user.id, status: "review", revision: job.revision },
     data: { status: "queued", phase: "render", stage: "等待生成商品视频", data: data as object, error: null, revision: { increment: 1 } } });

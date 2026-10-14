@@ -46,7 +46,7 @@ export async function videoCapabilities(): Promise<VideoCapabilities> {
     storage_ready: privateStorageReady(), worker_ready: false, image_ready: false, video_ready: false, ready: false, reason: null,
     paused, maintenance,
     limits: { min_seconds: VIDEO_MIN_SECONDS, max_seconds: VIDEO_MAX_SECONDS, max_bytes: VIDEO_MAX_BYTES, aspect_ratio: "9:16", resolution: "768P" },
-    pricing: { per_segment_coins: segmentCoinQuote(), image_billing: "internal_beta" } };
+    pricing: { per_segment_coins: segmentCoinQuote(), pricing_basis: segmentCoinQuote() === null ? "unpriced_technical_cap" as const : "configured_quote" as const, image_billing: "internal_beta" } };
   try {
     const user = await getCurrentUser();
     result.signed_in = Boolean(user); result.eligible = betaEligible(user);
@@ -58,9 +58,11 @@ export async function videoCapabilities(): Promise<VideoCapabilities> {
     result.video_ready = worker?.video_ready ?? false;
   } catch { result.reason = "数据库连接或视频数据表尚未就绪。"; }
   // ready 表示"现在真的能跑"：暂停/未开放时即使数据库和密钥都在，也不能显示为可用。
-  result.ready = !paused && result.database_ready && result.storage_ready && result.worker_ready && result.image_ready && result.video_ready && result.pricing.per_segment_coins !== null;
+  // ready 表示"现在真的能跑"。单段报价未配置不再算阻塞（未定价模式仍可运行），
+  // 但 pricing_basis 会如实告诉调用方"这次没有已定价报价"。
+  result.ready = !paused && result.database_ready && result.storage_ready && result.worker_ready && result.image_ready && result.video_ready;
   result.reason ??= paused ? maintenance
-    : !result.storage_ready ? "私有视频存储尚未配置。" : !result.worker_ready ? "视频处理服务尚未启动。" : !result.image_ready ? "图片生成工具尚未就绪。" : !result.video_ready ? "RunningHub 01 视频连接待配置。" : result.pricing.per_segment_coins === null ? "视频费用预估尚未配置。" : null;
+    : !result.storage_ready ? "私有视频存储尚未配置。" : !result.worker_ready ? "视频处理服务尚未启动。" : !result.image_ready ? "图片生成工具尚未就绪。" : !result.video_ready ? "RunningHub 01 视频连接待配置。" : null;
   return result;
 }
 export async function videoRoute(action: () => Promise<Response>): Promise<Response> {

@@ -36,15 +36,24 @@ export function verifyRenderConsent(data: VideoJobData, currentQuote: number | n
     throw new VideoPipelineError("参考图或角色说明与费用确认时不一致，请重新核对素材与预算。");
   }
   const indices = consent?.segmentIndices;
-  if (!consent || !Number.isFinite(Date.parse(consent.at)) || !Number.isInteger(consent.maxCoins) || consent.maxCoins <= 0 ||
-      !Number.isInteger(consent.perSegmentCoins) || consent.perSegmentCoins <= 0 || currentQuote === null ||
-      !Number.isInteger(currentQuote) || currentQuote <= 0 || currentQuote > consent.perSegmentCoins || !data.segments.length ||
-      !Array.isArray(indices) || !indices.length || new Set(indices).size !== indices.length ||
+  const baseInvalid = !consent || !Number.isFinite(Date.parse(consent.at)) || !Number.isInteger(consent.maxCoins) || consent.maxCoins <= 0 ||
+      !data.segments.length || !Array.isArray(indices) || !indices.length || new Set(indices).size !== indices.length ||
       indices.some(i => !Number.isInteger(i) || !data.segments.some(s => s.index === i)) ||
       data.segments.some(s => !s.candidateKey && !s.buildId && !s.submissionIntentAt && !indices.includes(s.index)) ||
-      (submittingIndex !== undefined && !indices.includes(submittingIndex)) ||
-      consent.estimatedCoins !== consent.perSegmentCoins * indices.length ||
-      consent.estimatedCoins > consent.maxCoins || currentQuote * indices.length > consent.maxCoins) {
+      (submittingIndex !== undefined && !indices.includes(submittingIndex));
+  /**
+   * 未定价模式（explicit）：确认时没有单段报价 ⇒ 确认时与提交时都必须仍是"未定价"。
+   * 一旦中途配置了报价，旧确认立即作废 —— 这正是"展示后涨价"要拦的情形。
+   * 已定价模式：确认价必须为正整数，当前价不得高于确认价，且不得超出已确认预算。
+   */
+  const unpriced = consent?.perSegmentCoins === null;
+  const pricingInvalid = !consent ? true : unpriced
+    ? currentQuote !== null || consent.estimatedCoins !== null
+    : !Number.isInteger(consent.perSegmentCoins) || (consent.perSegmentCoins as number) <= 0 || currentQuote === null ||
+      !Number.isInteger(currentQuote) || currentQuote <= 0 || currentQuote > (consent.perSegmentCoins as number) ||
+      consent.estimatedCoins !== (consent.perSegmentCoins as number) * indices!.length ||
+      (consent.estimatedCoins as number) > consent.maxCoins || currentQuote * indices!.length > consent.maxCoins;
+  if (baseInvalid || pricingInvalid) {
     throw new VideoPipelineError("缺少有效的费用确认，或当前上限超出已确认预算。请重新核对费用。");
   }
 }

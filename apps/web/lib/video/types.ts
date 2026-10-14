@@ -39,7 +39,12 @@ export interface VideoJobData {
   segments: VideoSegment[];
   outputKey?: string;
   imageCalls: number;
-  renderConsent?: { at: string; maxCoins: number; estimatedCoins: number; perSegmentCoins: number; segmentIndices: number[]; referenceDigest?: string };
+  /**
+   * 未定价模式（explicit）：单段报价未配置时 estimatedCoins/perSegmentCoins 为 null，
+   * 只保留调用方给出的整数上限 maxCoins，并用 pricingBasis 标明"这不是已定价报价"。
+   */
+  renderConsent?: { at: string; maxCoins: number; estimatedCoins: number | null; perSegmentCoins: number | null;
+    pricingBasis?: "configured_quote" | "unpriced_technical_cap"; segmentIndices: number[]; referenceDigest?: string };
   /**
    * 业务进展。刻意放进 JSON 而不是加数据库列：这次改动不值得一次 schema 迁移，
    * 且旧读取器忽略未知字段即可兼容。
@@ -74,6 +79,12 @@ export interface VideoJobView {
   output_url: string | null;
   download_url: string | null;
   estimate: { segments: number; image_calls: number; video_coins: number | null };
+  /**
+   * 审阅标识：render 必须回传同一个值。绑定任务/模式/参考快照/动作窗口/待生成片段/展示报价，
+   * 任何一项变化即失效（409 review_changed）。仅在可提交审阅时非空。
+   */
+  review_token: string | null;
+  pricing_basis: "configured_quote" | "unpriced_technical_cap";
 }
 
 export interface VideoCapabilities {
@@ -91,7 +102,7 @@ export interface VideoCapabilities {
   paused: boolean;
   maintenance: string | null;
   limits: { min_seconds: typeof VIDEO_MIN_SECONDS; max_seconds: typeof VIDEO_MAX_SECONDS; max_bytes: number; aspect_ratio: "9:16"; resolution: "768P" };
-  pricing: { per_segment_coins: number | null; image_billing: "internal_beta" };
+  pricing: { per_segment_coins: number | null; pricing_basis: "configured_quote" | "unpriced_technical_cap"; image_billing: "internal_beta" };
 }
 
 /**

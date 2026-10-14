@@ -4,7 +4,8 @@ import { apiJson, requireApiUser } from "@/lib/public-api";
 import { requireVideoWorker } from "@/lib/video/http";
 import { ownedVideoJob } from "@/lib/video/projects";
 import { isVideoPreparation, segmentCoinQuote, videoData } from "@/lib/video/types";
-import { validateRenderConsent } from "@/lib/video/consent";
+import { checkReviewToken, validateRenderConsent } from "@/lib/video/consent";
+import { reviewToken } from "@/lib/video/review-token";
 import { generationMode } from "@/lib/video/reference-inputs";
 
 export const runtime = "nodejs";
@@ -23,6 +24,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   try { body = await request.json(); } catch { return apiJson({ error: "invalid_json" }, { status: 400 }); }
   if (body.confirm_references !== true || body.accept_estimate !== true) return apiJson({ error: "confirmation_required" }, { status: 400 });
   const data = videoData(job.data);
+  // 审阅标识必须先通过：它把展示时的参考快照、动作窗口、待生成片段与报价一起绑上，
+  // 展示之后任何一项变化都会让这里拒收（409），避免"确认的是旧的、提交的是新的"。
+  const review = checkReviewToken(body.review_token, reviewToken({ jobId: job.id, data, quote: segmentCoinQuote() }));
+  if (!review.ok) return apiJson({ error: review.reason }, { status: review.status });
   const maxCoins = typeof body.max_coins === "number" ? body.max_coins : undefined;
   const consent = validateRenderConsent(data, maxCoins, segmentCoinQuote());
   if (!consent.ok) return apiJson({ error: "invalid_render_consent", message: consent.reason }, { status: 400 });
@@ -31,12 +36,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   } catch (error) {
     return apiJson({ error: "hypit_worker_unavailable", message: error instanceof Error ? error.message : "Hypit 视频处理服务尚未启动。" }, { status: 503 });
   }
-  data.renderConsent = { at: new Date().toISOString(), maxCoins: consent.maxCoins, estimatedCoins: consent.estimate, perSegmentCoins: consent.quote, segmentIndices: consent.segmentIndices,
+  data.renderConsent = { at: new Date().toISOString(), maxCoins: consent.maxCoins, estimatedCoins: consent.estimate, perSegmentCoins: consent.quote,
+    pricingBasis: consent.pricingBasis, segmentIndices: consent.segmentIndices,
     ...(consent.referenceDigest ? { referenceDigest: consent.referenceDigest } : {}) };
   const claimed = await prisma.videoJob.updateMany({
     where: { id: job.id, user_id: auth.auth.user.id, status: "review", revision: job.revision },
     data: { status: "queued", phase: "render", stage: "等待 Hypit / RunningHub Minimax H3 生成", data: data as object, error: null, revision: { increment: 1 } },
   });
   if (claimed.count !== 1) return apiJson({ error: "job_state_changed" }, { status: 409 });
-  return apiJson({ id: job.id, job_id: job.id, status: "queued", phase: "render", estimated_coins: consent.estimate }, { status: 202 });
+  return apiJson({ id: job.id, job_id: job.id, status: "queued", phase: "render", estimated_coins: consent.estimate, pricing_basis: consent.pricingBasis }, { status: 202 });
 }

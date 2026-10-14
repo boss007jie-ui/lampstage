@@ -6,6 +6,7 @@ import { recordedImageModel } from "@/lib/image-models";
 import { privateMediaUrl } from "@/lib/video/storage";
 import { isVideoPreparation, segmentCoinQuote, videoData } from "@/lib/video/types";
 import { generationMode, preparedReferencesReady } from "@/lib/video/reference-inputs";
+import { reviewToken } from "@/lib/video/review-token";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,6 +58,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     references_ready: mode === "direct_references" ? preparedReferencesReady(data) : data.segments.length > 0 && data.segments.every(s => s.openingKey && s.endingKey && s.clipKey),
     phase: isVideoPreparation(videoJob.phase) ? "prepare" : videoJob.phase, error: videoJob.error, output_url: outputUrl, segments,
     estimate: { segments: data.segments.length, image_calls: data.imageCalls, video_coins: quote === null ? null : data.segments.length ? quote * data.segments.filter(s => !s.candidateKey).length : null },
+    pricing_basis: quote === null ? "unpriced_technical_cap" : "configured_quote",
+    // 渲染前必须回传该标识；它绑定参考快照、动作窗口、待生成片段与展示报价。
+    review_token: videoJob.status === "review" ? reviewToken({ jobId: videoJob.id, data, quote }) : null,
     created_at: videoJob.created_at.toISOString(), updated_at: videoJob.updated_at.toISOString(),
   });
 }

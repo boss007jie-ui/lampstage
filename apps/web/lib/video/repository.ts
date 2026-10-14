@@ -2,6 +2,7 @@ import { Prisma, type VideoAsset, type VideoJob } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isVideoPreparation, segmentCoinQuote, videoData, type VideoJobData, type VideoJobView, type VideoStatus } from "./types";
 import { generationMode, preparedReferencesReady } from "./reference-inputs";
+import { reviewToken } from "./review-token";
 
 export const LEASE_MS = 90_000;
 type RepositoryDb = Pick<typeof prisma, "videoJob">;
@@ -23,6 +24,9 @@ export function jobView(job: VideoJob & { source_asset?: VideoAsset }): VideoJob
     // 业务进展与数据库 updated_at 分开：后者会被 20 秒一次的租约心跳刷新，不能当业务推进的证据。
     progress_updated_at: data.progress?.lastProgressAt ?? null,
     stage_code: data.progress?.stageCode ?? null,
+    // 审阅标识只在"可提交审阅"时签发；展示后的任何状态变化都会改变它。
+    review_token: job.status === "review" ? reviewToken({ jobId: job.id, data, quote }) : null,
+    pricing_basis: quote === null ? "unpriced_technical_cap" as const : "configured_quote" as const,
     segments: data.segments.map(s => ({ index: s.index, start: s.start, duration: s.duration,
       opening_url: s.openingKey ? media("opening", s.index) : null,
       ending_url: s.endingKey ? media("ending", s.index) : null,

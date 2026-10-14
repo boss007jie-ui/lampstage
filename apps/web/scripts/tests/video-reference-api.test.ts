@@ -126,12 +126,85 @@ test("job review exposes role snapshots and a current quote before consent; rend
   assert.equal(result.estimate.image_calls, 0);
   assert.deepEqual(result.reference_assets.map((ref: { label: string }) => ref.label), ["产品", "宝宝", "妈妈"]);
   assert.ok(result.reference_assets.every((ref: object) => !("key" in ref)));
+  // 审阅标识必须在展示时就签发；render 必须回传同一个值。
+  assert.match(result.review_token, /^[a-f0-9]{64}$/);
+  assert.equal(result.pricing_basis, "configured_quote");
   const writes: Query[] = [];
   stub(t, prisma.videoJob, "updateMany", query => { writes.push(query); return { count: 1 }; });
-  const response = await renderJob(request({ confirm_references: true, accept_estimate: true, max_coins: 100 }), { params: { id: "job" } });
+  const response = await renderJob(request({ confirm_references: true, accept_estimate: true, max_coins: 100, review_token: result.review_token }), { params: { id: "job" } });
   assert.ok(response);
   assert.equal(response.status, 202);
   assert.equal(videoData(writes[0].data!.data).renderConsent!.referenceDigest, referenceDigest(data));
+});
+
+test("render is refused when the price changed after the review, even below the budget", async t => {
+  fixture(t);
+  env(t, { VIDEO_H3_SEGMENT_QUOTE_COINS: "100", VIDEO_WORKER_PAUSED: "false", VIDEO_PAID_GENERATION_ENABLED: "true", R2_ENDPOINT: "", VIDEO_STORAGE_DIR: ".unit-test-unused" });
+  const data = parseVideoReferenceInput(input, "product");
+  data.sourceDuration = 4;
+  data.segments = [{ index: 0, start: 0, duration: 4, trimStart: 0, clipKey: "videos/job/segments/0/source.mp4" }];
+  data.referenceImages = data.referenceImages!.map((ref, i) => ({ ...ref, key: `videos/job/references/${i}.png`, sha256: "a".repeat(64) }));
+  stub(t, prisma.generationJob, "findFirst", () => null);
+  stub(t, prisma.videoJob, "findFirst", () => ({ id: "job", user_id: "owner", phase: "prepare_references", status: "review", data,
+    created_at: new Date(), updated_at: new Date(), revision: 5 }));
+  stub(t, prisma.videoWorker, "findFirst", () => ({ image_ready: false, video_ready: true }));
+  const reviewed = await (await getJob(request({}), { params: { id: "job" } }))!.json();
+  // 展示之后涨价：100 → 120，虽然 120 仍低于用户给的 500 预算，旧确认也必须作废。
+  process.env.VIDEO_H3_SEGMENT_QUOTE_COINS = "120";
+  const writes: Query[] = [];
+  stub(t, prisma.videoJob, "updateMany", query => { writes.push(query); return { count: 1 }; });
+  const response = await renderJob(request({ confirm_references: true, accept_estimate: true, max_coins: 500, review_token: reviewed.review_token }), { params: { id: "job" } });
+  assert.ok(response);
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).error, "review_changed");
+  assert.equal(writes.length, 0);
+});
+
+test("render is refused when references or motion windows changed after the review", async t => {
+  fixture(t);
+  env(t, { VIDEO_H3_SEGMENT_QUOTE_COINS: "100", VIDEO_WORKER_PAUSED: "false", VIDEO_PAID_GENERATION_ENABLED: "true", R2_ENDPOINT: "", VIDEO_STORAGE_DIR: ".unit-test-unused" });
+  const data = parseVideoReferenceInput(input, "product");
+  data.sourceDuration = 4;
+  data.segments = [{ index: 0, start: 0, duration: 4, trimStart: 0, clipKey: "videos/job/segments/0/source.mp4" }];
+  data.referenceImages = data.referenceImages!.map((ref, i) => ({ ...ref, key: `videos/job/references/${i}.png`, sha256: "a".repeat(64) }));
+  stub(t, prisma.generationJob, "findFirst", () => null);
+  stub(t, prisma.videoJob, "findFirst", () => ({ id: "job", user_id: "owner", phase: "prepare_references", status: "review", data,
+    created_at: new Date(), updated_at: new Date(), revision: 5 }));
+  stub(t, prisma.videoWorker, "findFirst", () => ({ image_ready: false, video_ready: true }));
+  const reviewed = await (await getJob(request({}), { params: { id: "job" } }))!.json();
+  const writes: Query[] = [];
+  stub(t, prisma.videoJob, "updateMany", query => { writes.push(query); return { count: 1 }; });
+  // 展示后参考图快照变化
+  const original = data.referenceImages![1].sha256;
+  data.referenceImages = data.referenceImages!.map((ref, i) => i === 1 ? { ...ref, sha256: "b".repeat(64) } : ref);
+  const afterReference = await renderJob(request({ confirm_references: true, accept_estimate: true, max_coins: 100, review_token: reviewed.review_token }), { params: { id: "job" } });
+  assert.equal(afterReference!.status, 409);
+  assert.equal((await afterReference!.json()).error, "review_changed");
+  data.referenceImages = data.referenceImages!.map((ref, i) => i === 1 ? { ...ref, sha256: original } : ref);
+  // 展示后动作窗口变化（trimStart 变了，等于要生成的片段不是当初确认的那一段）
+  data.segments = [{ ...data.segments[0], trimStart: 1 }];
+  const afterWindow = await renderJob(request({ confirm_references: true, accept_estimate: true, max_coins: 100, review_token: reviewed.review_token }), { params: { id: "job" } });
+  assert.equal(afterWindow!.status, 409);
+  assert.equal(writes.length, 0);
+});
+
+test("render without a review token is refused and never queues a paid attempt", async t => {
+  fixture(t);
+  env(t, { VIDEO_H3_SEGMENT_QUOTE_COINS: "100", VIDEO_WORKER_PAUSED: "false", VIDEO_PAID_GENERATION_ENABLED: "true", R2_ENDPOINT: "", VIDEO_STORAGE_DIR: ".unit-test-unused" });
+  const data = parseVideoReferenceInput(input, "product");
+  data.sourceDuration = 4;
+  data.segments = [{ index: 0, start: 0, duration: 4, trimStart: 0, clipKey: "videos/job/segments/0/source.mp4" }];
+  data.referenceImages = data.referenceImages!.map((ref, i) => ({ ...ref, key: `videos/job/references/${i}.png`, sha256: "a".repeat(64) }));
+  stub(t, prisma.generationJob, "findFirst", () => null);
+  stub(t, prisma.videoJob, "findFirst", () => ({ id: "job", user_id: "owner", phase: "prepare_references", status: "review", data,
+    created_at: new Date(), updated_at: new Date(), revision: 5 }));
+  stub(t, prisma.videoWorker, "findFirst", () => ({ image_ready: false, video_ready: true }));
+  const writes: Query[] = [];
+  stub(t, prisma.videoJob, "updateMany", query => { writes.push(query); return { count: 1 }; });
+  const response = await renderJob(request({ confirm_references: true, accept_estimate: true, max_coins: 100 }), { params: { id: "job" } });
+  assert.equal(response!.status, 400);
+  assert.equal((await response!.json()).error, "review_token_required");
+  assert.equal(writes.length, 0);
 });
 
 test("receipt recovery readiness does not need an image provider, while legacy preparation still does", async t => {

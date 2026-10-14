@@ -10,7 +10,7 @@ import { assembleVideo, inspectSource, prepareSegment, segmentTimeline, VideoPip
 import { assertVideoPaidGenerationEnabled, paidBoundaryProblem } from "./control";
 import { heartbeatLease, LeaseLostError, patchJob, releaseJob } from "./repository";
 import { privateDownloadTo, privateUploadFile, privateWrite } from "./storage";
-import { segmentCoinQuote, videoData, type VideoJobData, type VideoSegment } from "./types";
+import { VIDEO_MAX_BYTES, segmentCoinQuote, videoData, type VideoJobData, type VideoSegment } from "./types";
 
 /** 免费网络操作总超时：产品图 30 秒（源片/视频对象走 storage 层的 120 秒默认值）。 */
 const PRODUCT_IMAGE_TIMEOUT_MS = 30_000;
@@ -53,22 +53,29 @@ function verifySegments(data: VideoJobData): void {
 }
 
 /** Serial processing. Every paid request is preceded by a lease/revision-checked durable intent. */
-export async function processVideoJob(initial: VideoJob, workerId: string, options: { signal?: AbortSignal } = {}): Promise<void> {
-  const signal = options.signal;
+export type VideoJobOutcome = "safe" | "needs_review";
+
+export async function processVideoJob(initial: VideoJob, workerId: string, options: { signal?: AbortSignal } = {}): Promise<VideoJobOutcome> {
+  const externalSignal = options.signal;
+  // 租约丢失必须能**取消**正在进行的付费 I/O，而不是等下一次 await 才发现：
+  // 心跳一旦失败就 abort 这个 job 级 controller，信号会穿透到 HTTP 请求与结果下载。
+  const leaseController = new AbortController();
+  const signal = externalSignal ? AbortSignal.any([externalSignal, leaseController.signal]) : leaseController.signal;
   let job = initial;
   let data = structuredClone(videoData(job.data));
   let leaseLost = false;
   let terminalSaved = false;
+  let terminalStatus: string | null = null;
   let heartbeatBusy = false;
   const heartbeat = setInterval(() => {
     if (heartbeatBusy) return;
     heartbeatBusy = true;
-    void heartbeatLease(job.id, workerId).catch(() => { leaseLost = true; }).finally(() => { heartbeatBusy = false; });
+    void heartbeatLease(job.id, workerId).catch(() => { leaseLost = true; leaseController.abort(); }).finally(() => { heartbeatBusy = false; });
   }, 20_000);
   const save = async (fields: { status?: string; phase?: string; stage?: string; error?: string | null } = {}) => {
     if (leaseLost) throw new LeaseLostError();
     job = await patchJob(job.id, workerId, { ...fields, expectedRevision: job.revision }, data);
-    if (fields.status && ["review", "completed", "failed", "attention"].includes(fields.status)) terminalSaved = true;
+    if (fields.status && ["review", "completed", "failed", "attention"].includes(fields.status)) { terminalSaved = true; terminalStatus = fields.status; }
   };
   const checkLease = async () => { if (leaseLost) throw new LeaseLostError(); await heartbeatLease(job.id, workerId); };
   /**
@@ -153,7 +160,7 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
         }
       }
       await save({ status: "review", stage: "参考图已就绪，请逐段检查首尾画面" });
-      return;
+      return "safe";
     }
 
     const reconcile = job.phase === "reconcile";
@@ -177,7 +184,7 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
     if (!reconcile && data.segments.some(s => segmentAction(s, false) === "submit")) {
       const product = await prisma.uploadedAsset.findFirst({ where: { id: job.product_asset_id, user_id: job.user_id } });
       if (!product) throw new VideoPipelineError("产品图片不存在或无权访问。");
-      const productData = await getObjectBytes(product.image_url);
+      const productData = await getObjectBytes(product.image_url, { signal, timeoutMs: PRODUCT_IMAGE_TIMEOUT_MS, maxBytes: VIDEO_MAX_BYTES });
       productPath = path.join(workspace, "product-image.png");
       await writeFile(productPath, await sharp(productData.bytes).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).png().toBuffer());
     }
@@ -237,7 +244,7 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
     if (plan.missing.length) {
       if (plan.missing.some(s => s.submissionIntentAt)) throw new VideoPipelineError("原任务已核查，仍有提交缺少回执，请人工核对；系统未发起新生成。");
       await save({ status: "review", stage: "已恢复已生成片段，请确认剩余片段费用", error: null });
-      return;
+      return "safe";
     }
     await setStage("assemble", "正在合成并检查完整视频", { status: "assembling" });
     const candidates: string[] = [];
@@ -262,4 +269,12 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
     // If saving the terminal state failed, leave the lease to expire into attention.
     if (terminalSaved) await releaseJob(job.id, workerId).catch(() => undefined);
   }
+  // 能否安全地继续领取下一个任务？
+  //   - 终态没落库（含"保存终态时自己又失败"）⇒ 结果不明 ⇒ 必须停下人工核对
+  //   - 终态是 attention（付费结果/意图不明）⇒ 停下
+  //   - 租约丢失 ⇒ 停下
+  //   - review / completed / failed ⇒ 明确终态，可以继续
+  if (!terminalSaved) return "needs_review";
+  if (terminalStatus === "attention") return "needs_review";
+  return leaseLost ? "needs_review" : "safe";
 }

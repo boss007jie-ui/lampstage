@@ -18,7 +18,7 @@ import { createWriteStream } from "node:fs";
 import { mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { Readable, Transform } from "node:stream";
+import { Readable, Transform, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
 export type DownloadInput = {
@@ -34,6 +34,12 @@ export type DownloadInput = {
     body: Readable;
     expectedBytes?: number;
   }>;
+  /**
+   * 仅供测试注入写入流（默认 createWriteStream(target, { flags:"wx", mode:0o600 })）。
+   * 生产路径不传，行为不变；注入它才能确定性地触发"真实写入阶段"的错误，
+   * 从而验证源流被销毁、临时文件被清理、已有目标不被覆盖。
+   */
+  createWrite?: (target: string) => Writable;
 };
 
 /** 下载到目标文件，返回真实落盘字节数。任何失败都不留下半成品。 */
@@ -67,7 +73,7 @@ export async function downloadStreamToFile(input: DownloadInput): Promise<number
         callback(bytes > input.maxBytes ? new Error("download_too_large") : null, chunk);
       },
     });
-    await pipeline(body, limit, createWriteStream(temp, { flags: "wx", mode: 0o600 }),
+    await pipeline(body, limit, (input.createWrite ?? (file => createWriteStream(file, { flags: "wx", mode: 0o600 })))(temp),
       { signal: controller.signal });
     // 只有"确实写完且长度自洽"才允许替换目标：空流与长度不符都视为失败。
     if (bytes === 0 || (expected !== undefined && bytes !== expected)) {

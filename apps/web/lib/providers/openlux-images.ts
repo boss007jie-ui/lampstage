@@ -39,9 +39,12 @@ export function createOpenLuxImageProvider(id: ImageModelId, overrides: Partial<
       try {
         const key = dependencies.apiKey();
         const references = await dependencies.readReferences(input, model.maxReferences);
-        const body = isNano ? JSON.stringify(buildNano21Request(input.prompt, references)) : buildImage25Request(input.prompt, references);
-        // 发送前再确认一次父信号：避免"外层等待已取消，图片请求照旧发出去"。
+        // 参考图预处理是异步的，期间租约/授权可能已变；先查取消，再跑调用方给的闸门，
+        // 然后才真正发出 HTTP POST —— 这是"付费请求真的发出去"的最后一道门。
         input.signal?.throwIfAborted();
+        await input.beforeSend?.();
+        input.signal?.throwIfAborted();
+        const body = isNano ? JSON.stringify(buildNano21Request(input.prompt, references)) : buildImage25Request(input.prompt, references);
         const deadline = AbortSignal.timeout(input.requestTimeoutMs || 180_000);
         const response = await dependencies.fetch(isNano ? NANO_21_ENDPOINT : IMAGE_25_ENDPOINT, {
           method: "POST",

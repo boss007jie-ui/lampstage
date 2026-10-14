@@ -14,14 +14,44 @@ async function run(executable: string, args: string[], timeout = 180_000, signal
     const child = spawn(executable, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     let overflow = false;
-    // 父 signal（worker 停止时）也要能真正杀掉子进程，而不是只让外层 await 结束。
-    const onAbort = () => { child.kill(); reject(new VideoPipelineError("本地媒体处理已取消。")); };
+    let settled = false;
+    let killTimer: NodeJS.Timeout | undefined;
+    /**
+     * 取消/超时后必须**有界等待子进程真正退出**，必要时升级为强杀。
+     * 只调 kill() 就宣告结束是不够的：子进程可能仍在写文件，后续阶段会读到半成品。
+     */
+    const terminate = (reason: VideoPipelineError) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      child.kill("SIGTERM");
+      killTimer = setTimeout(() => { child.kill("SIGKILL"); reject(reason); }, 2_000);
+      // 优先等 close 事件（子进程真的退出了）再 reject；2 秒兜底强杀。
+      child.once("close", () => { if (killTimer) clearTimeout(killTimer); reject(reason); });
+    };
+    const onAbort = () => terminate(new VideoPipelineError("本地媒体处理已取消。"));
     signal?.addEventListener("abort", onAbort, { once: true });
-    const timer = setTimeout(() => { child.kill(); reject(new VideoPipelineError("本地媒体处理超时，请检查素材。")); }, timeout);
+    const timer = setTimeout(() => terminate(new VideoPipelineError("本地媒体处理超时，请检查素材。")), timeout);
+    if (settled) return;
     child.stdout.on("data", (chunk: Buffer) => { if (output.length < 2_000_000) output += chunk.toString(); else overflow = true; });
     child.stderr.resume();
-    child.on("error", () => { clearTimeout(timer); signal?.removeEventListener("abort", onAbort); reject(new VideoPipelineError("本地媒体工具不可用，请检查 FFmpeg 配置。")); });
-    child.on("close", code => { clearTimeout(timer); signal?.removeEventListener("abort", onAbort); if (code !== 0 || overflow) reject(new VideoPipelineError("媒体无法解码或处理，请检查文件格式。")); else resolve(output); });
+    child.on("error", () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
+      signal?.removeEventListener("abort", onAbort);
+      reject(new VideoPipelineError("本地媒体工具不可用，请检查 FFmpeg 配置。"));
+    });
+    child.on("close", code => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
+      signal?.removeEventListener("abort", onAbort);
+      if (code !== 0 || overflow) reject(new VideoPipelineError("媒体无法解码或处理，请检查文件格式。")); else resolve(output);
+    });
   });
 }
 

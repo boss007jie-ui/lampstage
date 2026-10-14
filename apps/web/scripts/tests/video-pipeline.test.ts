@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { assembleVideo, inspectSource, prepareSegment, probeMedia, segmentTimeline } from "../../lib/video/media";
 import { VIDEO_MAX_SECONDS } from "../../lib/video/types";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -146,31 +146,63 @@ test("partial reconciliation recovers an existing build while leaving later unsu
   assert.throws(() => segmentAction(plan.missing[0], true));
 });
 
-test("local synthetic media preserves the full tail, normalizes playback, and selects original audio", { skip: process.env.RUN_VIDEO_MEDIA_TESTS !== "1" }, async () => {
+const MEDIA_CASES = [{ seconds: 16.3, expectedSegments: 4 }, { seconds: 30, expectedSegments: 6 }] as const;
+
+test("local synthetic media: 16.3s and 30s sources keep the full tail with and without audio", { skip: process.env.RUN_VIDEO_MEDIA_TESTS !== "1" }, async () => {
   const root = path.resolve(os.tmpdir());
-  const workspace = await mkdtemp(path.join(root, "lamp-video-test-"));
-  try {
-    const source = path.join(workspace, "source.mp4");
-    await promisify(execFile)(process.env.VIDEO_FFMPEG_PATH || "ffmpeg", ["-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=180x320:rate=30", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "6.2", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", source], { windowsHide: true });
-    const info = await inspectSource(source);
-    const segments = segmentTimeline(info.duration);
-    const candidates: string[] = [];
-    for (const segment of segments) candidates.push((await prepareSegment(source, segment, workspace)).clip);
-    for (const preserveAudio of [true, false]) {
-      const output = await assembleVideo({ candidates, segments, source, duration: info.duration, preserveAudio, workspace });
-      const result = await probeMedia(output);
-      assert.ok(Math.abs(result.duration - 6.2) <= 0.12);
-      assert.equal(result.width, 720);
-      assert.equal(result.height, 1280);
-      assert.equal(result.videoCodec, "h264");
-      assert.equal(result.hasAudio, preserveAudio);
-      if (preserveAudio) assert.equal(result.audioCodec, "aac");
+  for (const mediaCase of MEDIA_CASES) {
+    const workspace = await mkdtemp(path.join(root, "lamp-video-test-"));
+    try {
+      const source = path.join(workspace, "source.mp4");
+      await promisify(execFile)(process.env.VIDEO_FFMPEG_PATH || "ffmpeg", ["-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=180x320:rate=30", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", String(mediaCase.seconds), "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", source], { windowsHide: true });
+      const info = await inspectSource(source);
+      const segments = segmentTimeline(info.duration);
+      assert.equal(segments.length, mediaCase.expectedSegments, `${mediaCase.seconds}s should split into ${mediaCase.expectedSegments} segments`);
+      // 片尾标记：最后一段必须真的覆盖到片尾，不能丢尾也不能重复尾段。
+      const tail = segments[segments.length - 1];
+      assert.ok(Math.abs(tail.start + tail.duration - info.duration) <= 0.12, `${mediaCase.seconds}s tail must reach the end of the source`);
+      const candidates: string[] = [];
+      for (const segment of segments) candidates.push((await prepareSegment(source, segment, workspace)).clip);
+      for (const preserveAudio of [true, false]) {
+        const output = await assembleVideo({ candidates, segments, source, duration: info.duration, preserveAudio, workspace });
+        const result = await probeMedia(output);
+        assert.ok(Math.abs(result.duration - info.duration) <= 0.12, `${mediaCase.seconds}s preserveAudio=${preserveAudio} duration drifted: ${result.duration}`);
+        assert.equal(result.width, 720);
+        assert.equal(result.height, 1280);
+        assert.equal(result.videoCodec, "h264");
+        assert.equal(result.hasAudio, preserveAudio);
+        if (preserveAudio) assert.equal(result.audioCodec, "aac");
+      }
+    } finally {
+      // Only remove this test's verified mkdtemp child, never a computed parent directory.
+      const resolved = path.resolve(workspace);
+      assert.equal(path.dirname(resolved), root);
+      assert.ok(path.basename(resolved).startsWith("lamp-video-test-"));
+      await rm(resolved, { recursive: true, force: true });
     }
+  }
+});
+
+test("a cancelled media child is waited for (bounded), not killed and abandoned", {
+  skip: process.platform === "win32" ? "Windows kill() maps to TerminateProcess, so the wait semantics differ" : process.env.RUN_VIDEO_MEDIA_TESTS !== "1",
+}, async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "lamp-video-cancel-"));
+  const originalProbe = process.env.VIDEO_FFPROBE_PATH;
+  try {
+    // 一个忽略 SIGTERM 的子进程：只有强杀才能让它停，用来验证我们会等到它真的退出。
+    const slow = path.join(root, "slow-ffprobe.sh");
+    await writeFile(slow, "#!/bin/sh\ntrap '' TERM\nsleep 5\nexit 0\n", { mode: 0o755 });
+    process.env.VIDEO_FFPROBE_PATH = slow;
+    const controller = new AbortController();
+    const started = Date.now();
+    const pending = probeMedia(path.join(root, "missing.mp4"), controller.signal);
+    setTimeout(() => controller.abort(), 100);
+    await assert.rejects(pending);
+    const elapsed = Date.now() - started;
+    // 必须等到子进程真正退出（或 2 秒兜底强杀）才 reject；只调 kill() 就返回会远小于这个下界。
+    assert.ok(elapsed >= 1_900, `expected a bounded wait for the child to exit, got ${elapsed}ms`);
   } finally {
-    // Only remove this test's verified mkdtemp child, never a computed parent directory.
-    const resolved = path.resolve(workspace);
-    assert.equal(path.dirname(resolved), root);
-    assert.ok(path.basename(resolved).startsWith("lamp-video-test-"));
-    await rm(resolved, { recursive: true, force: true });
+    if (originalProbe === undefined) delete process.env.VIDEO_FFPROBE_PATH; else process.env.VIDEO_FFPROBE_PATH = originalProbe;
+    await rm(root, { recursive: true, force: true });
   }
 });

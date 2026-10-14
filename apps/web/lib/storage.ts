@@ -159,12 +159,25 @@ export async function deleteObject(urlOrKey: string): Promise<void> {
  */
 export async function getObjectBytes(
   urlOrKey: string,
-  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+  options: { signal?: AbortSignal; timeoutMs?: number; maxBytes?: number } = {},
 ): Promise<{ bytes: Buffer; mime: string }> {
-  // 不传 signal/timeoutMs 时行为与以前完全一致（图片通道不受影响）。
+  // 不传 signal/timeoutMs/maxBytes 时行为与以前完全一致（图片通道不受影响）。
   const signal = options.signal
     ? (options.timeoutMs ? AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs)]) : options.signal)
     : (options.timeoutMs ? AbortSignal.timeout(options.timeoutMs) : undefined);
+  const maxBytes = options.maxBytes;
+  if (maxBytes !== undefined && (!Number.isSafeInteger(maxBytes) || maxBytes <= 0)) throw new Error("invalid_max_bytes");
+  /** 累积读取时按**实际字节**设限：Content-Length 是声明值，不能当安全边界。 */
+  const collect = async (chunks: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>): Promise<Buffer> => {
+    const parts: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of chunks as AsyncIterable<Uint8Array>) {
+      total += chunk.byteLength;
+      if (maxBytes !== undefined && total > maxBytes) throw new Error("object_too_large");
+      parts.push(Buffer.from(chunk));
+    }
+    return Buffer.concat(parts);
+  };
   // 还原成 key
   let key = urlOrKey;
   const base = publicBase();
@@ -176,9 +189,9 @@ export async function getObjectBytes(
     if (!r.ok) {
       throw new Error(`fetch ${key} failed: ${r.status}`);
     }
-    const ab = await r.arrayBuffer();
+    if (!r.body) throw new Error("empty_response_body");
     return {
-      bytes: Buffer.from(ab),
+      bytes: await collect(r.body),
       mime: r.headers.get("content-type") || "image/jpeg",
     };
   } else if (key.startsWith("/")) {
@@ -193,20 +206,21 @@ export async function getObjectBytes(
       }),
       { abortSignal: signal },
     );
-    const stream = obj.Body as unknown as AsyncIterable<Uint8Array>;
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) {
-      chunks.push(Buffer.from(chunk));
-    }
+    if (!obj.Body) throw new Error("Media not found");
     return {
-      bytes: Buffer.concat(chunks),
+      bytes: await collect(obj.Body as unknown as AsyncIterable<Uint8Array>),
       mime: obj.ContentType ?? "image/jpeg",
     };
   }
 
   // local fs
   const fullPath = path.join(process.cwd(), "public", key);
+  if (maxBytes !== undefined) {
+    const { size } = await fs.stat(fullPath);
+    if (size > maxBytes) throw new Error("object_too_large");
+  }
   const buf = await fs.readFile(fullPath);
+  if (maxBytes !== undefined && buf.byteLength > maxBytes) throw new Error("object_too_large");
   const ext = path.extname(fullPath).toLowerCase();
   const mime =
     ext === ".png"

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { Readable } from "node:stream";
+import { Readable, Writable } from "node:stream";
 import os from "node:os";
 import path from "node:path";
 import { downloadStreamToFile } from "../../lib/video/download-stream";
@@ -162,17 +162,36 @@ test("a request that never yields a body is aborted by the deadline (signal reac
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("an unwritable destination fails bounded, keeps the original file and cancels the source", { timeout: 3000 }, async () => {
+test("an unreachable destination fails bounded, keeps the original file and cancels the source", { timeout: 3000 }, async () => {
   const root = await tempRoot();
   const source = new Readable({ read() { this.push(Buffer.alloc(16, 5)); } });
   try {
     const blocker = path.join(root, "blocker");
     await writeFile(blocker, "original");
-    // 父路径是一个普通文件 ⇒ mkdir/createWriteStream 必然失败，等价于"盘写不进去"。
+    // 父路径是一个普通文件 ⇒ mkdir 必然失败。注意：这只覆盖"目标不可达"，
+    // 真正的写入阶段错误由下一条用例（注入写入流）覆盖。
     await assert.rejects(downloadStreamToFile({ target: path.join(blocker, "nested", "source.mp4"),
       maxBytes: 1024, timeoutMs: 1500, open: async () => ({ body: source }) }));
     assert.equal(await readFile(blocker, "utf8"), "original");
     assert.deepEqual(await readdir(root), ["blocker"]);
+  } finally { source.destroy(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("a real write-stage failure destroys the source, cleans the temp file and keeps the existing target", { timeout: 3000 }, async () => {
+  const root = await tempRoot();
+  const source = new Readable({ read() { this.push(Buffer.alloc(64, 3)); } });
+  try {
+    const target = path.join(root, "source.mp4");
+    await writeFile(target, "original");
+    // 注入一个必然写失败的写入流：这是"磁盘真的写不进去"，不是 mkdir 失败。
+    const failing = new Writable({ write(_chunk, _encoding, callback) { callback(new Error("disk_write_failed")); } });
+    await assert.rejects(
+      downloadStreamToFile({ target, maxBytes: 1024, timeoutMs: 1500,
+        open: async () => ({ body: source }), createWrite: () => failing }),
+      /disk_write_failed/);
+    assert.equal(source.destroyed, true);
+    assert.equal(await readFile(target, "utf8"), "original");
+    assert.deepEqual(await readdir(root), ["source.mp4"]); // 没有残留 .part
   } finally { source.destroy(); await rm(root, { recursive: true, force: true }); }
 });
 

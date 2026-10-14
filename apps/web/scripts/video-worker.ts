@@ -4,8 +4,8 @@ import { randomUUID } from "node:crypto";
 loadEnvConfig(process.cwd());
 
 async function main() {
-  const [{ prisma }, { claimJob }, { processVideoJob }, { runnerReadiness }, { mediaReadiness }, { shouldClaimJobs, videoMaintenanceReason }] = await Promise.all([
-    import("../lib/db"), import("../lib/video/repository"), import("../lib/video/processor"), import("../lib/video/hypit-runner"), import("../lib/video/media"), import("../lib/video/control"),
+  const [{ prisma }, { claimJob }, { processVideoJob }, { runnerReadiness }, { mediaReadiness }, { shouldClaimJobs, videoMaintenanceReason }, { runWorkerCycle }] = await Promise.all([
+    import("../lib/db"), import("../lib/video/repository"), import("../lib/video/processor"), import("../lib/video/hypit-runner"), import("../lib/video/media"), import("../lib/video/control"), import("../lib/video/worker-loop"),
   ]);
   const id = `video-${randomUUID()}`;
   let stopping = false;
@@ -53,15 +53,16 @@ async function main() {
           continue;
         }
         announcedPause = false;
-        const job = await claimJob(id);
-        if (job) {
-          await processVideoJob(job, id, { signal: stopController.signal });
-          const after = await prisma.videoJob.findFirst({ where: { id: job.id }, select: { status: true } });
-          if (after?.status === "attention") {
-            halted = true;
-            console.error("Video worker halted: job needs manual review; not claiming further jobs.", job.id);
-          }
-        } else await new Promise(resolve => setTimeout(resolve, 2_000));
+        // 单步决策抽在 runWorkerCycle 里：结果不明（租约丢失/终态保存失败/处理抛错）就 halt，
+        // 不再领下一个任务。这样"B 的领取次数为 0"可以被测试证明，而不是靠人肉审查循环。
+        const cycle = await runWorkerCycle<Exclude<Awaited<ReturnType<typeof claimJob>>, null>>({
+          shouldClaim: () => shouldClaimJobs(),
+          claim: () => claimJob(id),
+          process: job => processVideoJob(job, id, { signal: stopController.signal }),
+          log: (message, detail) => console.error(`[worker] ${message}`, detail ?? ""),
+        });
+        if (cycle.halted) halted = true;
+        if (!cycle.claimed) await new Promise(resolve => setTimeout(resolve, 2_000));
       } catch { console.error("Video worker queue check failed."); await new Promise(resolve => setTimeout(resolve, 5_000)); }
     }
   } finally {

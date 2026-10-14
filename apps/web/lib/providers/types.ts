@@ -38,6 +38,11 @@ export interface GenInput {
    * 不传时行为与以前完全一致——图片通道不受影响。
    */
   signal?: AbortSignal;
+  /**
+   * 可选：**真实 HTTP POST 之前**的最后一道闸门，在参考图异步预处理完成之后执行。
+   * 仅视频链路会传；不传时图片通道行为不变。
+   */
+  beforeSend?: () => Promise<void>;
 }
 
 /** 单次调用结果：要么拿到 1 张图，要么失败。 */

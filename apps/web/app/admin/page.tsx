@@ -79,8 +79,8 @@ type LoadState = "loading" | "ready" | "error";
 const fmt = (s: string) => new Date(s).toLocaleString("zh-CN", { hour12: false });
 function LoadNotice({ state, retry }: { state: LoadState; retry: () => void }) {
   if (state === "ready") return null;
-  return <div className="rounded-xl border border-[#e5e5de] bg-white p-6 text-sm text-[#6b7066]" role={state === "error" ? "alert" : "status"}>
-    {state === "loading" ? "加载中…" : <>加载失败，请检查网络后重试。<button type="button" onClick={retry} className="ml-3 rounded-lg border border-[#d7d8d0] px-3 py-1.5 font-medium text-[#5b6350] hover:bg-[#f0f1eb]">重试</button></>}
+  return <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-sm text-[var(--color-muted)]" role={state === "error" ? "alert" : "status"}>
+    {state === "loading" ? "加载中…" : <>加载失败，请检查网络后重试。<button type="button" onClick={retry} className="ml-3 rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 font-medium text-[var(--color-accent)] hover:bg-[var(--color-hover)]">重试</button></>}
   </div>;
 }
 
@@ -90,24 +90,24 @@ export default function AdminPage() {
   const onForbidden = useCallback(() => setForbidden(true), []);
 
   return (
-    <main className="page-container min-h-screen py-8 text-[#262924] md:py-12">
+    <main className="page-container min-h-screen py-8 text-[var(--color-text)] md:py-12">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">
           Lampstage 管理后台
         </h1>
-        <a href="/" className="text-[13px] font-medium text-[#5b6350] hover:underline">
+        <a href="/" className="text-[13px] font-medium text-[var(--color-accent)] hover:underline">
           ← 返回首页
         </a>
       </div>
 
       {forbidden ? (
-        <div className="rounded-xl border border-[#e5e5de] bg-white p-8 text-center">
-          <p className="text-[15px] font-medium text-[#262924]">无权限访问</p>
-          <p className="mt-2 text-[13px] text-[#6b7066]">请使用有管理员权限的账号登录。</p>
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 text-center">
+          <p className="text-[15px] font-medium text-[var(--color-text)]">无权限访问</p>
+          <p className="mt-2 text-[13px] text-[var(--color-muted)]">请使用有管理员权限的账号登录。</p>
         </div>
       ) : (
         <>
-          <div role="tablist" aria-label="管理后台栏目" className="mb-6 flex max-w-full gap-1 overflow-x-auto border-b border-[#e5e5de]">
+          <div role="tablist" aria-label="管理后台栏目" className="mb-6 flex max-w-full gap-1 overflow-x-auto border-b border-[var(--color-border)]">
             {(
               [
                 ["overview", "总览"],
@@ -126,8 +126,8 @@ export default function AdminPage() {
                 onClick={() => setTab(k)}
                 className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-[14px] font-medium transition-colors ${
                   tab === k
-                    ? "border-b-2 border-[#5b6350] text-[#5b6350]"
-                    : "text-[#6b7066] hover:text-[#262924]"
+                    ? "border-b-2 border-[var(--color-accent)] text-[var(--color-accent)]"
+                    : "text-[var(--color-muted)] hover:text-[var(--color-text)]"
                 }`}
               >
                 {label}
@@ -181,9 +181,9 @@ function OverviewTab({ onForbidden }: { onForbidden: () => void }) {
       {cards.map(([label, val]) => (
         <div
           key={label}
-          className="rounded-xl border border-[#e5e5de] bg-white p-5"
+          className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
         >
-          <div className="text-[12px] text-[#6b7066]">{label}</div>
+          <div className="text-[12px] text-[var(--color-muted)]">{label}</div>
           <div className="mt-1 text-[28px] font-semibold tracking-tight">
             {val}
           </div>
@@ -253,20 +253,20 @@ function UsersTab({ onForbidden }: { onForbidden: () => void }) {
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && void load(q)}
           placeholder="按邮箱搜索…"
-          className="min-w-0 flex-1 rounded-md border border-[#e5e5de] bg-white px-3 py-2 text-[14px] outline-none focus:border-[#5b6350] sm:max-w-64"
+          className="min-w-0 flex-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[14px] outline-none focus:border-[var(--color-accent)] sm:max-w-64"
         />
         <button
           onClick={() => void load(q)}
-          className="rounded-md bg-[#5b6350] px-4 py-2 text-[14px] font-medium text-white"
+          className="rounded-md bg-[var(--color-accent)] px-4 py-2 text-[14px] font-medium text-[var(--color-on-accent)]"
         >
           搜索
         </button>
       </div>
       {state !== "ready" && <div className="mb-4"><LoadNotice state={state} retry={() => void load(q)} /></div>}
       {state === "ready" && (
-      <div className="overflow-x-auto rounded-xl border border-[#e5e5de]">
+      <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
         <table className="min-w-[760px] w-full text-[13px]">
-          <thead className="bg-[#f8f8f4] text-left text-[#6b7066]">
+          <thead className="bg-[var(--color-raised)] text-left text-[var(--color-muted)]">
             <tr>
               <th className="px-4 py-3">邮箱</th>
               <th className="px-4 py-3">额度</th>
@@ -277,11 +277,11 @@ function UsersTab({ onForbidden }: { onForbidden: () => void }) {
           </thead>
           <tbody>
             {users.map((u) => (
-              <tr key={u.id} className="border-t border-[#e5e5de]">
+              <tr key={u.id} className="border-t border-[var(--color-border)]">
                 <td className="px-4 py-3">{u.email || "—"}</td>
                 <td className="px-4 py-3 font-semibold">{u.credit_balance}</td>
-                <td className="px-4 py-3 text-[#6b7066]">{u.job_count}</td>
-                <td className="px-4 py-3 text-[#6b7066]">{fmt(u.created_at)}</td>
+                <td className="px-4 py-3 text-[var(--color-muted)]">{u.job_count}</td>
+                <td className="px-4 py-3 text-[var(--color-muted)]">{fmt(u.created_at)}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1.5">
                     {[10, 50, 100].map((n) => (
@@ -289,7 +289,7 @@ function UsersTab({ onForbidden }: { onForbidden: () => void }) {
                         key={n}
                         disabled={busy === u.id}
                         onClick={() => adjust(u.id, n)}
-                        className="rounded bg-[#eef1e9] px-2 py-1 text-[12px] font-medium text-[#5b6350] hover:bg-[#e1e8d8] disabled:opacity-50"
+                        className="rounded bg-[var(--color-raised)] px-2 py-1 text-[12px] font-medium text-[var(--color-accent)] hover:bg-[var(--color-hover)] disabled:opacity-50"
                       >
                         +{n}
                       </button>
@@ -297,7 +297,7 @@ function UsersTab({ onForbidden }: { onForbidden: () => void }) {
                     <button
                       disabled={busy === u.id}
                       onClick={() => adjust(u.id, -10)}
-                      className="rounded bg-[#fee] px-2 py-1 text-[12px] font-medium text-red-600 hover:bg-[#fdd] disabled:opacity-50"
+                      className="rounded bg-[var(--color-danger-bg)] px-2 py-1 text-[12px] font-medium text-[var(--color-danger)] hover:bg-[var(--color-danger-bg)] disabled:opacity-50"
                     >
                       −10
                     </button>
@@ -307,7 +307,7 @@ function UsersTab({ onForbidden }: { onForbidden: () => void }) {
             ))}
             {users.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[#6b7066]">
+                <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-muted)]">
                   无用户
                 </td>
               </tr>
@@ -356,8 +356,8 @@ function JobsTab({ onForbidden }: { onForbidden: () => void }) {
             onClick={() => setFilter(k)}
             className={`rounded-md px-3 py-1.5 text-[13px] ${
               filter === k
-                ? "bg-[#5b6350] text-white"
-                : "bg-[#eef0e9] text-[#6b7066]"
+                ? "bg-[var(--color-accent)] text-[var(--color-on-accent)]"
+                : "bg-[var(--color-raised)] text-[var(--color-muted)]"
             }`}
           >
             {label}
@@ -365,9 +365,9 @@ function JobsTab({ onForbidden }: { onForbidden: () => void }) {
         ))}
       </div>
       {state !== "ready" && <div className="mb-4"><LoadNotice state={state} retry={() => void load()} /></div>}
-      {state === "ready" && <div className="overflow-x-auto rounded-xl border border-[#e5e5de]">
+      {state === "ready" && <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
         <table className="min-w-[800px] w-full text-[13px]">
-          <thead className="bg-[#f8f8f4] text-left text-[#6b7066]">
+          <thead className="bg-[var(--color-raised)] text-left text-[var(--color-muted)]">
             <tr>
               <th className="px-4 py-3">用户</th>
               <th className="px-4 py-3">状态</th>
@@ -379,32 +379,32 @@ function JobsTab({ onForbidden }: { onForbidden: () => void }) {
           </thead>
           <tbody>
             {jobs.map((j) => (
-              <tr key={j.id} className="border-t border-[#e5e5de]">
+              <tr key={j.id} className="border-t border-[var(--color-border)]">
                 <td className="px-4 py-3">{j.email || "—"}</td>
                 <td className="px-4 py-3">
                   <span
                     className={`rounded px-2 py-0.5 text-[12px] ${
                       j.status === "completed"
-                        ? "bg-green-50 text-green-700"
+                        ? "bg-[var(--color-success-bg)] text-[var(--color-success)]"
                         : j.status === "failed"
-                          ? "bg-red-50 text-red-700"
-                          : "bg-amber-50 text-amber-700"
+                          ? "bg-[var(--color-danger-bg)] text-[var(--color-danger)]"
+                          : "bg-[var(--color-warning-bg)] text-[var(--color-warning)]"
                     }`}
                   >
                     {j.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-[#6b7066]">{j.scene_kind || "—"}</td>
-                <td className="px-4 py-3 text-[#6b7066]">{j.output_count}</td>
-                <td className="px-4 py-3 text-[#c00]">
+                <td className="px-4 py-3 text-[var(--color-muted)]">{j.scene_kind || "—"}</td>
+                <td className="px-4 py-3 text-[var(--color-muted)]">{j.output_count}</td>
+                <td className="px-4 py-3 text-[var(--color-danger)]">
                   {j.failure_reason || "—"}
                 </td>
-                <td className="px-4 py-3 text-[#6b7066]">{fmt(j.created_at)}</td>
+                <td className="px-4 py-3 text-[var(--color-muted)]">{fmt(j.created_at)}</td>
               </tr>
             ))}
             {jobs.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-[#6b7066]">
+                <td colSpan={6} className="px-4 py-8 text-center text-[var(--color-muted)]">
                   无任务
                 </td>
               </tr>
@@ -437,9 +437,9 @@ function LeadsTab({ onForbidden }: { onForbidden: () => void }) {
 
   if (state !== "ready") return <LoadNotice state={state} retry={() => void load()} />;
   return (
-    <div className="overflow-x-auto rounded-xl border border-[#e5e5de]">
+    <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
       <table className="min-w-[800px] w-full text-[13px]">
-        <thead className="bg-[#f8f8f4] text-left text-[#6b7066]">
+        <thead className="bg-[var(--color-raised)] text-left text-[var(--color-muted)]">
           <tr>
             <th className="px-4 py-3">邮箱</th>
             <th className="px-4 py-3">微信</th>
@@ -451,18 +451,18 @@ function LeadsTab({ onForbidden }: { onForbidden: () => void }) {
         </thead>
         <tbody>
           {leads.map((l) => (
-            <tr key={l.id} className="border-t border-[#e5e5de]">
+            <tr key={l.id} className="border-t border-[var(--color-border)]">
               <td className="px-4 py-3">{l.email || "—"}</td>
               <td className="px-4 py-3">{l.wechat || "—"}</td>
               <td className="px-4 py-3">{l.phone || "—"}</td>
-              <td className="px-4 py-3 text-[#6b7066]">{l.source}</td>
-              <td className="px-4 py-3 text-[#6b7066]">{l.note || "—"}</td>
-              <td className="px-4 py-3 text-[#6b7066]">{fmt(l.created_at)}</td>
+              <td className="px-4 py-3 text-[var(--color-muted)]">{l.source}</td>
+              <td className="px-4 py-3 text-[var(--color-muted)]">{l.note || "—"}</td>
+              <td className="px-4 py-3 text-[var(--color-muted)]">{fmt(l.created_at)}</td>
             </tr>
           ))}
           {leads.length === 0 && (
             <tr>
-              <td colSpan={6} className="px-4 py-8 text-center text-[#6b7066]">
+              <td colSpan={6} className="px-4 py-8 text-center text-[var(--color-muted)]">
                 暂无留资
               </td>
             </tr>
@@ -522,8 +522,8 @@ function ScenesTab({ onForbidden }: { onForbidden: () => void }) {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="grid grid-cols-3 gap-3">
           {cards.map(([label, value]) => (
-            <div key={label} className="rounded-xl border border-[#e5e5de] bg-white p-4">
-              <div className="text-[12px] text-[#6b7066]">{label}</div>
+            <div key={label} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+              <div className="text-[12px] text-[var(--color-muted)]">{label}</div>
               <div className="mt-1 text-[24px] font-semibold tracking-tight">{value}</div>
             </div>
           ))}
@@ -531,30 +531,30 @@ function ScenesTab({ onForbidden }: { onForbidden: () => void }) {
         <button
           onClick={runWeekly}
           disabled={running}
-          className="rounded-md bg-[#5b6350] px-4 py-2 text-[13px] font-medium text-white disabled:opacity-50"
+          className="rounded-md bg-[var(--color-accent)] px-4 py-2 text-[13px] font-medium text-[var(--color-on-accent)] disabled:opacity-50"
         >
           {running ? "Running..." : "Run weekly generation"}
         </button>
       </div>
 
       {result && (
-        <pre className="mb-4 max-h-64 overflow-auto rounded-lg border border-[#e5e5de] bg-[#f8f8f4] p-3 text-[11px] text-[#444]">
+        <pre className="mb-4 max-h-64 overflow-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-raised)] p-3 text-[11px] text-[var(--color-body)]">
           {result}
         </pre>
       )}
 
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {data.by_scene.map((row) => (
-          <div key={row.scene_type} className="rounded-xl border border-[#e5e5de] p-4">
-            <div className="text-[12px] text-[#6b7066]">{row.scene_type}</div>
+          <div key={row.scene_type} className="rounded-xl border border-[var(--color-border)] p-4">
+            <div className="text-[12px] text-[var(--color-muted)]">{row.scene_type}</div>
             <div className="mt-1 text-[20px] font-semibold tracking-tight">{row._count.id}</div>
           </div>
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#e5e5de]">
+      <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
         <table className="min-w-[680px] w-full text-[13px]">
-          <thead className="bg-[#f8f8f4] text-left text-[#6b7066]">
+          <thead className="bg-[var(--color-raised)] text-left text-[var(--color-muted)]">
             <tr>
               <th className="px-4 py-3">Scene</th>
               <th className="px-4 py-3">Audience</th>
@@ -565,12 +565,12 @@ function ScenesTab({ onForbidden }: { onForbidden: () => void }) {
           </thead>
           <tbody>
             {data.by_group.map((row) => (
-              <tr key={row.scene_type + "-" + row.target_audience + "-" + row.time_of_day} className="border-t border-[#e5e5de]">
+              <tr key={row.scene_type + "-" + row.target_audience + "-" + row.time_of_day} className="border-t border-[var(--color-border)]">
                 <td className="px-4 py-3">{row.scene_type}</td>
-                <td className="px-4 py-3 text-[#6b7066]">{row.target_audience}</td>
-                <td className="px-4 py-3 text-[#6b7066]">{row.time_of_day}</td>
+                <td className="px-4 py-3 text-[var(--color-muted)]">{row.target_audience}</td>
+                <td className="px-4 py-3 text-[var(--color-muted)]">{row.time_of_day}</td>
                 <td className="px-4 py-3 font-semibold">{row._count.id}</td>
-                <td className="px-4 py-3 text-[#6b7066]">{row._sum.usage_count ?? 0}</td>
+                <td className="px-4 py-3 text-[var(--color-muted)]">{row._sum.usage_count ?? 0}</td>
               </tr>
             ))}
           </tbody>
@@ -624,24 +624,24 @@ function LogsTab({ onForbidden }: { onForbidden: () => void }) {
         {Object.entries(summary).map(([t, st]) => {
           const rate = st.total ? Math.round((st.ok / st.total) * 100) : 0;
           return (
-            <div key={t} className="rounded-xl border border-[#e5e5de] p-4">
-              <div className="text-[12px] text-[#6b7066]">
+            <div key={t} className="rounded-xl border border-[var(--color-border)] p-4">
+              <div className="text-[12px] text-[var(--color-muted)]">
                 {TOOL_LABELS[t] || t}
               </div>
               <div className="mt-1 text-[20px] font-semibold tracking-tight">
                 {rate}%
-                <span className="ml-1 text-[12px] font-normal text-[#6b7066]">
+                <span className="ml-1 text-[12px] font-normal text-[var(--color-muted)]">
                   成功
                 </span>
               </div>
-              <div className="mt-1 text-[12px] text-[#6b7066]">
+              <div className="mt-1 text-[12px] text-[var(--color-muted)]">
                 {st.total} 次 · 失败 {st.failed} · 均 {st.avgMs}ms
               </div>
             </div>
           );
         })}
         {Object.keys(summary).length === 0 && (
-          <div className="col-span-full rounded-xl border border-dashed border-[#e5e5de] p-6 text-center text-[13px] text-[#6b7066]">
+          <div className="col-span-full rounded-xl border border-dashed border-[var(--color-border)] p-6 text-center text-[13px] text-[var(--color-muted)]">
             最近 24 小时暂无调用记录
           </div>
         )}
@@ -660,13 +660,13 @@ function LogsTab({ onForbidden }: { onForbidden: () => void }) {
             key={k}
             onClick={() => setTool(k)}
             className={`rounded-md px-3 py-1.5 text-[13px] ${
-              tool === k ? "bg-[#5b6350] text-white" : "bg-[#eef0e9] text-[#6b7066]"
+              tool === k ? "bg-[var(--color-accent)] text-[var(--color-on-accent)]" : "bg-[var(--color-raised)] text-[var(--color-muted)]"
             }`}
           >
             {label}
           </button>
         ))}
-        <span className="mx-1 w-px bg-[#e5e5de]" />
+        <span className="mx-1 w-px bg-[var(--color-border)]" />
         {[
           ["all", "全部状态"],
           ["ok", "成功"],
@@ -677,8 +677,8 @@ function LogsTab({ onForbidden }: { onForbidden: () => void }) {
             onClick={() => setStatus(k)}
             className={`rounded-md px-3 py-1.5 text-[13px] ${
               status === k
-                ? "bg-[#5b6350] text-white"
-                : "bg-[#eef0e9] text-[#6b7066]"
+                ? "bg-[var(--color-accent)] text-[var(--color-on-accent)]"
+                : "bg-[var(--color-raised)] text-[var(--color-muted)]"
             }`}
           >
             {label}
@@ -686,9 +686,9 @@ function LogsTab({ onForbidden }: { onForbidden: () => void }) {
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#e5e5de]">
+      <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
         <table className="min-w-[1050px] w-full text-[13px]">
-          <thead className="bg-[#f8f8f4] text-left text-[#6b7066]">
+          <thead className="bg-[var(--color-raised)] text-left text-[var(--color-muted)]">
             <tr>
               <th className="px-4 py-3">工具</th>
               <th className="px-4 py-3">模型</th>
@@ -702,31 +702,31 @@ function LogsTab({ onForbidden }: { onForbidden: () => void }) {
           </thead>
           <tbody>
             {logs.map((l) => (
-              <tr key={l.id} className="border-t border-[#e5e5de]">
+              <tr key={l.id} className="border-t border-[var(--color-border)]">
                 <td className="px-4 py-3">{TOOL_LABELS[l.tool] || l.tool}</td>
-                <td className="px-4 py-3 text-[#6b7066]">{l.model || "—"}</td>
+                <td className="px-4 py-3 text-[var(--color-muted)]">{l.model || "—"}</td>
                 <td className="px-4 py-3">
                   <span
                     className={`rounded px-2 py-0.5 text-[12px] ${
                       l.status === "ok"
-                        ? "bg-green-50 text-green-700"
-                        : "bg-red-50 text-red-700"
+                        ? "bg-[var(--color-success-bg)] text-[var(--color-success)]"
+                        : "bg-[var(--color-danger-bg)] text-[var(--color-danger)]"
                     }`}
                   >
                     {l.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-[#6b7066]">{l.http_status ?? "—"}</td>
-                <td className="px-4 py-3 text-[#6b7066]">
+                <td className="px-4 py-3 text-[var(--color-muted)]">{l.http_status ?? "—"}</td>
+                <td className="px-4 py-3 text-[var(--color-muted)]">
                   {l.duration_ms != null ? `${l.duration_ms}ms` : "—"}
                 </td>
                 <td
-                  className="max-w-[280px] truncate px-4 py-3 text-[#c00]"
+                  className="max-w-[280px] truncate px-4 py-3 text-[var(--color-danger)]"
                   title={l.error || ""}
                 >
                   {l.error || "—"}
                 </td>
-                <td className="px-4 py-3 text-[#6b7066]">{fmt(l.created_at)}</td>
+                <td className="px-4 py-3 text-[var(--color-muted)]">{fmt(l.created_at)}</td>
                 <td className="px-4 py-3">
                   {l.tool === "prompt_planner" &&
                   l.status === "ok" &&
@@ -740,7 +740,7 @@ function LogsTab({ onForbidden }: { onForbidden: () => void }) {
             ))}
             {logs.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-[#6b7066]">
+                <td colSpan={8} className="px-4 py-8 text-center text-[var(--color-muted)]">
                   无调用记录
                 </td>
               </tr>
@@ -762,28 +762,28 @@ function PlannerResultCell({ json }: { json: string }) {
   }
 
   if (!plan) {
-    return <span className="text-[#6b7066]">(解析失败)</span>;
+    return <span className="text-[var(--color-muted)]">(解析失败)</span>;
   }
 
   return (
     <div className="max-w-[360px]">
-      <span className="text-[12px] text-[#6b7066]">
+      <span className="text-[12px] text-[var(--color-muted)]">
         {plan.reasoning?.slice(0, 80) || "—"}
       </span>
       <button
         onClick={() => setOpen(!open)}
-        className="ml-2 text-[11px] text-[#5b6350] hover:underline"
+        className="ml-2 text-[11px] text-[var(--color-accent)] hover:underline"
       >
         {open ? "收起 ↑" : "展开 ↓"}
       </button>
       {open && (
-        <div className="mt-2 max-h-[360px] overflow-y-auto rounded border border-[#e5e5de] bg-[#f8f8f4] p-3 text-[11px] leading-relaxed">
+        <div className="mt-2 max-h-[360px] overflow-y-auto rounded border border-[var(--color-border)] bg-[var(--color-raised)] p-3 text-[11px] leading-relaxed">
           {plan.shots?.map((shot, i) => (
-            <div key={i} className="mb-3 border-b border-[#e5e5de] pb-3 last:mb-0 last:border-b-0 last:pb-0">
-              <div className="font-semibold text-[#333]">
+            <div key={i} className="mb-3 border-b border-[var(--color-border)] pb-3 last:mb-0 last:border-b-0 last:pb-0">
+              <div className="font-semibold text-[var(--color-text)]">
                 Shot {i + 1}: {shot.scene_type} · {shot.time_of_day} · {shot.light_state}
               </div>
-              <div className="mt-1 whitespace-pre-wrap font-mono text-[#555]">
+              <div className="mt-1 whitespace-pre-wrap font-mono text-[var(--color-body)]">
                 {shot.prompt}
               </div>
             </div>

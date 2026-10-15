@@ -130,7 +130,7 @@ export function SceneSelector(props: {
 
   return (
     <div>
-      <div className="mb-3 flex gap-1.5 overflow-x-auto rounded-xl border border-[#e5e5de] bg-[#fafafa] p-1">
+      <div className="mb-3 flex gap-1.5 overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-1">
         {tabs.map((tab) => {
           const on = sceneKind === tab.value;
           return (
@@ -140,7 +140,7 @@ export function SceneSelector(props: {
               aria-pressed={on}
               onClick={() => setSceneKind(tab.value)}
               className={`flex-1 whitespace-nowrap rounded-lg px-2.5 py-2 text-[13px] transition-colors ${
-                on ? "bg-[#5b6350] text-white" : "text-[#6b7066] hover:text-[#5b6350]"
+                on ? "bg-[var(--color-accent)] text-[var(--color-on-accent)]" : "text-[var(--color-muted)] hover:text-[var(--color-accent)]"
               }`}
             >
               {tab.label}
@@ -164,9 +164,9 @@ export function SceneSelector(props: {
 
       {sceneKind === "template" && (
         <>
-          {templatesState === "loading" && <p role="status" className="rounded-xl border border-[#e5e5de] bg-[#f7f7f2] p-4 text-[13px] text-[#6b7066]">{lang === "zh" ? "正在读取场景模板…" : "Loading scene templates…"}</p>}
-          {templatesState === "error" && <div role="alert" className="rounded-xl border border-red-100 bg-red-50 p-4 text-[13px] text-red-700"><p>{lang === "zh" ? "场景模板暂时无法读取，请重试。" : "Scene templates could not be loaded. Please retry."}</p>{templatesError && <p className="mt-1 break-words text-xs">{templatesError}</p>}<button type="button" onClick={onRetryTemplates} className="btn btn-outline mt-3">{lang === "zh" ? "重新读取模板" : "Retry loading templates"}</button></div>}
-          {templatesState === "empty" && <div role="status" className="rounded-xl border border-[#e5e5de] bg-[#f7f7f2] p-4 text-[13px] text-[#6b7066]"><p>{lang === "zh" ? "暂无可用模板，可切换智能推荐或自定义场景。" : "No templates are available. Try recommended or custom scenes."}</p><button type="button" onClick={onRetryTemplates} className="btn btn-outline mt-3">{lang === "zh" ? "刷新模板" : "Refresh templates"}</button></div>}
+          {templatesState === "loading" && <p role="status" className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-[13px] text-[var(--color-muted)]">{lang === "zh" ? "正在读取场景模板…" : "Loading scene templates…"}</p>}
+          {templatesState === "error" && <div role="alert" className="rounded-xl border border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] p-4 text-[13px] text-[var(--color-danger)]"><p>{lang === "zh" ? "场景模板暂时无法读取，请重试。" : "Scene templates could not be loaded. Please retry."}</p>{templatesError && <p className="mt-1 break-words text-xs">{templatesError}</p>}<button type="button" onClick={onRetryTemplates} className="btn btn-outline mt-3">{lang === "zh" ? "重新读取模板" : "Retry loading templates"}</button></div>}
+          {templatesState === "empty" && <div role="status" className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-[13px] text-[var(--color-muted)]"><p>{lang === "zh" ? "暂无可用模板，可切换智能推荐或自定义场景。" : "No templates are available. Try recommended or custom scenes."}</p><button type="button" onClick={onRetryTemplates} className="btn btn-outline mt-3">{lang === "zh" ? "刷新模板" : "Refresh templates"}</button></div>}
           {templatesState === "ready" && <TemplateGrid templates={templates} selectedId={templateId} onSelect={setTemplateId} />}
         </>
       )}
@@ -201,24 +201,24 @@ function RecommendedScenes({
 
   if (!file) {
     return (
-      <div className="rounded-xl border border-dashed border-[#e5e5de] bg-white p-6 text-center text-[13px] text-[#6b7066]">
+      <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center text-[13px] text-[var(--color-muted)]">
         {t("ws_recommend_need_upload")}
       </div>
     );
   }
   if (!uploadedAssetId && suggestions.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-[#e5e5de] bg-white p-6 text-center text-[13px] text-[#6b7066]">
+      <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center text-[13px] text-[var(--color-muted)]">
         {lang === "zh" ? "等待上传完成；如需登录，请先登录后继续。" : "Waiting for upload. Sign in first if prompted."}
       </div>
     );
   }
   if (suggesting) {
     return (
-      <div className="rounded-xl border border-[#e5e5de] bg-white p-6 text-center">
-        <div className="mb-2 inline-block h-5 w-5 animate-spin rounded-full border-2 border-[#5b6350] border-t-transparent" />
-        <p className="text-[13px] text-[#6b7066]">{t("ws_recommend_thinking")}</p>
-        <p className="mt-1 text-[11px] text-[#6b7066]">
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center">
+        <div className="mb-2 inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-accent)] border-t-transparent" />
+        <p className="text-[13px] text-[var(--color-muted)]">{t("ws_recommend_thinking")}</p>
+        <p className="mt-1 text-[11px] text-[var(--color-muted)]">
           {lang === "zh" ? "正在根据商品图构思场景。" : "Planning scenes from your product image."}
         </p>
       </div>
@@ -229,11 +229,11 @@ function RecommendedScenes({
       ? lang === "zh" ? "图片服务账号已迁移，请管理员更新图片配置后重试。" : "The image service account has migrated. Please ask an administrator to update the image configuration, then retry."
       : lang === "zh" ? "场景推荐服务暂不可用，请稍后重试。" : "Scene recommendations are temporarily unavailable. Please try again later.";
     return (
-      <div role="alert" className="rounded-xl border border-red-100 bg-red-50 p-4 text-[13px] text-red-700">
+      <div role="alert" className="rounded-xl border border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] p-4 text-[13px] text-[var(--color-danger)]">
         <div>{message}</div>
         <button
           onClick={onRetry}
-          className="mt-2 rounded-md border border-red-200 bg-white px-3 py-1 text-[12px] text-red-700"
+          className="mt-2 rounded-md border border-[var(--color-danger-border)] bg-[var(--color-surface)] px-3 py-1 text-[12px] text-[var(--color-danger)]"
         >
           {t("ws_recommend_retry")}
         </button>
@@ -242,7 +242,7 @@ function RecommendedScenes({
   }
   if (suggestions.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-[#e5e5de] bg-white p-6 text-center text-[13px] text-[#6b7066]">
+      <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center text-[13px] text-[var(--color-muted)]">
         {t("ws_recommend_empty")}{" "}
         <button onClick={onRetry} className="ml-2 underline">
           {t("ws_recommend_retry")}
@@ -367,13 +367,13 @@ function RecommendedSceneCard({
       onClick={handleClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className={`overflow-hidden rounded-2xl border bg-white text-left transition-all ${
+      className={`overflow-hidden rounded-2xl border bg-[var(--color-surface)] text-left transition-all ${
         selected
-          ? "border-[#5b6350] shadow-[0_0_0_3px_rgba(23,23,23,.06)]"
-          : "border-[#e5e5de] hover:border-[#5b6350]"
+          ? "border-[var(--color-accent)] shadow-[0_0_0_3px_rgba(23,23,23,.06)]"
+          : "border-[var(--color-border)] hover:border-[var(--color-accent)]"
       }`}
     >
-      <div className="relative h-32 w-full overflow-hidden bg-gradient-to-br from-[#f4f4ef] to-[#d9ddd2] sm:h-36">
+      <div className="relative h-32 w-full overflow-hidden bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-raised)] sm:h-36">
         {thumbUrl && !thumbError && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -391,13 +391,13 @@ function RecommendedSceneCard({
           <div className="absolute inset-0 grid place-items-center">
             {thumbLoading ? (
               <div className="flex flex-col items-center gap-1.5">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#5b6350] border-t-transparent" />
-                <span className="text-[11px] text-[#5b6350]">{t("ws_recommend_thumb_loading")}</span>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-accent)] border-t-transparent" />
+                <span className="text-[11px] text-[var(--color-accent)]">{t("ws_recommend_thumb_loading")}</span>
               </div>
             ) : thumbError ? (
-              <span role="status" className="px-3 text-center text-[11px] text-[#6b7066]">{lang === "zh" ? "场景参考暂不可用，点击重试" : "Scene preview unavailable. Select to retry."}</span>
+              <span role="status" className="px-3 text-center text-[11px] text-[var(--color-muted)]">{lang === "zh" ? "场景参考暂不可用，点击重试" : "Scene preview unavailable. Select to retry."}</span>
             ) : (
-              <span className="text-[11px] text-[#5b6350] opacity-70">
+              <span className="text-[11px] text-[var(--color-accent)] opacity-70">
                 {lang === "zh" ? "选择以查看场景参考" : "Select to preview this scene"}
               </span>
             )}
@@ -405,19 +405,19 @@ function RecommendedSceneCard({
         )}
       </div>
       <div className="p-3">
-        <div className="text-[14px] font-semibold text-[#5b6350]">
+        <div className="text-[14px] font-semibold text-[var(--color-accent)]">
           {scene.title}
         </div>
-        <div className="mt-1 line-clamp-2 text-[12px] text-[#6b7066]">
+        <div className="mt-1 line-clamp-2 text-[12px] text-[var(--color-muted)]">
           {scene.pitch}
         </div>
-        <p className="mt-2 text-[11px] text-[#6b7066]">{lang === "zh" ? "构思参考，尚未生成正式结果" : "Scene reference, not a generated result"}</p>
+        <p className="mt-2 text-[11px] text-[var(--color-muted)]">{lang === "zh" ? "构思参考，尚未生成正式结果" : "Scene reference, not a generated result"}</p>
         {scene.best_for.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {scene.best_for.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="rounded-full bg-[#f0f2eb] px-2 py-0.5 text-[11px] text-[#5b6350]"
+                className="rounded-full bg-[var(--color-raised)] px-2 py-0.5 text-[11px] text-[var(--color-accent)]"
               >
                 {tag}
               </span>
@@ -467,10 +467,10 @@ function TemplateGrid({
             type="button"
             aria-pressed={selected}
             onClick={() => onSelect(tpl.id)}
-            className={`overflow-hidden rounded-2xl border bg-white text-left transition-all ${
+            className={`overflow-hidden rounded-2xl border bg-[var(--color-surface)] text-left transition-all ${
               selected
-                ? "border-[#5b6350] shadow-[0_0_0_3px_rgba(23,23,23,.06)]"
-                : "border-[#e5e5de] hover:border-[#5b6350]"
+                ? "border-[var(--color-accent)] shadow-[0_0_0_3px_rgba(23,23,23,.06)]"
+                : "border-[var(--color-border)] hover:border-[var(--color-accent)]"
             }`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -481,10 +481,10 @@ function TemplateGrid({
               loading="lazy"
             />
             <div className="p-3">
-              <div className="text-[13px] font-semibold text-[#5b6350] sm:text-[14px]">
+              <div className="text-[13px] font-semibold text-[var(--color-accent)] sm:text-[14px]">
                 {tpl.name}
               </div>
-              <div className="text-[11px] text-[#6b7066] sm:text-[12px]">
+              <div className="text-[11px] text-[var(--color-muted)] sm:text-[12px]">
                 {lampLabel} · {sceneLabel}
               </div>
             </div>
@@ -511,9 +511,9 @@ function CustomPromptEditor({
         onChange={(e) => onChange(e.target.value)}
         placeholder={t("ws_custom_placeholder")}
         rows={4}
-        className="w-full rounded-xl border border-[#e5e5de] bg-white p-3 text-[13px] outline-none focus:border-[#5b6350]"
+        className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-[13px] outline-none focus:border-[var(--color-accent)]"
       />
-      <div className="mt-2 text-[11px] text-[#6b7066]">
+      <div className="mt-2 text-[11px] text-[var(--color-muted)]">
         {t("ws_custom_tags_hint")}
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -526,7 +526,7 @@ function CustomPromptEditor({
               const sep = trimmed.length > 0 && !/[，,]$/.test(trimmed) ? (lang === "zh" ? "，" : ", ") : trimmed.length > 0 && lang === "en" ? " " : "";
               onChange(trimmed + sep + tag[lang]);
             }}
-            className="rounded-full border border-[#e5e5de] bg-white px-2.5 py-1 text-[12px] text-[#6b7066] hover:border-[#5b6350] hover:text-[#5b6350]"
+            className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-[12px] text-[var(--color-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
           >
             {tag[lang]}
           </button>

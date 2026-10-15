@@ -92,30 +92,30 @@ export function LeadCaptureModal({ open, source, onClose }: Props) {
             <h2 id="lead-title" className="pr-8 text-[22px] font-semibold tracking-tight">
               {t("lead_title")}
             </h2>
-            <p className="mt-2 text-[14px] text-[#6b7066]">{t("lead_subtitle")}</p>
+            <p className="mt-2 text-[14px] text-[var(--color-muted)]">{t("lead_subtitle")}</p>
 
             {/* 直接扫码加客服 */}
-            <div className="mt-4 flex items-center gap-3 rounded-xl border border-[#e5e5de] bg-[#f5f5ef] p-3">
+            <div className="mt-4 flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-raised)] p-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={BRAND.wechatQr}
                 alt="WeChat QR"
                 className="h-24 w-24 flex-none rounded-lg bg-white object-contain"
               />
-              <div className="text-[13px] leading-relaxed text-[#454a40]">
-                <div className="font-semibold text-[#262924]">
+              <div className="text-[13px] leading-relaxed text-[var(--color-body)]">
+                <div className="font-semibold text-[var(--color-text)]">
                   {t("lead_scan_title")}
                 </div>
-                <div className="mt-0.5 text-[#6b7066]">
+                <div className="mt-0.5 text-[var(--color-muted)]">
                   {t("lead_scan_desc")}
                 </div>
               </div>
             </div>
 
-            <div className="my-4 flex items-center gap-3 text-[12px] text-[#6b7066]">
-              <span className="h-px flex-1 bg-[#e5e5de]" />
+            <div className="my-4 flex items-center gap-3 text-[12px] text-[var(--color-muted)]">
+              <span className="h-px flex-1 bg-[var(--color-border)]" />
               {t("lead_or_leave")}
-              <span className="h-px flex-1 bg-[#e5e5de]" />
+              <span className="h-px flex-1 bg-[var(--color-border)]" />
             </div>
 
             <div className="space-y-3">
@@ -139,7 +139,7 @@ export function LeadCaptureModal({ open, source, onClose }: Props) {
                 inputMode="tel"
               />
               <div>
-                <label htmlFor="lead-message" className="mb-1 block text-[13px] font-medium text-[#262924]">
+                <label htmlFor="lead-message" className="mb-1 block text-[13px] font-medium text-[var(--color-text)]">
                   {t("lead_label_message")}
                 </label>
                 <textarea
@@ -148,13 +148,13 @@ export function LeadCaptureModal({ open, source, onClose }: Props) {
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder={t("lead_placeholder_message")}
                   rows={3}
-                  className="w-full rounded-lg border border-[#e5e5de] px-3 py-2 text-[14px] focus:border-[#5b6350]"
+                  className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-[14px] focus:border-[var(--color-accent)]"
                 />
               </div>
             </div>
 
             {error && (
-              <p role="alert" className="mt-3 text-[13px] text-red-600">{error}</p>
+              <p role="alert" className="mt-3 text-[13px] text-[var(--color-danger)]">{error}</p>
             )}
             <button
               type="submit"
@@ -166,13 +166,13 @@ export function LeadCaptureModal({ open, source, onClose }: Props) {
           </form>
         ) : (
           <div className="py-2 text-center">
-            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-emerald-50 text-emerald-600">
+            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-[var(--color-success-bg)] text-[var(--color-success)]">
               <Check size={24} weight="bold" />
             </div>
             <h2 id="lead-title" className="text-[22px] font-semibold tracking-tight">
               {t("lead_success_title")}
             </h2>
-            <p className="mt-2 text-[13px] text-[#6b7066]">
+            <p className="mt-2 text-[13px] text-[var(--color-muted)]">
               {t("lead_success_body")}
             </p>
             <button
@@ -202,7 +202,7 @@ function Field({
 }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-1 block text-[13px] font-medium text-[#262924]">
+      <label htmlFor={id} className="mb-1 block text-[13px] font-medium text-[var(--color-text)]">
         {label}
       </label>
       <input
@@ -211,7 +211,7 @@ function Field({
         inputMode={inputMode}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-[#e5e5de] px-3 py-2 text-[14px] focus:border-[#5b6350]"
+        className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-[14px] focus:border-[var(--color-accent)]"
       />
     </div>
   );

@@ -282,13 +282,13 @@ export function LampProfileCard({ assetId, onReady }: Props) {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-[#e5e5de] bg-white p-5">
-        <div role="status" className="flex items-center gap-2 text-[13px] text-[#6b7066]"><SpinnerGap size={18} className="animate-spin" />{copy("AI 正在识别商品信息…", "Recognizing product details…")}</div>
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+        <div role="status" className="flex items-center gap-2 text-[13px] text-[var(--color-muted)]"><SpinnerGap size={18} className="animate-spin" />{copy("AI 正在识别商品信息…", "Recognizing product details…")}</div>
         <div className="mt-3 grid grid-cols-2 gap-3">
-          <div className="h-12 rounded-md bg-[#f4f4ef] animate-pulse" />
-          <div className="h-12 rounded-md bg-[#f4f4ef] animate-pulse" />
-          <div className="h-12 rounded-md bg-[#f4f4ef] animate-pulse" />
-          <div className="h-12 rounded-md bg-[#f4f4ef] animate-pulse" />
+          <div className="h-12 rounded-md bg-[var(--color-raised)] animate-pulse" />
+          <div className="h-12 rounded-md bg-[var(--color-raised)] animate-pulse" />
+          <div className="h-12 rounded-md bg-[var(--color-raised)] animate-pulse" />
+          <div className="h-12 rounded-md bg-[var(--color-raised)] animate-pulse" />
         </div>
       </div>
     );
@@ -305,25 +305,25 @@ export function LampProfileCard({ assetId, onReady }: Props) {
   const sizeRange = SIZE_RANGE[profile.lamp_type];
 
   return (
-    <div className="rounded-2xl border border-[#e5e5de] bg-white p-5">
+    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
       <div className="flex items-center justify-between">
-        <div className="text-[13px] font-semibold tracking-tight text-[#5b6350]">
+        <div className="text-[13px] font-semibold tracking-tight text-[var(--color-accent)]">
           {copy("识别结果 · 请核对并调整", "Recognition · review and adjust")}
         </div>
         {profile.ai_inferred_at && !usingDefault && (
-          <div className="flex items-center gap-1 text-[11px] text-[#5b6350]"><CheckCircle size={14} />{copy("已识别", "Recognized")}</div>
+          <div className="flex items-center gap-1 text-[11px] text-[var(--color-accent)]"><CheckCircle size={14} />{copy("已识别", "Recognized")}</div>
         )}
       </div>
 
       {usingDefault && errMsg && (
-        <div className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+        <div className="mt-2 rounded-md bg-[var(--color-warning-bg)] px-3 py-2 text-[12px] text-[var(--color-warning)]">
           {errMsg}
         </div>
       )}
 
-      <p className="mt-2 text-xs leading-5 text-[#6b7066]">{copy("识别信息仅作参考，请按真实商品规格确认。", "Recognition is a suggestion. Confirm details against your actual product specifications.")}</p>
-      {saving && <p role="status" className="mt-2 text-xs text-[#6b7066]">{copy("正在保存修改…", "Saving changes…")}</p>}
-      {saveError && <div role="alert" className="mt-2 text-xs text-red-700">{copy("修改未保存，请重试后继续。", "Changes were not saved. Retry before continuing.")} <button type="button" className="underline" onClick={() => queueSave(profile)}>{copy("重新保存", "Retry save")}</button></div>}
+      <p className="mt-2 text-xs leading-5 text-[var(--color-muted)]">{copy("识别信息仅作参考，请按真实商品规格确认。", "Recognition is a suggestion. Confirm details against your actual product specifications.")}</p>
+      {saving && <p role="status" className="mt-2 text-xs text-[var(--color-muted)]">{copy("正在保存修改…", "Saving changes…")}</p>}
+      {saveError && <div role="alert" className="mt-2 text-xs text-[var(--color-danger)]">{copy("修改未保存，请重试后继续。", "Changes were not saved. Retry before continuing.")} <button type="button" className="underline" onClick={() => queueSave(profile)}>{copy("重新保存", "Retry save")}</button></div>}
       {/* 类型 */}
       <Field label="类型">
         <div className="flex flex-wrap gap-1.5">
@@ -353,7 +353,7 @@ export function LampProfileCard({ assetId, onReady }: Props) {
             </Chip>
           ))}
         </div>
-        <div className="mt-2 text-[11px] text-[#6b7066]">
+        <div className="mt-2 text-[11px] text-[var(--color-muted)]">
           {copy("参考尺寸约", "Approximate reference size")} {profile.size_hint_cm}cm
         </div>
       </Field>
@@ -371,7 +371,7 @@ export function LampProfileCard({ assetId, onReady }: Props) {
             </Chip>
           ))}
         </div>
-        <div className="mt-2 text-[11px] text-[#6b7066]">
+        <div className="mt-2 text-[11px] text-[var(--color-muted)]">
           按产品规格填，决定生成图里灯亮起来的颜色
         </div>
       </Field>
@@ -408,14 +408,14 @@ export function LampProfileCard({ assetId, onReady }: Props) {
                 disabled={!active && atLimit}
                 className={`relative rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
                   active
-                    ? "bg-[#5b6350] text-white"
+                    ? "bg-[var(--color-accent)] text-[var(--color-on-accent)]"
                     : atLimit
-                      ? "cursor-not-allowed border border-[#eef2f6] bg-[#f7f7f2] text-[#cbd5e1]"
-                      : "border border-[#e5e5de] bg-white text-[#262924] hover:bg-[#f7f7f2]"
+                      ? "cursor-not-allowed border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-body)]"
+                      : "border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] hover:bg-[var(--color-surface)]"
                 }`}
               >
                 {active && (
-                  <span className="mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-[#5b6350]">
+                  <span className="mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-surface)] text-[10px] font-bold text-[var(--color-accent)]">
                     {order + 1}
                   </span>
                 )}
@@ -424,7 +424,7 @@ export function LampProfileCard({ assetId, onReady }: Props) {
             );
           })}
         </div>
-        <div className="mt-2 text-[11px] text-[#6b7066]">
+        <div className="mt-2 text-[11px] text-[var(--color-muted)]">
           AI 按灯的风格判断最适合的空间。第 1 个最优先，生成图会用这些空间。
         </div>
       </Field>
@@ -434,8 +434,8 @@ export function LampProfileCard({ assetId, onReady }: Props) {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="mt-3 border-t border-[#f4f4ef] pt-3">
-      <div className="mb-2 text-[12px] font-medium text-[#6b7066]">{label}</div>
+    <div className="mt-3 border-t border-[var(--color-border)] pt-3">
+      <div className="mb-2 text-[12px] font-medium text-[var(--color-muted)]">{label}</div>
       {children}
     </div>
   );
@@ -462,8 +462,8 @@ function Chip({
       title={hint}
       className={`${fill ? "" : ""} rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
         active
-          ? "bg-[#5b6350] text-white"
-          : "border border-[#e5e5de] bg-white text-[#262924] hover:bg-[#f7f7f2]"
+          ? "bg-[var(--color-accent)] text-[var(--color-on-accent)]"
+          : "border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] hover:bg-[var(--color-surface)]"
       } ${fill ? "w-full text-center" : ""}`}
     >
       {children}

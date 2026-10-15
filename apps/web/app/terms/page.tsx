@@ -13,17 +13,17 @@ export default function TermsPage() {
     <>
     <SiteHeader />
     <main className="mx-auto max-w-3xl px-5 py-12">
-      <Link href="/" className="text-[13px] text-[#5b6350] hover:underline">
+      <Link href="/" className="text-[13px] text-[var(--color-accent)] hover:underline">
         ← {zh ? "返回首页" : "Back home"}
       </Link>
       <h1 className="mt-4 text-[34px] font-semibold tracking-tight">
         {zh ? "用户协议" : "Terms of Service"}
       </h1>
-      <p className="mt-2 text-[13px] text-[#6b7066]">
+      <p className="mt-2 text-[13px] text-[var(--color-muted)]">
         {zh ? "最后更新：2026 年 6 月" : "Last updated: June 2026"}
       </p>
 
-      <div className="mt-8 space-y-6 text-[15px] leading-7 text-[#454a40]">
+      <div className="mt-8 space-y-6 text-[15px] leading-7 text-[var(--color-body)]">
         <Section title={zh ? "服务说明" : "The service"}>
           {zh
             ? `${BRAND.cn}（${BRAND.en}）提供连接 WorkBuddy Expert 的 AI 内容 API。你可以通过个人密钥提交素材，调用图片、视频和电商内容任务。`
@@ -67,8 +67,8 @@ export default function TermsPage() {
         </Section>
       </div>
 
-      <p className="mt-10 text-[12px] text-[#6b7066]">
-        <Link href="/privacy" className="text-[#5b6350] hover:underline">
+      <p className="mt-10 text-[12px] text-[var(--color-muted)]">
+        <Link href="/privacy" className="text-[var(--color-accent)] hover:underline">
           {zh ? "隐私政策" : "Privacy Policy"}
         </Link>
       </p>
@@ -87,7 +87,7 @@ function Section({
 }) {
   return (
     <section>
-      <h2 className="mb-1.5 text-[16px] font-semibold text-[#262924]">
+      <h2 className="mb-1.5 text-[16px] font-semibold text-[var(--color-text)]">
         {title}
       </h2>
       <p>{children}</p>

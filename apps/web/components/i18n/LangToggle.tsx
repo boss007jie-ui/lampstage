@@ -8,11 +8,11 @@ import { useLang } from "./LangProvider";
 export function LangToggle({ className = "" }: { className?: string }) {
   const { lang, setLang } = useLang();
   const base =
-    "inline-flex items-center rounded-full border border-[#e5e5de] bg-transparent text-[12px] font-medium overflow-hidden";
+    "inline-flex items-center rounded-full border border-[var(--color-border)] bg-transparent text-[12px] font-medium overflow-hidden";
   const seg =
     "px-2.5 py-1 transition-colors";
-  const on = "bg-[#5b6350] text-white";
-  const off = "text-[#6b7066] hover:text-[#262924]";
+  const on = "bg-[var(--color-accent)] text-[var(--color-on-accent)]";
+  const off = "text-[var(--color-muted)] hover:text-[var(--color-text)]";
   return (
     <div className={`${base} ${className}`}>
       <button

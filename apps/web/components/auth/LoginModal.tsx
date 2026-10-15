@@ -410,13 +410,13 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
             <h2 id="login-modal-title" className="text-[20px] font-semibold tracking-tight">
               {headerTitle}
             </h2>
-            <p className="mt-1 break-all text-[13px] text-[#6b7066]">
+            <p className="mt-1 break-all text-[13px] text-[var(--color-muted)]">
               {headerDesc}
             </p>
           </div>
           <button
             onClick={close}
-            className="icon-button ml-3 text-[#6b7066]"
+            className="icon-button ml-3 text-[var(--color-muted)]"
             aria-label={t("login_close")}
           >
             <X size={20} />
@@ -426,7 +426,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         {/* ---------- Step: email-input ---------- */}
         {step === "email-input" && (
           <>
-            <label htmlFor="login-email" className="mb-2 block text-[13px] font-medium text-[#262924]">
+            <label htmlFor="login-email" className="mb-2 block text-[13px] font-medium text-[var(--color-text)]">
               {t("login_label_id")}
             </label>
             <input
@@ -439,18 +439,18 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t("login_placeholder_id")}
               autoFocus
-              className="w-full rounded-md border border-[#e5e5de] px-3 py-2.5 text-[14px] outline-none focus:border-[#5b6350]"
+              className="w-full rounded-md border border-[var(--color-border)] px-3 py-2.5 text-[14px] outline-none focus:border-[var(--color-accent)]"
               onKeyDown={(e) => e.key === "Enter" && lookupEmail()}
             />
-            {error && <p role="alert" className="mt-2 text-[13px] text-red-700">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-[13px] text-[var(--color-danger)]">{error}</p>}
             <button
               onClick={lookupEmail}
               disabled={pending}
-              className="mt-4 w-full rounded-md bg-[#5b6350] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
+              className="mt-4 w-full rounded-md bg-[var(--color-accent)] px-4 py-2.5 font-medium text-[var(--color-on-accent)] transition-opacity disabled:opacity-50"
             >
               {pending ? t("login_btn_checking") : t("login_btn_continue")}
             </button>
-            <p className="mt-3 text-[11px] text-[#6b7066]">
+            <p className="mt-3 text-[11px] text-[var(--color-muted)]">
               {t("login_hint_smart")}
             </p>
           </>
@@ -459,7 +459,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         {/* ---------- Step: password-input (existing user sign in) ---------- */}
         {step === "password-input" && (
           <>
-            <label htmlFor="login-password" className="mb-2 block text-[13px] font-medium text-[#262924]">
+            <label htmlFor="login-password" className="mb-2 block text-[13px] font-medium text-[var(--color-text)]">
               {t("login_label_password")}
             </label>
             <div className="relative">
@@ -473,23 +473,23 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t("login_placeholder_password")}
                 autoFocus
-                className="w-full rounded-md border border-[#e5e5de] px-3 py-2.5 pr-10 text-[14px] outline-none focus:border-[#5b6350]"
+                className="w-full rounded-md border border-[var(--color-border)] px-3 py-2.5 pr-10 text-[14px] outline-none focus:border-[var(--color-accent)]"
                 onKeyDown={(e) => e.key === "Enter" && signInWithPassword()}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-[#6b7066] hover:text-[#5b6350]"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-[var(--color-muted)] hover:text-[var(--color-accent)]"
                 aria-label={showPassword ? (lang === "zh" ? "隐藏密码" : "Hide password") : (lang === "zh" ? "显示密码" : "Show password")}
               >
                 {showPassword ? <Eye size={18} /> : <EyeSlash size={18} />}
               </button>
             </div>
-            {error && <p role="alert" className="mt-2 text-[13px] text-red-700">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-[13px] text-[var(--color-danger)]">{error}</p>}
             <button
               onClick={signInWithPassword}
               disabled={pending}
-              className="mt-4 w-full rounded-md bg-[#5b6350] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
+              className="mt-4 w-full rounded-md bg-[var(--color-accent)] px-4 py-2.5 font-medium text-[var(--color-on-accent)] transition-opacity disabled:opacity-50"
             >
               {pending ? t("login_btn_signing_in") : t("login_btn_sign_in")}
             </button>
@@ -500,14 +500,14 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
                   setPassword("");
                 }}
                 disabled={pending}
-                className="text-[#6b7066] hover:underline"
+                className="text-[var(--color-muted)] hover:underline"
               >
                 {t("login_back_email")}
               </button>
               <button
                 onClick={sendForgotCode}
                 disabled={pending}
-                className="text-[#5b6350] hover:underline disabled:opacity-50"
+                className="text-[var(--color-accent)] hover:underline disabled:opacity-50"
               >
                 {t("login_forgot_password")}
               </button>
@@ -518,7 +518,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         {/* ---------- Step: register-set-password ---------- */}
         {step === "register-set-password" && (
           <>
-            <label htmlFor="register-password" className="mb-2 block text-[13px] font-medium text-[#262924]">
+            <label htmlFor="register-password" className="mb-2 block text-[13px] font-medium text-[var(--color-text)]">
               {t("login_label_set_password")}
             </label>
             <div className="relative">
@@ -532,26 +532,26 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t("login_placeholder_set_password")}
                 autoFocus
-                className="w-full rounded-md border border-[#e5e5de] px-3 py-2.5 pr-10 text-[14px] outline-none focus:border-[#5b6350]"
+                className="w-full rounded-md border border-[var(--color-border)] px-3 py-2.5 pr-10 text-[14px] outline-none focus:border-[var(--color-accent)]"
                 onKeyDown={(e) => e.key === "Enter" && sendRegisterCode()}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-[#6b7066] hover:text-[#5b6350]"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-[var(--color-muted)] hover:text-[var(--color-accent)]"
                 aria-label={showPassword ? (lang === "zh" ? "隐藏密码" : "Hide password") : (lang === "zh" ? "显示密码" : "Show password")}
               >
                 {showPassword ? <Eye size={18} /> : <EyeSlash size={18} />}
               </button>
             </div>
-            <p className="mt-1.5 text-[11px] text-[#6b7066]">
+            <p className="mt-1.5 text-[11px] text-[var(--color-muted)]">
               {t("login_hint_password")}
             </p>
-            {error && <p role="alert" className="mt-2 text-[13px] text-red-700">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-[13px] text-[var(--color-danger)]">{error}</p>}
             <button
               onClick={sendRegisterCode}
               disabled={pending}
-              className="mt-4 w-full rounded-md bg-[#5b6350] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
+              className="mt-4 w-full rounded-md bg-[var(--color-accent)] px-4 py-2.5 font-medium text-[var(--color-on-accent)] transition-opacity disabled:opacity-50"
             >
               {pending ? t("login_btn_sending") : t("login_btn_send")}
             </button>
@@ -561,7 +561,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
                 setPassword("");
               }}
               disabled={pending}
-              className="mt-3 w-full text-[12px] text-[#6b7066] hover:underline"
+              className="mt-3 w-full text-[12px] text-[var(--color-muted)] hover:underline"
             >
               {t("login_back_email")}
             </button>
@@ -571,7 +571,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         {/* ---------- Step: register-verify-code ---------- */}
         {step === "register-verify-code" && (
           <>
-            <label htmlFor="register-code" className="mb-2 block text-[13px] font-medium text-[#262924]">
+            <label htmlFor="register-code" className="mb-2 block text-[13px] font-medium text-[var(--color-text)]">
               {t("login_label_code")}
             </label>
             <input
@@ -586,20 +586,20 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
               placeholder="000000"
               autoFocus
-              className="w-full rounded-md border border-[#e5e5de] px-3 py-2.5 text-center font-mono text-[18px] tracking-[0.4em] outline-none focus:border-[#5b6350]"
+              className="w-full rounded-md border border-[var(--color-border)] px-3 py-2.5 text-center font-mono text-[18px] tracking-[0.4em] outline-none focus:border-[var(--color-accent)]"
               onKeyDown={(e) => e.key === "Enter" && verifyAndRegister()}
             />
             {devCode && (
-              <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+              <p className="mt-2 rounded-md bg-[var(--color-warning-bg)] px-3 py-2 text-[12px] text-[var(--color-warning)]">
                 {t("login_dev_code")}{" "}
                 <b className="font-mono">{devCode}</b>
               </p>
             )}
-            {error && <p role="alert" className="mt-2 text-[13px] text-red-700">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-[13px] text-[var(--color-danger)]">{error}</p>}
             <button
               onClick={verifyAndRegister}
               disabled={pending}
-              className="mt-4 w-full rounded-md bg-[#5b6350] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
+              className="mt-4 w-full rounded-md bg-[var(--color-accent)] px-4 py-2.5 font-medium text-[var(--color-on-accent)] transition-opacity disabled:opacity-50"
             >
               {pending ? t("login_btn_registering") : t("login_btn_register")}
             </button>
@@ -610,14 +610,14 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
                   setCode("");
                 }}
                 disabled={pending}
-                className="text-[#6b7066] hover:underline"
+                className="text-[var(--color-muted)] hover:underline"
               >
                 {t("login_back")}
               </button>
               <button
                 onClick={sendRegisterCode}
                 disabled={resendIn > 0 || pending}
-                className="text-[#5b6350] disabled:cursor-not-allowed disabled:text-[#6b7066]"
+                className="text-[var(--color-accent)] disabled:cursor-not-allowed disabled:text-[var(--color-muted)]"
               >
                 {resendIn > 0
                   ? t("login_resend_in", { s: resendIn })
@@ -630,7 +630,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         {/* ---------- Step: forgot-verify (magic-link fallback login) ---------- */}
         {step === "forgot-verify" && (
           <>
-            <label htmlFor="forgot-code" className="mb-2 block text-[13px] font-medium text-[#262924]">
+            <label htmlFor="forgot-code" className="mb-2 block text-[13px] font-medium text-[var(--color-text)]">
               {t("login_label_code")}
             </label>
             <input
@@ -645,20 +645,20 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
               placeholder="000000"
               autoFocus
-              className="w-full rounded-md border border-[#e5e5de] px-3 py-2.5 text-center font-mono text-[18px] tracking-[0.4em] outline-none focus:border-[#5b6350]"
+              className="w-full rounded-md border border-[var(--color-border)] px-3 py-2.5 text-center font-mono text-[18px] tracking-[0.4em] outline-none focus:border-[var(--color-accent)]"
               onKeyDown={(e) => e.key === "Enter" && verifyForgotCode()}
             />
             {devCode && (
-              <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+              <p className="mt-2 rounded-md bg-[var(--color-warning-bg)] px-3 py-2 text-[12px] text-[var(--color-warning)]">
                 {t("login_dev_code")}{" "}
                 <b className="font-mono">{devCode}</b>
               </p>
             )}
-            {error && <p role="alert" className="mt-2 text-[13px] text-red-700">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-[13px] text-[var(--color-danger)]">{error}</p>}
             <button
               onClick={verifyForgotCode}
               disabled={pending}
-              className="mt-4 w-full rounded-md bg-[#5b6350] px-4 py-2.5 font-medium text-white transition-opacity disabled:opacity-50"
+              className="mt-4 w-full rounded-md bg-[var(--color-accent)] px-4 py-2.5 font-medium text-[var(--color-on-accent)] transition-opacity disabled:opacity-50"
             >
               {pending ? t("login_btn_verifying") : t("login_btn_verify")}
             </button>
@@ -669,14 +669,14 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
                   setCode("");
                 }}
                 disabled={pending}
-                className="text-[#6b7066] hover:underline"
+                className="text-[var(--color-muted)] hover:underline"
               >
                 {t("login_back")}
               </button>
               <button
                 onClick={sendForgotCode}
                 disabled={resendIn > 0 || pending}
-                className="text-[#5b6350] disabled:cursor-not-allowed disabled:text-[#6b7066]"
+                className="text-[var(--color-accent)] disabled:cursor-not-allowed disabled:text-[var(--color-muted)]"
               >
                 {resendIn > 0
                   ? t("login_resend_in", { s: resendIn })

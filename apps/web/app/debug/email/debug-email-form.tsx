@@ -43,14 +43,14 @@ export default function DebugEmailForm() {
         />
       </label>
       <button
-        className="bg-indigo-600 text-white py-2 px-4 rounded disabled:opacity-50"
+        className="bg-[var(--color-accent)] text-[var(--color-on-accent)] py-2 px-4 rounded disabled:opacity-50"
         disabled={loading || !email}
         onClick={onSend}
       >
         {loading ? "Sending..." : "Send test email"}
       </button>
       {result && (
-        <pre className="mt-4 whitespace-pre-wrap bg-gray-100 p-3 rounded text-sm text-gray-800">
+        <pre className="mt-4 whitespace-pre-wrap bg-[var(--color-raised)] p-3 rounded text-sm text-[var(--color-body)]">
           {result}
         </pre>
       )}

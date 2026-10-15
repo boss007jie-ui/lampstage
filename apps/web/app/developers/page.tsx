@@ -25,19 +25,19 @@ export default function DevelopersPage() {
 
     <section className="grid gap-4 md:grid-cols-3" aria-label={zh ? "接入能力" : "Integration capabilities"}>
       {capabilities.map((item) => <article key={item.en} className="surface p-6">
-        <div className="mb-5 grid h-11 w-11 place-items-center rounded-xl bg-[#f0f1e9] text-[var(--color-accent)]">{item.icon === "expert" ? <PlugsConnected size={23} /> : item.icon === "api" ? <BracketsCurly size={23} /> : <Key size={23} />}</div>
+        <div className="mb-5 grid h-11 w-11 place-items-center rounded-xl bg-[var(--color-raised)] text-[var(--color-accent)]">{item.icon === "expert" ? <PlugsConnected size={23} /> : item.icon === "api" ? <BracketsCurly size={23} /> : <Key size={23} />}</div>
         <h2 className="text-lg font-semibold">{zh ? item.zh : item.en}</h2><p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">{zh ? item.detailZh : item.detailEn}</p>
       </article>)}
     </section>
 
-    <section id="quickstart" className="mt-12 grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
-      <div className="surface p-7"><div className="mb-4 flex items-center gap-3"><BracketsCurly size={21} className="text-[var(--color-accent)]" /><h2 className="text-xl font-semibold">{zh ? "API 快速开始" : "API quickstart"}</h2></div>
+    <section id="quickstart" className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,.9fr)]">
+      <div className="surface min-w-0 p-7"><div className="mb-4 flex items-center gap-3"><BracketsCurly size={21} className="text-[var(--color-accent)]" /><h2 className="text-xl font-semibold">{zh ? "API 快速开始" : "API quickstart"}</h2></div>
         <ol className="grid gap-3 text-sm leading-7 text-[var(--color-muted)]"><li><strong className="text-[var(--color-ink)]">1. {zh ? "注册并创建密钥" : "Register and create a key"}</strong> — {zh ? "在账户页生成个人 API Key，完整密钥只显示一次。" : "Create a personal API key on the account page; the full key is shown once."}</li><li><strong className="text-[var(--color-ink)]">2. {zh ? "配置连接器" : "Configure the connector"}</strong> — {zh ? "将 API 地址和 Bearer 密钥保存到 WorkBuddy 的 Expert secret。" : "Save the API base URL and Bearer secret in the WorkBuddy Expert connector."}</li><li><strong className="text-[var(--color-ink)]">3. {zh ? "发现并执行任务" : "Discover and run jobs"}</strong> — {zh ? "先请求 health/capabilities，再按返回目录调用素材和任务接口。" : "Call health/capabilities first, then use the returned catalog to call asset and job endpoints."}</li></ol>
-        <pre className="mt-5 overflow-x-auto rounded-xl bg-[#242a20] p-5 text-xs leading-6 text-[#e9eee1]"><code>{`curl https://lampstage.com/api/v1/capabilities \\
+        <pre className="mt-5 overflow-x-auto rounded-xl bg-[var(--color-dark-section)] p-5 text-xs leading-6 text-[var(--color-body)]"><code>{`curl https://lampstage.com/api/v1/capabilities \\
   -H "Authorization: Bearer $LAMPSTAGE_API_KEY"`}</code></pre>
         <p className="mt-4 text-xs leading-6 text-[var(--color-muted)]">{zh ? "每个 WorkBuddy 用户绑定自己的密钥；不要共享密钥，也不要把任何供应商凭据放进 Expert 提示词。" : "Each WorkBuddy user should bind their own key. Never share keys or put provider credentials in Expert prompts."}</p>
       </div>
-      <div className="surface p-7"><div className="mb-4 flex items-center gap-3"><PlugsConnected size={21} className="text-[var(--color-accent)]" /><h2 className="text-xl font-semibold">{zh ? "Expert 包" : "Expert package"}</h2></div>
+      <div className="surface min-w-0 p-7"><div className="mb-4 flex items-center gap-3"><PlugsConnected size={21} className="text-[var(--color-accent)]" /><h2 className="text-xl font-semibold">{zh ? "Expert 包" : "Expert package"}</h2></div>
         <p className="text-sm leading-7 text-[var(--color-muted)]">{zh ? "项目内的 workbuddy-expert/lampstage-creative-expert 包含 manifest、MCP 配置、连接器约定和 Skills，可导入 WorkBuddy 后继续配置。" : "The workbuddy-expert/lampstage-creative-expert package includes the manifest, MCP configuration, connector contract and Skills for import into WorkBuddy."}</p>
         <ul className="mt-5 grid gap-3 text-sm"><li className="flex gap-2"><CheckCircle size={18} className="mt-0.5 text-[var(--color-accent)]" />{zh ? "服务端 API Key 鉴权与任务归属" : "Server-side API key authentication and task ownership"}</li><li className="flex gap-2"><CheckCircle size={18} className="mt-0.5 text-[var(--color-accent)]" />{zh ? "异步任务状态与结果查询" : "Async job status and result polling"}</li><li className="flex gap-2"><CheckCircle size={18} className="mt-0.5 text-[var(--color-accent)]" />{zh ? "供应商密钥留在网站服务端" : "Provider credentials stay on the platform server"}</li></ul>
       </div>

@@ -145,23 +145,23 @@ export function RechargeDialog({ open, pack, onClose, onPaid }: Props) {
   const shownAmount = amount && Number.isFinite(Number(amount)) ? `¥${Number(amount).toFixed(2)}` : `¥${meta.yuan.toFixed(2)}`;
   return <Dialog open={open} onClose={close} titleId="recharge-dialog-title">
     <div className="flex items-start justify-between gap-3">
-      <div><h2 id="recharge-dialog-title" className="text-xl font-semibold">{lang === "zh" ? meta.zh : meta.en}</h2><p className="mt-2 text-sm text-[#6b7066]">{copy.amount} · <strong className="text-[#262924]">{shownAmount}</strong> · {credits ?? meta.credits} {copy.count}</p></div>
+      <div><h2 id="recharge-dialog-title" className="text-xl font-semibold">{lang === "zh" ? meta.zh : meta.en}</h2><p className="mt-2 text-sm text-[var(--color-muted)]">{copy.amount} · <strong className="text-[var(--color-text)]">{shownAmount}</strong> · {credits ?? meta.credits} {copy.count}</p></div>
       <button type="button" className="icon-button" onClick={close} aria-label={copy.close}><X size={21} /></button>
     </div>
-    <div className="mt-6 grid min-h-[250px] place-items-center rounded-xl border border-[#e5e5de] bg-[#faf9f6] p-5 text-center">
-      {phase === "creating" && <p role="status" className="text-sm text-[#6b7066]">{copy.loading}</p>}
+    <div className="mt-6 grid min-h-[250px] place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-5 text-center">
+      {phase === "creating" && <p role="status" className="text-sm text-[var(--color-muted)]">{copy.loading}</p>}
       {phase === "pending" && payUrl && <div className="flex flex-col items-center gap-3">
         <div className="rounded-lg bg-white p-3"><QRCodeSVG value={payUrl} size={190} level="M" /></div>
         <p className="text-sm font-medium">{copy.pay}</p>
-        <p className="text-xs text-[#6b7066]">{copy.pending}</p>
-        <p className="break-all text-xs text-[#6b7066]">{copy.order}: {orderNo}</p>
+        <p className="text-xs text-[var(--color-muted)]">{copy.pending}</p>
+        <p className="break-all text-xs text-[var(--color-muted)]">{copy.order}: {orderNo}</p>
       </div>}
-      {phase === "paid" && <div><CheckCircle size={48} className="mx-auto text-[#5b6350]" /><p className="mt-3 font-semibold">{copy.paid} · +{credits ?? meta.credits}</p><p className="mt-2 text-sm text-[#6b7066]">{copy.paidHint}</p></div>}
-      {(phase === "failed" || phase === "expired" || phase === "error") && <div role="alert"><p className="text-sm text-red-700">{phase === "failed" ? copy.failed : phase === "expired" ? copy.expired : (error || copy.error)}</p><button type="button" className="btn btn-outline mt-4" onClick={retry}>{copy.retry}</button></div>}
+      {phase === "paid" && <div><CheckCircle size={48} className="mx-auto text-[var(--color-accent)]" /><p className="mt-3 font-semibold">{copy.paid} · +{credits ?? meta.credits}</p><p className="mt-2 text-sm text-[var(--color-muted)]">{copy.paidHint}</p></div>}
+      {(phase === "failed" || phase === "expired" || phase === "error") && <div role="alert"><p className="text-sm text-[var(--color-danger)]">{phase === "failed" ? copy.failed : phase === "expired" ? copy.expired : (error || copy.error)}</p><button type="button" className="btn btn-outline mt-4" onClick={retry}>{copy.retry}</button></div>}
     </div>
     {phase === "pending" && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
-      <a href={payUrl || "#"} target="_blank" rel="noreferrer" className="font-medium text-[#5b6350] underline">{copy.openPay}</a>
-      {pollError && <div className="w-full" role="alert"><p className="text-red-700">{copy.network}</p><button type="button" className="btn btn-outline mt-2" onClick={() => orderNo && void checkStatus(orderNo, sessionRef.current)}>{copy.checkAgain}</button></div>}
+      <a href={payUrl || "#"} target="_blank" rel="noreferrer" className="font-medium text-[var(--color-accent)] underline">{copy.openPay}</a>
+      {pollError && <div className="w-full" role="alert"><p className="text-[var(--color-danger)]">{copy.network}</p><button type="button" className="btn btn-outline mt-2" onClick={() => orderNo && void checkStatus(orderNo, sessionRef.current)}>{copy.checkAgain}</button></div>}
     </div>}
     {phase === "paid" && <button type="button" className="btn btn-primary mt-5 w-full" onClick={close}>{copy.done}</button>}
   </Dialog>;

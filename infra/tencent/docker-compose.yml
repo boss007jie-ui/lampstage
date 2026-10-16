@@ -41,6 +41,9 @@ services:
     env_file: .env.prod
     environment:
       NODE_ENV: production
+      VIDEO_SIXREF_HYPIT_RUNTIME: /srv/lampstage/runtime/account01.sixref.runtime.json
+    volumes:
+      - ./runtime:/srv/lampstage/runtime:ro
     command: ["npm", "run", "start"]
     expose:
       - "3000"
@@ -58,6 +61,7 @@ services:
       VIDEO_WORK_ROOT: /srv/lampstage/video-work
       VIDEO_HYPIT_PACKAGE_ROOT: /app/apps/web/vendor/hypit
       VIDEO_HYPIT_RUNTIME: /srv/lampstage/runtime/account01.runtime.json
+      VIDEO_SIXREF_HYPIT_RUNTIME: /srv/lampstage/runtime/account01.sixref.runtime.json
     command: ["npm", "run", "video:worker"]
     volumes:
       - video-work:/srv/lampstage/video-work

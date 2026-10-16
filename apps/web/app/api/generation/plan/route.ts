@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { planImagePrompts } from "@/lib/prompt-planner";
+import { resolveBrandKit } from "@/lib/brand-kit";
 import type {
   ColorTemp,
   LampType,
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest) {
     uploaded_asset_id?: unknown;
     platform_style?: unknown;
     aspect_ratio?: unknown;
+    brand_kit_slug?: unknown;
   };
   try {
     body = await req.json();
@@ -63,6 +65,16 @@ export async function POST(req: NextRequest) {
     typeof body.aspect_ratio === "string"
       ? (body.aspect_ratio as AspectRatio)
       : "4_5";
+  // 品牌档案：显式传入优先，否则回退 DEFAULT_BRAND_KIT 环境变量，都没有则无品牌。
+  // 读不到/解析失败不报错，只是这次构思不带品牌。
+  const brandKitSlug =
+    typeof body.brand_kit_slug === "string" && body.brand_kit_slug.trim()
+      ? body.brand_kit_slug.trim()
+      : null;
+  const brand = await resolveBrandKit(brandKitSlug);
+  if (brand.reason !== "ok" && brand.reason !== "no_brand_kit") {
+    console.warn(`[plan] brand kit skipped: ${brand.reason}`);
+  }
   if (!assetId) {
     return NextResponse.json({ error: "missing_fields" }, { status: 400 });
   }
@@ -125,6 +137,7 @@ export async function POST(req: NextRequest) {
     },
     platformStyle,
     aspectRatio,
+    brand: brand.kit,
   });
 
   // planner 失败（超时/网络/解析）→ 不写，生成接口会自动 fallback 到本地规则。

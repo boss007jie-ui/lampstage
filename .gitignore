@@ -5,6 +5,7 @@
 
 # Tencent Cloud production secrets (see infra/tencent/.env.prod.example)
 infra/tencent/.env.prod
+infra/tencent/.env.prod.bak*
 infra/tencent/runtime/
 
 # next
@@ -44,3 +45,40 @@ apps/web/.video-private/
 apps/web/.video-work/
 apps/web/.video-runtime/
 apps/web/.local-runtime/
+
+# Local coordination, generated evidence and publication staging
+.codex-tmp/
+.playwright-cli/
+.workbuddy/
+.vercel/
+AI_AGENT_HUB/
+output/
+outputs/
+__pycache__/
+*.py[cod]
+*.bak
+*.bak.*
+*.dump
+*.sql.gz
+
+# Secret-bearing configuration is configured outside Git
+.env.*
+!.env.example
+!**/.env.*.example
+*.env.json
+*.pem
+*.p12
+*.key
+
+# Private operation records and internal task boards
+/docs/deployment/
+/tasks/
+/PROJECT_CARD.md
+/HANDOFF.md
+/DECISIONS.md
+/TASKS.md
+/AGENTS.md
+
+# Keep the current expert distribution; older local builds stay local
+workbuddy-expert/releases/*.zip
+!workbuddy-expert/releases/lampstage-creative-expert-0.10.1.zip

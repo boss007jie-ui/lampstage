@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { privateStorageReady } from "./storage";
 import { videoMaintenanceReason, videoWorkerPaused } from "./control";
-import { VIDEO_MAX_BYTES, VIDEO_MAX_SECONDS, VIDEO_MIN_SECONDS, segmentCoinQuote, type VideoCapabilities } from "./types";
+import { VIDEO_MAX_BYTES, VIDEO_MAX_SECONDS, VIDEO_MIN_SECONDS, segmentCoinQuote, type VideoCapabilities, type VideoGenerationMode } from "./types";
 
 export class VideoHttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -29,15 +29,16 @@ export async function requireVideoUser(request?: NextRequest) {
 export async function workerState() {
   return prisma.videoWorker.findFirst({ where: { heartbeat_at: { gt: new Date(Date.now() - 60000) } }, orderBy: { heartbeat_at: "desc" } });
 }
-export async function requireVideoWorker(video = false, requireImages = true) {
+export async function requireVideoWorker(video = false, requireImages = true, mode?: VideoGenerationMode) {
   // 运维暂停 / 付费开关关闭时统一在入口拦下：不写意图、不领任务、不产生付费调用。
   const maintenance = videoMaintenanceReason();
   if (maintenance) throw new VideoHttpError(503, maintenance);
   if (!privateStorageReady()) throw new VideoHttpError(503, "私有视频存储尚未配置。");
   const worker = await workerState();
   if (!worker) throw new VideoHttpError(503, "视频处理服务尚未启动，暂时无法提交。");
+  if (mode === "six_references" && !worker.sixref_ready) throw new VideoHttpError(503, "六图视频处理服务尚未就绪。");
   if (requireImages && !worker.image_ready) throw new VideoHttpError(503, "原有图片生成工具尚未就绪。");
-  if (video && !worker.video_ready) throw new VideoHttpError(503, "RunningHub 01 视频服务尚未就绪。");
+  if (video && !(mode === "six_references" ? worker.sixref_ready : worker.video_ready)) throw new VideoHttpError(503, "RunningHub 01 视频服务尚未就绪。");
 }
 export async function videoCapabilities(): Promise<VideoCapabilities> {
   const maintenance = videoMaintenanceReason();

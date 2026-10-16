@@ -4,8 +4,8 @@ import { randomUUID } from "node:crypto";
 loadEnvConfig(process.cwd());
 
 async function main() {
-  const [{ prisma }, { claimJob }, { processVideoJob }, { runnerReadiness }, { mediaReadiness }, { shouldClaimJobs, videoMaintenanceReason }, { runWorkerCycle }] = await Promise.all([
-    import("../lib/db"), import("../lib/video/repository"), import("../lib/video/processor"), import("../lib/video/hypit-runner"), import("../lib/video/media"), import("../lib/video/control"), import("../lib/video/worker-loop"),
+  const [{ prisma }, { claimJob }, { processVideoJob }, { runnerReadiness, sixRefRunner }, { mediaReadiness }, { shouldClaimJobs, videoMaintenanceReason, videoWorkerPaused }, { runWorkerCycle }, { sweepExpiredDrafts }, { createDraftExpiryLoop }] = await Promise.all([
+    import("../lib/db"), import("../lib/video/repository"), import("../lib/video/processor"), import("../lib/video/hypit-runner"), import("../lib/video/media"), import("../lib/video/control"), import("../lib/video/worker-loop"), import("../lib/video/job-quota"), import("../lib/video/draft-expiry-loop"),
   ]);
   const id = `video-${randomUUID()}`;
   let stopping = false;
@@ -25,7 +25,7 @@ async function main() {
     try {
       await prisma.videoJob.count();
       const media = await mediaReadiness();
-      const runner = await runnerReadiness();
+      const [runner, sixref] = await Promise.all([runnerReadiness(), sixRefRunner.runnerReadiness()]);
       const paused = !shouldClaimJobs();
       const image = Boolean(process.env.OPENLUX_API_KEY?.trim()) && media;
       const video = media && runner.ready;
@@ -33,7 +33,7 @@ async function main() {
       const detail = paused ? (videoMaintenanceReason() ?? "已暂停")
         : halted ? "有待人工核对的任务，已停止领取新任务"
         : media ? (runner.ready ? null : "account01 视频环境未就绪") : "FFmpeg 未就绪";
-      const fields = { heartbeat_at: new Date(), image_ready: image, video_ready: video, detail };
+      const fields = { heartbeat_at: new Date(), image_ready: image, video_ready: video, sixref_ready: media && sixref.ready, detail };
       await prisma.videoWorker.upsert({ where: { id }, create: { id, ...fields }, update: fields });
     } finally { beatBusy = false; }
   };
@@ -42,12 +42,23 @@ async function main() {
   let announcedPause = !shouldClaimJobs();
   if (announcedPause) console.info("Video worker paused; will not claim jobs.", videoMaintenanceReason());
   const timer = setInterval(() => { void beat().catch(() => console.error("Video worker heartbeat failed.")); }, 20_000);
+  // Free lifecycle work has its own timer, so a long render or halted paid queue cannot starve expiry.
+  // The maintenance pause still disables all worker mutations. Never call claimJob or clear permits here.
+  const expiry = createDraftExpiryLoop({ paused: () => stopping || videoWorkerPaused(), sweep: input => sweepExpiredDrafts(input) });
+  const sweep = async () => {
+    try {
+      const result = await expiry.run();
+      if (result?.scanned) console.info("Video draft expiry sweep", { scanned: result.scanned, cancelled: result.cancelled, blocked: result.blocked, done: result.done });
+    } catch { console.error("Video draft expiry sweep failed."); }
+  };
+  const expiryTimer = setInterval(() => { void sweep(); }, 60_000);
   try {
+    await sweep();
     while (!stopping) {
       try {
         // 暂停时**完全不碰队列**：claimJob 有副作用（会把租约过期的任务批量置为 attention），
         // 不能拿它当"只读检查"。免费预检走独立 CLI，不靠放开领取开关运行。
-        if (!shouldClaimJobs() || halted) {
+        if (videoWorkerPaused()) {
           if (!announcedPause) { console.info("Video worker paused; will not claim jobs.", videoMaintenanceReason()); announcedPause = true; }
           await new Promise(resolve => setTimeout(resolve, 5_000));
           continue;
@@ -56,8 +67,8 @@ async function main() {
         // 单步决策抽在 runWorkerCycle 里：结果不明（租约丢失/终态保存失败/处理抛错）就 halt，
         // 不再领下一个任务。这样"B 的领取次数为 0"可以被测试证明，而不是靠人肉审查循环。
         const cycle = await runWorkerCycle<Exclude<Awaited<ReturnType<typeof claimJob>>, null>>({
-          shouldClaim: () => shouldClaimJobs(),
-          claim: () => claimJob(id),
+          shouldClaim: () => !videoWorkerPaused(),
+          claim: () => claimJob(id, prisma, { recoveryOnly: halted || !shouldClaimJobs() }),
           process: job => processVideoJob(job, id, { signal: stopController.signal }),
           log: (message, detail) => console.error(`[worker] ${message}`, detail ?? ""),
         });
@@ -67,6 +78,8 @@ async function main() {
     }
   } finally {
     clearInterval(timer);
+    clearInterval(expiryTimer);
+    await expiry.stop();
     await prisma.videoWorker.deleteMany({ where: { id } }).catch(() => undefined);
     await prisma.$disconnect();
   }

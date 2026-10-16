@@ -1,6 +1,6 @@
 {
   "name": "lampstage-creative-expert",
-  "version": "0.3.1",
+  "version": "0.10.1",
   "description": "Create images, replicate reference videos and optimize ecommerce content in WorkBuddy through Lampstage API services.",
   "author": { "name": "Lampstage", "email": "hello@lampstage.com" },
   "license": "UNLICENSED",
@@ -9,6 +9,7 @@
     "./skills/product-understanding",
     "./skills/ecommerce-keyword-optimizer",
     "./skills/image-generation",
+    "./skills/character-library",
     "./skills/video-generation",
     "./skills/jobs-and-assets"
   ],

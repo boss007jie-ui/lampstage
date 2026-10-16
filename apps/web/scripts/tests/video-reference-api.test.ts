@@ -11,6 +11,7 @@ import { POST as renderJob } from "../../app/api/v1/video-jobs/[id]/render/route
 import { parseVideoReferenceInput, referenceDigest } from "../../lib/video/reference-inputs";
 import { requireVideoWorker } from "../../lib/video/http";
 import { videoData } from "../../lib/video/types";
+import { lifecycleTransaction } from "./lifecycle-route-fixture";
 
 const input = { source_asset_id: "source", product_asset_id: "product", generation_mode: "direct_references", reference_assets: [
   { asset_id: "baby", role: "character", label: "宝宝" }, { asset_id: "mom", role: "character", label: "妈妈" },
@@ -24,6 +25,7 @@ function stub(t: TestContext, model: object, method: string, callback: (query: Q
   t.after(() => { delegate[method] = original; });
 }
 function fixture(t: TestContext, missing?: string) {
+  lifecycleTransaction(t);
   const queries: Query[] = [], writes: Query[] = [];
   stub(t, prisma.apiKey, "findUnique", () => ({ id: "test-key", revoked_at: null, user: { id: "owner" } }));
   stub(t, prisma.apiKey, "update", () => ({}));
@@ -80,22 +82,28 @@ test("four independent references or unlabelled references fail before persisten
   assert.equal(f.writes.length, 0);
 });
 
-test("the capability and remote tool schema disclose the same bounded direct-reference contract", async () => {
+test("the capability and remote tool schema disclose direct and six-reference routes", async () => {
   const catalog = await capabilities().json();
   const video = catalog.capabilities.find((item: { id: string }) => item.id === "video.replicate");
   assert.equal(video.modes.direct_references.reference_image_count, 3);
   assert.equal(video.modes.direct_references.generated_endpoint_frames, false);
+  assert.deepEqual(video.modes.six_references.start_state, {
+    required: true, picture: 1, unique: true, meaning: "complete_scene_at_action_start", dependency: "accepted_previous_tail_replaces_slot_1",
+  });
+  assert.equal(video.modes.six_references.candidate_timing_check, "actual_media_and_30fps_delivery");
   const tool = MCP_TOOLS.find(item => item.name === "create_video_job")!;
   const props = tool.inputSchema.properties as unknown as { generation_mode: { enum: string[] }; reference_assets: { minItems: number; maxItems: number } };
   assert.ok(props.generation_mode.enum.includes("direct_references"));
-  assert.deepEqual([props.reference_assets.minItems, props.reference_assets.maxItems], [2, 2]);
+  assert.ok(props.generation_mode.enum.includes("six_references"));
+  assert.deepEqual([props.reference_assets.minItems, props.reference_assets.maxItems], [1, 6]);
 });
 
 test("prepare can queue direct input without image readiness and uses a phase older workers cannot mistake for paid prepare", async t => {
   fixture(t);
   env(t, { VIDEO_WORKER_PAUSED: "false", VIDEO_PAID_GENERATION_ENABLED: "true", VIDEO_STORAGE_DIR: ".unit-test-unused" });
   stub(t, prisma.videoWorker, "findFirst", () => ({ image_ready: false, video_ready: true }));
-  stub(t, prisma.videoJob, "findFirst", () => ({ id: "job", user_id: "owner", status: "draft", revision: 0, data: parseVideoReferenceInput(input, "product") }));
+  stub(t, prisma.videoJob, "findFirst", () => ({ id: "job", user_id: "owner", title: "商品视频", stage: "等待准备参考图", phase: "prepare", status: "draft", revision: 0,
+    lease_owner: null, lease_until: null, error: null, created_at: new Date("2026-10-15T11:00:00Z"), updated_at: new Date("2026-10-15T11:00:00Z"), data: parseVideoReferenceInput(input, "product") }));
   const writes: Query[] = [];
   stub(t, prisma.videoJob, "updateMany", query => { writes.push(query); return { count: 1 }; });
   const response = await prepareJob(request({}), { params: { id: "job" } });

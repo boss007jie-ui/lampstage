@@ -3,7 +3,8 @@ import { logToolCall } from "../tool-log";
 import { extractGeminiImage } from "./gemini-response";
 import { readImageReferences, resolveImageBytes } from "./image-io";
 import { buildImage25Request, buildNano21Request, extractOpenAiImage, IMAGE_25_ENDPOINT, NANO_21_ENDPOINT } from "./image-requests";
-import type { GenSingleResult, IGenerationProvider } from "./types";
+import { extractProviderReportedUsage } from "./provider-usage";
+import type { GenSingleResult, IGenerationProvider, ProviderAttempt, ProviderReportedUsage } from "./types";
 
 type Dependencies = {
   fetch: typeof fetch;
@@ -36,6 +37,8 @@ export function createOpenLuxImageProvider(id: ImageModelId, overrides: Partial<
       const startedAt = Date.now();
       let httpStatus: number | undefined;
       let result: GenSingleResult;
+      let usage: ProviderReportedUsage | undefined;
+      const attempt: ProviderAttempt = { status: "not_submitted", http_status: null };
       try {
         const key = dependencies.apiKey();
         const references = await dependencies.readReferences(input, model.maxReferences);
@@ -46,6 +49,7 @@ export function createOpenLuxImageProvider(id: ImageModelId, overrides: Partial<
         input.signal?.throwIfAborted();
         const body = isNano ? JSON.stringify(buildNano21Request(input.prompt, references)) : buildImage25Request(input.prompt, references);
         const deadline = AbortSignal.timeout(input.requestTimeoutMs || 180_000);
+        attempt.status = "unknown";
         const response = await dependencies.fetch(isNano ? NANO_21_ENDPOINT : IMAGE_25_ENDPOINT, {
           method: "POST",
           headers: { Authorization: `Bearer ${key}`, ...(isNano ? { "Content-Type": "application/json" } : {}) },
@@ -54,20 +58,28 @@ export function createOpenLuxImageProvider(id: ImageModelId, overrides: Partial<
           signal: input.signal ? AbortSignal.any([input.signal, deadline]) : deadline,
         });
         httpStatus = response.status;
-        if (!response.ok) throw new Error("provider_http_error");
+        attempt.status = "response_received";
+        attempt.http_status = response.status;
+        if (!response.ok) {
+          // Error bodies may still contain usage, but must never reach logs or users.
+          try { usage = extractProviderReportedUsage(await response.json()); } catch { /* Ignore invalid error bodies. */ }
+          throw new Error("provider_http_error");
+        }
         const payload: unknown = await response.json();
+        usage = extractProviderReportedUsage(payload);
         const image = isNano ? extractGeminiImage(payload) : extractOpenAiImage(payload);
         if (!image) throw new Error("provider_no_image");
         const verified = await dependencies.resolveImage(image, input.signal);
-        result = { ok: true, ...verified };
+        result = { ok: true, ...verified, attempt, ...(usage ? { usage } : {}) };
       } catch {
         // Provider bodies and download URLs can contain secrets or signed links; never expose them.
-        result = { ok: false, error: `${model.name}: image generation did not complete${httpStatus ? ` (HTTP ${httpStatus})` : ""}.` };
+        result = { ok: false, error: `${model.name}: image generation did not complete${httpStatus ? ` (HTTP ${httpStatus})` : ""}.`, attempt, ...(usage ? { usage } : {}) };
       }
       await dependencies.log({
         tool, model: model.apiModel, jobId: input.jobId,
         status: result.ok ? "ok" : "failed", httpStatus: httpStatus ?? null,
         durationMs: Date.now() - startedAt, error: result.ok ? null : result.error,
+        resultJson: JSON.stringify({ attempt, ...(usage ? { usage } : {}) }),
       });
       return result;
     },

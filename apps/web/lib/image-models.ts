@@ -1,7 +1,9 @@
 /** Customer names are separate from the provider's fixed API model IDs. Safe for client imports. */
+/** Product policy, not a verified OpenLux limit for either alias. */
+export const APP_MAX_IMAGE_REFERENCES = 6;
 export const IMAGE_MODELS = [
-  { id: "nano_banana_21", name: "nano banana 2.1", apiModel: "gemini-nano-banana-2.1", maxReferences: 2 },
-  { id: "image_25", name: "image 2.5", apiModel: "gpt-image-2-c", maxReferences: 1 },
+  { id: "nano_banana_21", name: "nano banana 2.1", apiModel: "gemini-nano-banana-2.1", maxReferences: APP_MAX_IMAGE_REFERENCES },
+  { id: "image_25", name: "image 2.5", apiModel: "gpt-image-2-c", maxReferences: APP_MAX_IMAGE_REFERENCES },
 ] as const;
 
 export type ImageModelId = (typeof IMAGE_MODELS)[number]["id"];

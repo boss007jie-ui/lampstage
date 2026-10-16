@@ -1,17 +1,29 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { requireVideoUser, requireVideoWorker, videoRoute, VideoHttpError } from "@/lib/video/http";
+import { NextRequest } from "next/server";
+import { requireVideoUser, requireVideoWorker, videoRoute } from "@/lib/video/http";
+import { apiJson } from "@/lib/public-api";
+import { prepareVideoDraft } from "@/lib/video/job-quota";
 import { ownedVideoJob, viewVideoJob } from "@/lib/video/projects";
 import { generationMode } from "@/lib/video/reference-inputs";
 import { videoData } from "@/lib/video/types";
+import { assertSixStartStatePlan, SixReferencePlanError } from "@/lib/video/six-reference-plan";
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) { return videoRoute(async () => {
   const user = await requireVideoUser(request);
   const job = await ownedVideoJob(params.id, user.id);
-  if (job.status !== "draft") return NextResponse.json({ project: await viewVideoJob(job.id, user.id) });
-  const direct = generationMode(videoData(job.data)) === "direct_references";
-  await requireVideoWorker(direct, !direct);
-  const update = await prisma.videoJob.updateMany({ where: { id: job.id, user_id: user.id, status: "draft", revision: job.revision },
-    data: { status: "queued", phase: direct ? "prepare_references" : "prepare", stage: direct ? "等待校验参考图并切分原视频" : "等待检查视频并准备参考图", error: null, revision: { increment: 1 } } });
-  if (update.count !== 1) throw new VideoHttpError(409, "项目状态已更新，请刷新后查看。");
-  return NextResponse.json({ project: await viewVideoJob(job.id, user.id) }, { status: 202 });
+  let admissionError: string | undefined;
+  if (job.status === "draft") {
+    const mode = generationMode(videoData(job.data));
+    if (mode === "six_references") {
+      try { assertSixStartStatePlan(videoData(job.data)); }
+      catch (error) {
+        if (error instanceof SixReferencePlanError) return apiJson({ error: "invalid_video_references", message: error.message }, { status: 400 });
+        throw error;
+      }
+    }
+    const direct = mode !== "legacy_frames";
+    try { await requireVideoWorker(direct, !direct, mode); }
+    catch { admissionError = "视频处理服务尚未就绪或已暂停，请稍后查看现有任务。"; }
+  }
+  const result = await prepareVideoDraft(user.id, job.id, { admissionError });
+  if (!result.ok) return apiJson(result.body, { status: result.status });
+  return apiJson({ project: await viewVideoJob(job.id, user.id) }, { status: result.value.queued ? 202 : 200 });
 }); }

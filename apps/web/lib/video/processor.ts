@@ -1,3 +1,5 @@
+import { acquireVideoPermit, adoptExistingVideoPermit, assertVideoPermitMaySubmit, markVideoPermitUnknown, releaseVideoPermit } from "./permits";
+import { processSixRefVideoJob } from "./sixref-processor";
 import type { VideoJob } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
@@ -70,6 +72,7 @@ function verifySegments(data: VideoJobData): void {
 export type VideoJobOutcome = "safe" | "needs_review";
 
 export async function processVideoJob(initial: VideoJob, workerId: string, options: { signal?: AbortSignal } = {}): Promise<VideoJobOutcome> {
+  if (generationMode(videoData(initial.data)) === "six_references") return processSixRefVideoJob(initial, workerId, options);
   const externalSignal = options.signal;
   // 租约丢失必须能**取消**正在进行的付费 I/O，而不是等下一次 await 才发现：
   // 心跳一旦失败就 abort 这个 job 级 controller，信号会穿透到 HTTP 请求与结果下载。
@@ -81,6 +84,7 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
   let terminalSaved = false;
   let terminalStatus: string | null = null;
   let heartbeatBusy = false;
+  const activePermits = new Map<string, VideoSegment>();
   const heartbeat = setInterval(() => {
     if (heartbeatBusy) return;
     heartbeatBusy = true;
@@ -216,6 +220,11 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
     if (!reconcile) verifyRenderConsent(data, segmentCoinQuote());
     if (reconcile) {
       for (const segment of data.segments) {
+        if (!segment.candidateKey && (segment.buildId || segment.submissionIntentAt)) {
+          await adoptExistingVideoPermit({ accountId: "runninghub.account01", attemptId: `${job.id}:${segment.index}:${segment.attempt ?? 0}`,
+            jobId: job.id, segmentIndex: segment.index, reservedCoins: null,
+            maxCoins: Number.isSafeInteger(data.renderConsent?.maxCoins) && data.renderConsent!.maxCoins >= 0 ? data.renderConsent!.maxCoins : 0 });
+        }
         if (!segment.buildId && segment.submissionIntentAt) {
           const receipt = await recoverH3Submission(path.join(workspace, `segment-${segment.index}`));
           if (receipt) { segment.buildId = receipt.buildId; await save({ stage: "已恢复本地回执，正在核对原任务" }); }
@@ -271,12 +280,25 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
           await privateDownloadTo(segment.openingKey!, openingPath, { signal });
           await privateDownloadTo(segment.endingKey!, endingPath, { signal });
         }
+        const permitId = `${job.id}:${segment.index}:${segment.attempt ?? 0}`;
+        const permitRequest = { accountId: "runninghub.account01", attemptId: permitId, jobId: job.id, segmentIndex: segment.index,
+          reservedCoins: data.renderConsent!.perSegmentCoins, maxCoins: data.renderConsent!.maxCoins };
+        let permit = await acquireVideoPermit(permitRequest);
+        const slotDeadline = Date.now() + 45 * 60_000;
+        while (!permit.acquired && permit.reason === "busy" && !signal.aborted && Date.now() < slotDeadline) {
+          await checkLease();
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          permit = await acquireVideoPermit(permitRequest);
+        }
+        if (!permit.acquired) throw new VideoPipelineError("账户视频名额已占用或存在未核清任务，请稍后核对原任务。");
+        activePermits.set(permitId, segment);
+        if (permit.alreadyAcquired) throw new VideoPipelineError("已有生成名额和尝试记录，请核对原任务，不能再次提交。");
         segment.submissionIntentAt = new Date().toISOString();
         await setStage("video_submit", `正在提交第 ${segment.index + 1} 段视频`);
         const receipt = await submitH3({ workspace: segmentWorkspace, sourcePath,
           ...(referencePaths ? { referencePaths } : { productPath: segmentProductPath, openingPath, endingPath }),
           duration: segment.duration, prompt: direct ? referenceVideoDirection(referenceImagesFor(data), job.instructions) : videoDirection(job.instructions),
-          beforeSubmit: verifyPaidBoundary,
+          beforeSubmit: async () => { await verifyPaidBoundary(); await assertVideoPermitMaySubmit(permitId); },
           onBuildId: async buildId => { segment.buildId = buildId; await setStage("video_wait", `第 ${segment.index + 1} 段已提交，等待生成`); },
         });
         if (!segment.buildId && receipt.buildId) { segment.buildId = receipt.buildId; await save(); }
@@ -292,9 +314,15 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
         await checkLease();
         const state = await inspectH3({ workspace: segmentWorkspace, buildId: segment.buildId! });
         if (state.taskId && state.taskId !== segment.providerTaskId) { segment.providerTaskId = state.taskId; await save(); }
-        if (state.state === "failed") throw new VideoPipelineError("上游生成任务未成功；已保留回执，请人工核对。");
+        if (state.state === "failed") {
+          await releaseVideoPermit(`${job.id}:${segment.index}:${segment.attempt ?? 0}`);
+          activePermits.delete(`${job.id}:${segment.index}:${segment.attempt ?? 0}`);
+          throw new VideoPipelineError("上游生成任务未成功；已保留回执，请人工核对。");
+        }
         if (state.state === "unknown") throw new VideoPipelineError("暂时无法确认上游任务状态；已保留回执，可稍后核对。");
         if (state.state === "completed") {
+          await releaseVideoPermit(`${job.id}:${segment.index}:${segment.attempt ?? 0}`);
+          activePermits.delete(`${job.id}:${segment.index}:${segment.attempt ?? 0}`);
           // Unique export path also permits recovery after a previous collect succeeded but DB persistence failed.
           const target = path.join(segmentWorkspace, `candidate-${job.revision}.mp4`);
           await collectH3({ workspace: segmentWorkspace, buildId: segment.buildId!, to: target });
@@ -327,6 +355,9 @@ export async function processVideoJob(initial: VideoJob, workerId: string, optio
     await privateUploadFile(data.outputKey, output, "video/mp4", { signal });
     await save({ status: "completed", stage: "完整视频已生成，可预览并下载", error: null });
   } catch (error) {
+    for (const [id, segment] of activePermits) {
+      await (segment.submissionIntentAt || segment.buildId ? markVideoPermitUnknown(id) : releaseVideoPermit(id)).catch(() => undefined);
+    }
     if (!(error instanceof LeaseLostError) && !leaseLost) {
       const message = error instanceof VideoPipelineError || error instanceof VideoReferenceInputError ? error.message : "视频处理暂未完成；已保留处理记录，请人工核对后继续。";
       try { await save({ status: data.imageCalls > 0 || data.segments.some(s => s.submissionIntentAt || s.buildId) ? "attention" : "failed", stage: "处理暂停，请核对任务", error: message }); } catch { /* A newer lease/revision owns the record. */ }

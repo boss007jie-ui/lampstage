@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isProviderMigrationError, publicGenerationFailure } from "@/lib/provider-errors";
 import { recordedImageModel } from "@/lib/image-models";
+import { recordedImageInputs } from "@/lib/image-reference-contract";
 
 export const runtime = "nodejs";
 
@@ -34,6 +35,7 @@ export async function GET(
     aspect_ratio: job.aspect_ratio,
     platform_style: job.platform_style,
     image_model: recordedImageModel(job.metadata),
+    ...recordedImageInputs(job.metadata),
     outputs: job.outputs.map((o) => ({
       id: o.id,
       image_url: o.image_url,

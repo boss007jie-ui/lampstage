@@ -28,15 +28,18 @@ export async function consumeCredits(
   amount: number,
   relatedJobId: string,
   note: string = "generation_consume",
-): Promise<{ balanceAfter: number }> {
-  if (amount <= 0) throw new Error("consumeCredits: amount must be > 0");
+): Promise<{ balanceAfter: number; chargedCredits: number; billingMode: "standard" | "internal_test" }> {
+  if (!Number.isSafeInteger(amount) || amount <= 0) throw new Error("consumeCredits: amount must be a positive integer");
 
   // Postgres-specific: SELECT ... FOR UPDATE 在事务里锁住该用户行
-  const rows = await tx.$queryRaw<{ credit_balance: number }[]>`
-    SELECT "credit_balance" FROM "User" WHERE id = ${userId} FOR UPDATE
+  const rows = await tx.$queryRaw<{ credit_balance: number; credits_unlimited: boolean }[]>`
+    SELECT "credit_balance", "credits_unlimited" FROM "User" WHERE id = ${userId} FOR UPDATE
   `;
   if (rows.length === 0) throw new Error(`user ${userId} not found`);
   const before = rows[0].credit_balance;
+  if (rows[0].credits_unlimited) {
+    return { balanceAfter: before, chargedCredits: 0, billingMode: "internal_test" };
+  }
   if (before < amount) throw new InsufficientCreditsError();
 
   await tx.user.update({
@@ -52,7 +55,7 @@ export async function consumeCredits(
       note,
     },
   });
-  return { balanceAfter: before - amount };
+  return { balanceAfter: before - amount, chargedCredits: amount, billingMode: "standard" };
 }
 
 /**
@@ -65,16 +68,28 @@ export async function refundCredits(
   relatedJobId: string,
   note: string = "generation_refund",
 ): Promise<{ balanceAfter: number }> {
-  if (amount <= 0) throw new Error("refundCredits: amount must be > 0");
+  if (!Number.isSafeInteger(amount) || amount <= 0) throw new Error("refundCredits: amount must be a positive integer");
+  // Refund only actual, outstanding debits for this job. A later account-mode change
+  // must never mint credits for a free test job or suppress a paid job's refund.
+  const rows = await tx.$queryRaw<{ credit_balance: number }[]>`
+    SELECT "credit_balance" FROM "User" WHERE id = ${userId} FOR UPDATE
+  `;
+  if (rows.length === 0) throw new Error(`user ${userId} not found`);
+  const ledger = await tx.creditTransaction.aggregate({
+    where: { user_id: userId, related_job_id: relatedJobId, type: { in: ["consume", "refund"] } },
+    _sum: { amount: true },
+  });
+  const refundable = Math.min(amount, Math.max(0, -(ledger._sum.amount ?? 0)));
+  if (refundable === 0) return { balanceAfter: rows[0].credit_balance };
   const updated = await tx.user.update({
     where: { id: userId },
-    data: { credit_balance: { increment: amount } },
+    data: { credit_balance: { increment: refundable } },
   });
   await tx.creditTransaction.create({
     data: {
       user_id: userId,
       type: "refund",
-      amount: amount,
+      amount: refundable,
       related_job_id: relatedJobId,
       note,
     },

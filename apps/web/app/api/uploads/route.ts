@@ -1,3 +1,4 @@
+import { readImageUploadForm } from "@/lib/assets/image-upload-http";
 /**
  * POST /api/uploads
  *
@@ -6,28 +7,20 @@
  * 2. 校验 mime + size
  * 3. 用 sharp 读宽高
  * 4. 朴素背景类型推断
- * 5. 写到 public/uploads/<userId>/<uuid>.<ext>
+ * 5. 按账户和原图 SHA 复用存储内容
  * 6. 在 UploadedAsset 表里记录
  *
  * 返回 { id, image_url, background_type, quality_warning }
  */
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "node:crypto";
-import { putUploadedAsset } from "@/lib/storage";
+import { uploadImageContent, ImageContentError, inspectOriginalImage } from "@/lib/assets/image-content";
 import { getCurrentUser } from "@/lib/auth";
-import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const ALLOWED = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 const MAX_BYTES = 5 * 1024 * 1024;
-
-function extOf(mime: string): string {
-  if (mime.includes("png")) return "png";
-  if (mime.includes("webp")) return "webp";
-  return "jpg";
-}
 
 /**
  * 朴素背景识别：
@@ -123,9 +116,9 @@ export async function POST(req: NextRequest) {
 
   let form: FormData;
   try {
-    form = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "invalid_multipart" }, { status: 400 });
+    form = await readImageUploadForm(req);
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof ImageContentError ? e.code : "invalid_multipart" }, { status: e instanceof ImageContentError ? e.status : 400 });
   }
   const file = form.get("file");
   if (!(file instanceof File)) {
@@ -142,30 +135,17 @@ export async function POST(req: NextRequest) {
   }
 
   const buf = Buffer.from(await file.arrayBuffer());
+  try { await inspectOriginalImage(buf); }
+  catch (e) { return NextResponse.json({ error: e instanceof ImageContentError ? e.code : "invalid_image" }, { status: 400 }); }
   const meta = await inferBackgroundType(buf, file.type);
 
-  const id = randomUUID();
-  const ext = extOf(file.type);
-  const filename = `${id}.${ext}`;
-  const relKey = `${user.id}/${filename}`;
-  const imageUrl = await putUploadedAsset(relKey, buf, file.type);
-
-  const qualityWarning =
-    meta.background_type === "complex"
-      ? "background_complex_warning"
-      : null;
-
-  const asset = await prisma.uploadedAsset.create({
-    data: {
-      user_id: user.id,
-      image_url: imageUrl,
-      file_type: ext,
-      width: meta.width,
-      height: meta.height,
-      background_type: meta.background_type,
-      quality_warning: qualityWarning,
-    },
-  });
+  let result;
+  try {
+    result = await uploadImageContent(user.id, buf, { background_type: meta.background_type,
+      quality_warning: meta.background_type === "complex" ? "background_complex_warning" : null });
+  } catch (e) { return NextResponse.json({ error: e instanceof ImageContentError ? e.code : "upload_unavailable" },
+    { status: e instanceof ImageContentError ? e.status : 503 }); }
+  const asset = result.asset;
 
   return NextResponse.json({
     id: asset.id,
@@ -174,5 +154,7 @@ export async function POST(req: NextRequest) {
     quality_warning: asset.quality_warning,
     width: asset.width,
     height: asset.height,
+    sha256: result.content.sha256,
+    reused_content: result.reused_content,
   });
 }

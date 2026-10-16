@@ -233,9 +233,8 @@ export async function isAdmin(): Promise<boolean> {
 export async function signOut(): Promise<void> {
   const sid = cookies().get(SESSION_COOKIE)?.value;
   if (sid) {
-    await prisma.session
-      .delete({ where: { id: sid } })
-      .catch(() => undefined);
+    // Idempotent for an already-expired session, but never hide a DB failure.
+    await prisma.session.deleteMany({ where: { id: sid } });
   }
   cookies().delete(SESSION_COOKIE);
 }

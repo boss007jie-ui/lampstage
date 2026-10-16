@@ -7,6 +7,7 @@ import path from 'node:path';
 import { assertVideoPaidGenerationEnabled } from './control';
 
 export const H3_PROVIDER = 'hypit-provider-runninghub-product-v6';
+export const SIXREF_PROVIDER = 'hypit-provider-runninghub-sixref';
 export const H3_CAPABILITY = '@hypit/minimax-h3@1#minimax-h3';
 export const H3_ENDPOINT = 'runninghub.account01';
 const cliCandidates = process.platform === 'win32'
@@ -63,23 +64,26 @@ export async function readLocalBuildReceipt(workspace: string): Promise<{ buildI
   catch { return null; }
 }
 
-export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: CliProcess } = {}) {
+export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: CliProcess; route?: 'legacy' | 'sixref-v1' } = {}) {
   const env = options.env ?? process.env;
   const execute = options.process ?? runHypitProcess;
+  const route = options.route ?? 'legacy';
+  const provider = route === 'sixref-v1' ? SIXREF_PROVIDER : H3_PROVIDER;
   async function configuration() {
-    if (!env.VIDEO_HYPIT_RUNTIME) throw new Error('VIDEO_HYPIT_RUNTIME is not configured.');
-    const runtime = path.resolve(env.VIDEO_HYPIT_RUNTIME);
+    const runtimeSetting = route === 'sixref-v1' ? env.VIDEO_SIXREF_HYPIT_RUNTIME : env.VIDEO_HYPIT_RUNTIME;
+    if (!runtimeSetting) throw new Error(`${route === 'sixref-v1' ? 'VIDEO_SIXREF_HYPIT_RUNTIME' : 'VIDEO_HYPIT_RUNTIME'} is not configured.`);
+    const runtime = path.resolve(runtimeSetting);
     const profile = await jsonFile(runtime);
     const account = await jsonFile(`${runtime}.account.json`);
     const endpoint = profile.endpoints?.[H3_ENDPOINT];
     const ref = endpoint?.config?.apiKey;
     if (account.account !== '01' || account.endpoint !== H3_ENDPOINT ||
       profile.format !== 'hypit.runtime-local@1' || profile.bindings?.[H3_CAPABILITY] !== H3_ENDPOINT ||
-      endpoint?.use !== H3_PROVIDER || endpoint.config.baseUrl !== 'https://www.runninghub.cn' ||
+      endpoint?.use !== provider || endpoint.config.baseUrl !== 'https://www.runninghub.cn' ||
       typeof ref?.store !== 'string' || typeof ref?.key !== 'string' ||
       ref.store !== account.credential?.store || ref.key !== account.credential?.key ||
       /(?:^|[_ .-])0?2$/u.test(ref.key) || Object.keys(profile.endpoints).length !== 1) {
-      throw new Error('An isolated generic H3 account 01 runtime is required.');
+      throw new Error('An isolated H3 account 01 runtime is required.');
     }
     const store = profile.credentials?.[ref.store];
     if (!['@hypit/credential-store-platform', '@hypit/credential-store-os', '@hypit/credential-store-env'].includes(store?.use))
@@ -90,16 +94,31 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
     const cleanProfile = {
       format: 'hypit.runtime-local@1', dataRoot: './.hypit/execution',
       credentials: { [ref.store]: { use: store.use, ...(typeof store.config?.service === 'string' ? { config: { service: store.config.service } } : {}) } },
-      endpoints: { [H3_ENDPOINT]: { use: H3_PROVIDER, pool: 'runninghub.account01', config: {
+      endpoints: { [H3_ENDPOINT]: { use: provider, pool: 'runninghub.account01', config: {
         baseUrl: 'https://www.runninghub.cn', apiKey: { store: ref.store, key: ref.key },
-        pollIntervalMs: 5000, timeoutMs: 1800000, instanceType: 'ultra',
+        pollIntervalMs: 5000, timeoutMs: 1800000, instanceType: route === 'sixref-v1' ? 'default' : 'ultra',
+        ...(route === 'sixref-v1' ? { firstPassMegapixels: 0.4096, upscaleFactor: 1.5 } : {}),
       } } }, bindings: { [H3_CAPABILITY]: H3_ENDPOINT },
     };
     const cli = env.VIDEO_HYPIT_CLI || DEFAULT_HYPIT_CLI;
     const packageRoot = env.VIDEO_HYPIT_PACKAGE_ROOT || (typeof account.packageRoot === 'string' ? path.resolve(path.dirname(runtime), account.packageRoot) : DEFAULT_HYPIT_PACKAGE_ROOT);
     await access(cli);
-    await access(path.join(packageRoot, 'packages', H3_PROVIDER, 'package.json'));
+    await access(path.join(packageRoot, 'packages', provider, 'package.json'));
     return { runtime, profile: cleanProfile, cli, packageRoot };
+  }
+  function routeMatches(record: Json) {
+    return route === 'legacy'
+      ? (record.route === undefined || record.route === 'legacy') && (record.provider === undefined || record.provider === H3_PROVIDER)
+      : record.route === 'sixref-v1' && record.provider === SIXREF_PROVIDER;
+  }
+  async function jobRuntimeMatches(workspace: string, expected: Json) {
+    const profile = await jsonFile(path.join(workspace, 'hypit.runtime.json'));
+    const endpoint = profile.endpoints?.[H3_ENDPOINT];
+    return profile.format === 'hypit.runtime-local@1' && profile.dataRoot === './.hypit/execution' &&
+      Object.keys(profile.endpoints ?? {}).length === 1 && endpoint?.use === provider &&
+      profile.bindings?.[H3_CAPABILITY] === H3_ENDPOINT &&
+      JSON.stringify(endpoint.config) === JSON.stringify(expected.endpoints[H3_ENDPOINT].config) &&
+      JSON.stringify(profile.credentials) === JSON.stringify(expected.credentials);
   }
   async function runnerReadiness(): Promise<{ ready: boolean; reason?: string }> {
     try {
@@ -114,7 +133,7 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
   }
   async function submitH3(input: {
     workspace: string; sourcePath: string;
-    prompt: string; duration: 4 | 5; onBuildId: (id: string) => Promise<void>;
+    prompt: string; duration: 4 | 5 | 6 | 8; onBuildId: (id: string) => Promise<void>;
     /**
      * 付费提交前的最后一道闸门：读**当前数据库状态**核对开关、租约、revision 与已保存的
      * renderConsent。放在 intent 落库之前——一旦写了 intent 就进入"意图已持久化"的模糊区，
@@ -123,17 +142,19 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
     beforeSubmit?: () => Promise<void>;
   } & (
     { productPath: string; openingPath: string; endingPath: string; referencePaths?: never } |
-    { referencePaths: readonly [string, string, string]; productPath?: never; openingPath?: never; endingPath?: never }
+    { referencePaths: readonly string[]; productPath?: never; openingPath?: never; endingPath?: never }
   )): Promise<{ buildId: string }> {
-    if (input.duration !== 4 && input.duration !== 5) throw new Error('H3 requires a 4 or 5 second source window.');
+    if (!(route === 'sixref-v1' ? [4, 5, 6, 8].includes(input.duration) : [4, 5].includes(input.duration)))
+      throw new Error(route === 'sixref-v1' ? 'H3 requires a 4, 5, 6 or 8 second source window.' : 'H3 requires a 4 or 5 second source window.');
     if (!input.prompt.trim() || input.prompt.length > 20000) throw new Error('Invalid H3 prompt.');
     const direct = 'referencePaths' in input;
     if (direct && ('productPath' in input || 'openingPath' in input || 'endingPath' in input))
       throw new Error('H3 input cannot mix direct and legacy references.');
     const references = direct ? input.referencePaths : [input.productPath, input.openingPath, input.endingPath];
-    if (!Array.isArray(references) || references.length !== 3 ||
+    if (route === 'sixref-v1' && !direct) throw new Error('Six-reference H3 requires direct reference paths.');
+    if (!Array.isArray(references) || (route === 'sixref-v1' ? references.length < 1 || references.length > 6 : references.length !== 3) ||
       references.some(file => typeof file !== 'string' || !file.trim()))
-      throw new Error('H3 requires exactly three nonempty image paths.');
+      throw new Error(route === 'sixref-v1' ? 'H3 requires one to six nonempty image paths.' : 'H3 requires exactly three nonempty image paths.');
     // 快速失败：付费开关关闭时连本地 check/plan 都不做，绝不触碰 build。
     // 用 runner 自己的 env，避免模拟测试误读生产环境。
     assertVideoPaidGenerationEnabled(env);
@@ -151,7 +172,7 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
     const runtime = path.join(workspace, 'hypit.runtime.json');
     const source = path.join(workspace, 'video.svml');
     const run = path.join(workspace, 'video.svrun');
-    const authored = `<?svml using="@hypit/markup@1"?>\n<svml>\n<import as="asset" from="@hypit/media@1"/>\n<import as="text" from="@hypit/text@1"/>\n<import as="h3" from="@hypit/minimax-h3@1"/>\n${paths.slice(0, 3).map((file, i) => `<asset:Image id="image${i}" src="${escapeXml(file)}"/>`).join('\n')}\n<asset:Video id="motion" src="${escapeXml(paths[3])}"/>\n<text:Value id="direction">${escapeXml(input.prompt)}</text:Value>\n<h3:ReferenceVideo id="result" prompt={direction} duration="${input.duration}" resolution="768P" aspect-ratio="9:16">\n<h3:Reference image={image0}/><h3:Reference image={image1}/><h3:Reference image={image2}/><h3:Reference video={motion}/>\n</h3:ReferenceVideo>\n</svml>\n`;
+    const authored = `<?svml using="@hypit/markup@1"?>\n<svml>\n<import as="asset" from="@hypit/media@1"/>\n<import as="text" from="@hypit/text@1"/>\n<import as="h3" from="@hypit/minimax-h3@1"/>\n${paths.slice(0, references.length).map((file, i) => `<asset:Image id="image${i}" src="${escapeXml(file)}"/>`).join('\n')}\n<asset:Video id="motion" src="${escapeXml(paths[references.length])}"/>\n<text:Value id="direction">${escapeXml(input.prompt)}</text:Value>\n<h3:ReferenceVideo id="result" prompt={direction} duration="${input.duration}" resolution="768P" aspect-ratio="9:16">\n${references.map((_file, i) => `<h3:Reference image={image${i}}/>`).join('')}<h3:Reference video={motion}/>\n</h3:ReferenceVideo>\n</svml>\n`;
     // Exclusive writes make re-entry fail closed before the paid submission boundary.
     await writeFile(runtime, JSON.stringify(cfg.profile, null, 2), { flag: 'wx' });
     await writeFile(source, authored, { flag: 'wx' });
@@ -162,16 +183,16 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
     const plan = await execute(cfg.cli, ['plan', run, '--runtime', runtime, ...common], workspace, 60000);
     if (plan.format !== 'hypit.cli-plan@1' || plan.ok !== true || plan.requestCount !== 1 || plan.requestIssueCount !== 0 ||
       plan.preflight?.ok !== true || !Array.isArray(plan.providers) || plan.providers.length !== 1 ||
-      plan.providers[0].endpoint !== H3_ENDPOINT || plan.providers[0].use !== H3_PROVIDER || plan.providers[0].status !== 'resolved')
+      plan.providers[0].endpoint !== H3_ENDPOINT || plan.providers[0].use !== provider || plan.providers[0].status !== 'resolved')
       throw new Error('H3 preflight did not resolve exactly one account 01 video request.');
     await input.beforeSubmit?.();
-    await writeFile(path.join(workspace, 'hypit-submission-intent.json'), JSON.stringify({ account: '01', output: OUTPUT, createdAt: new Date().toISOString() }), { flag: 'wx' });
+    await writeFile(path.join(workspace, 'hypit-submission-intent.json'), JSON.stringify({ account: '01', route, provider, output: OUTPUT, createdAt: new Date().toISOString() }), { flag: 'wx' });
     let buildId: string | undefined;
     try {
       const submitted = await execute(cfg.cli, ['build', run, '--runtime', runtime, ...common, '--max-wait-ms', '60000'], workspace, 90000);
       if (submitted.format !== 'hypit.cli-build@1' || !safeId(submitted.build?.id)) throw new SubmissionUnknownError();
       buildId = submitted.build.id;
-      await writeFile(receiptPath(workspace), JSON.stringify({ buildId, output: OUTPUT }), { flag: 'wx' });
+      await writeFile(receiptPath(workspace), JSON.stringify({ buildId, route, provider, output: OUTPUT }), { flag: 'wx' });
       await input.onBuildId(buildId!);
       return { buildId: buildId! };
     } catch { throw new SubmissionUnknownError(buildId); }
@@ -180,25 +201,50 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
     if (!safeId(input.buildId)) throw new Error('Invalid build ID.');
     try {
       const cfg = await configuration();
+      if (route === 'sixref-v1') {
+        if (!await jobRuntimeMatches(input.workspace, cfg.profile)) return { state: 'unknown' };
+        const localReceipt = await jsonFile(receiptPath(input.workspace)).catch(() => null);
+        if (localReceipt && (!routeMatches(localReceipt) || localReceipt.buildId !== input.buildId)) return { state: 'unknown' };
+        if (!localReceipt && !routeMatches(await jsonFile(path.join(input.workspace, 'hypit-submission-intent.json')))) return { state: 'unknown' };
+      } else {
+        const localReceipt = await jsonFile(receiptPath(input.workspace)).catch(() => null);
+        if (localReceipt && !routeMatches(localReceipt)) return { state: 'unknown' };
+        const jobProfile = await jsonFile(path.join(input.workspace, 'hypit.runtime.json')).catch(() => null);
+        if (jobProfile && jobProfile.endpoints?.[H3_ENDPOINT]?.use !== provider) return { state: 'unknown' };
+      }
       const status = await execute(cfg.cli, ['status', input.buildId, '--workspace', input.workspace, '--runtime', path.join(input.workspace, 'hypit.runtime.json'), '--verbose'], input.workspace, 30000);
       if (status.format !== 'hypit.cli-status@1' || !status.build || status.build.id !== input.buildId) return { state: 'unknown' };
       const build = status.build;
       const receipt = build.operations?.find((item: Json) => item.endpoint === H3_ENDPOINT && safeId(item.receipt?.id))?.receipt?.id;
       const details = receipt ? { taskId: receipt } : {};
       if (build.result?.state === 'complete' && build.work?.outcome === 'complete') return { state: 'completed', ...details };
-      if (['failed', 'cancelled'].includes(build.work?.outcome) || ['failed', 'cancelled'].includes(build.result?.state))
-        return { state: 'failed', error: 'The H3 video task failed or was cancelled.', ...details };
+      if (['failed', 'cancelled'].includes(build.work?.outcome) || ['failed', 'cancelled'].includes(build.result?.state)) {
+        const operations = Array.isArray(build.operations) ? build.operations : [];
+        const proven = route === 'sixref-v1' && operations.length === 1 &&
+          operations[0].endpoint === H3_ENDPOINT && operations[0].state === 'failed' &&
+          safeId(operations[0].receipt?.id) && operations[0].receipt.id === receipt &&
+          operations[0].failure?.code === 'RUNNINGHUB_TERMINAL_FAILURE';
+        if (proven) return { state: 'failed', error: 'RunningHub confirmed this task failed.', ...details };
+        return { state: 'unknown', error: 'The local build stopped without proof of a terminal RunningHub result.', ...details };
+      }
       if (['submitting', 'working'].includes(build.work?.state)) return { state: 'working', ...details };
       return { state: 'unknown', ...details };
     } catch { return { state: 'unknown', error: 'Unable to query the existing H3 build.' }; }
   }
   async function recoverH3Submission(workspace: string): Promise<{ buildId: string } | null> {
     const known = await readLocalBuildReceipt(workspace);
-    if (known) return known;
+    if (known) {
+      const value = await jsonFile(receiptPath(workspace)).catch(() => null);
+      if (!value || !routeMatches(value)) return null;
+      if (route === 'legacy') return known;
+      const cfg = await configuration().catch(() => null);
+      return cfg && await jobRuntimeMatches(workspace, cfg.profile).catch(() => false) ? known : null;
+    }
     try {
       const intent = await jsonFile(path.join(workspace, 'hypit-submission-intent.json'));
-      if (intent.account !== '01' || intent.output !== OUTPUT) return null;
+      if (intent.account !== '01' || intent.output !== OUTPUT || !routeMatches(intent)) return null;
       const cfg = await configuration();
+      if (route === 'sixref-v1' && !await jobRuntimeMatches(workspace, cfg.profile)) return null;
       // Public ledger views cover active work and completed Results without re-submission.
       const views = await Promise.all([
         execute(cfg.cli, ['activity', '--workspace', workspace, '--runtime', path.join(workspace, 'hypit.runtime.json'), '--verbose'], workspace, 30000),
@@ -213,8 +259,8 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
       const buildId = ids[0];
       const status = await execute(cfg.cli, ['status', buildId, '--workspace', workspace, '--runtime', path.join(workspace, 'hypit.runtime.json')], workspace, 30000);
       if (status.format !== 'hypit.cli-status@1' || status.build?.id !== buildId || status.build.targets?.length !== 1 || status.build.targets[0] !== OUTPUT) return null;
-      try { await writeFile(receiptPath(workspace), JSON.stringify({ buildId, output: OUTPUT, recovered: true }), { flag: 'wx' }); }
-      catch { const concurrent = await readLocalBuildReceipt(workspace); if (concurrent?.buildId !== buildId) return null; }
+      try { await writeFile(receiptPath(workspace), JSON.stringify({ buildId, route, provider, output: OUTPUT, recovered: true }), { flag: 'wx' }); }
+      catch { const concurrent = await readLocalBuildReceipt(workspace); if (concurrent?.buildId !== buildId || !routeMatches(await jsonFile(receiptPath(workspace)))) return null; }
       return { buildId };
     } catch { return null; }
   }
@@ -230,9 +276,10 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
       const expected = cfg.profile.endpoints[H3_ENDPOINT];
       if (profile.format !== 'hypit.runtime-local@1' || typeof profile.dataRoot !== 'string' ||
         path.resolve(workspace, profile.dataRoot) !== path.join(workspace, '.hypit/execution') ||
-        Object.keys(profile.endpoints ?? {}).length !== 1 || endpoint?.use !== H3_PROVIDER ||
+        Object.keys(profile.endpoints ?? {}).length !== 1 || endpoint?.use !== provider ||
         profile.bindings?.[H3_CAPABILITY] !== H3_ENDPOINT || endpoint.config?.baseUrl !== expected.config.baseUrl ||
         endpoint.config?.apiKey?.store !== expected.config.apiKey.store || endpoint.config?.apiKey?.key !== expected.config.apiKey.key ||
+        (route === 'sixref-v1' && JSON.stringify(endpoint.config) !== JSON.stringify(expected.config)) ||
         JSON.stringify(profile.credentials) !== JSON.stringify(cfg.profile.credentials))
         return { ready: false, reason: 'The existing job runtime does not match the isolated account 01 configuration.' };
       const dataRoot = await realpath(path.resolve(workspace, profile.dataRoot));
@@ -273,6 +320,16 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
   async function collectH3(input: { workspace: string; buildId: string; to: string }): Promise<void> {
     if (!safeId(input.buildId)) throw new Error('Invalid build ID.');
     const cfg = await configuration();
+    if (route === 'sixref-v1') {
+      if (!await jobRuntimeMatches(input.workspace, cfg.profile)) throw new Error('The job runtime does not match the selected H3 route.');
+      const receipt = await jsonFile(receiptPath(input.workspace));
+      if (!routeMatches(receipt) || receipt.buildId !== input.buildId) throw new Error('The job receipt does not match the selected H3 route.');
+    } else {
+      const receipt = await jsonFile(receiptPath(input.workspace)).catch(() => null);
+      if (receipt && !routeMatches(receipt)) throw new Error('The job receipt does not match the selected H3 route.');
+      const jobProfile = await jsonFile(path.join(input.workspace, 'hypit.runtime.json')).catch(() => null);
+      if (jobProfile && jobProfile.endpoints?.[H3_ENDPOINT]?.use !== provider) throw new Error('The job runtime does not match the selected H3 route.');
+    }
     const result = await execute(cfg.cli, ['inspect', input.buildId, '--output', OUTPUT, '--workspace', input.workspace], input.workspace, 30000);
     const output = result.build?.outputs?.find((item: Json) => item.name === OUTPUT);
     if (result.format !== 'hypit.cli-inspect@1' || result.build?.id !== input.buildId || result.build.outcome !== 'complete' ||
@@ -315,3 +372,4 @@ export function createHypitRunner(options: { env?: NodeJS.ProcessEnv; process?: 
   return { runnerReadiness, submitH3, inspectH3, collectH3, recoverH3Submission, resumeH3Worker };
 }
 export const { runnerReadiness, submitH3, inspectH3, collectH3, recoverH3Submission, resumeH3Worker } = createHypitRunner();
+export const sixRefRunner = createHypitRunner({ route: 'sixref-v1' });

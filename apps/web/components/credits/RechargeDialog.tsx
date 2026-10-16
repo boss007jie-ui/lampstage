@@ -1,168 +1,172 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CheckCircle, X } from "@phosphor-icons/react";
-import { QRCodeSVG } from "qrcode.react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { useLang } from "@/components/i18n/LangProvider";
+import type { RechargeDisplayMode, RechargeOrderView, RechargePackView } from "@/lib/billing/contract";
 
-type Pack = "basic" | "business" | "factory";
-type Props = { open: boolean; pack: Pack | null; onClose: () => void; onPaid?: () => void };
-type CreateResp = { ok?: boolean; order_no?: string; pay_url?: string; amount?: string; credits?: number; error?: string; message?: string };
-type StatusResp = { order_no?: string; status?: "pending" | "paid" | "failed" | "expired"; amount?: string; credits?: number; paid_at?: string | null; error?: string };
-type Phase = "creating" | "pending" | "paid" | "failed" | "expired" | "error";
-const PACKS: Record<Pack, { zh: string; en: string; yuan: number; credits: number }> = {
-  basic: { zh: "体验包", en: "Starter", yuan: 30, credits: 100 },
-  business: { zh: "标准包", en: "Standard", yuan: 99, credits: 400 },
-  factory: { zh: "大包", en: "Bulk", yuan: 299, credits: 1500 },
+type Props = {
+  open: boolean; pack: RechargePackView | null; existingOrderNo?: string | null;
+  onClose: () => void; onPaid?: () => void; onSessionExpired?: () => void;
 };
+type OrderResponse = { order?: RechargeOrderView; query_state?: "checked" | "rate_limited" | "unavailable"; error?: string };
+const POLL_MS = 4000, LIMIT_MS = 600000, REFRESH_MS = 10000;
 
-export function RechargeDialog({ open, pack, onClose, onPaid }: Props) {
+export function RechargeDialog({ open, pack, existingOrderNo, onClose, onPaid, onSessionExpired }: Props) {
   const { lang } = useLang();
-  const [phase, setPhase] = useState<Phase>("creating");
-  const [error, setError] = useState<string | null>(null);
-  const [orderNo, setOrderNo] = useState<string | null>(null);
-  const [payUrl, setPayUrl] = useState<string | null>(null);
-  const [amount, setAmount] = useState<string | null>(null);
-  const [credits, setCredits] = useState<number | null>(null);
-  const [pollError, setPollError] = useState(false);
+  const zh = lang === "zh";
+  const [order, setOrder] = useState<RechargeOrderView | null>(null);
+  const [phase, setPhase] = useState<"loading" | "uncertain" | "error" | "order">("loading");
+  const [message, setMessage] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [pollStopped, setPollStopped] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const paidRef = useRef(onPaid);
-  paidRef.current = onPaid;
-  const paidNotified = useRef(false);
-  const sessionRef = useRef(0);
-  const openRef = useRef(false);
-  const activeOrderRef = useRef<string | null>(null);
-  const retryLockRef = useRef(false);
-  const copy = lang === "zh" ? {
-    close: "关闭", loading: "正在生成支付二维码…", pay: "请用微信或支付宝扫码支付",
-    order: "订单号", pending: "等待支付确认，成功后额度会自动到账。", openPay: "在手机上打开支付页面",
-    paid: "支付成功", paidHint: "额度已到账，可以继续生成。", failed: "支付失败",
-    expired: "订单已过期", error: "暂时无法创建支付订单。", network: "网络异常，支付状态暂时无法确认。",
-    retry: "重试", checkAgain: "重新查询支付状态", done: "完成", amount: "实际支付金额",
-    count: "张图片额度", login: "请先登录后再充值。",
+  const requestRef = useRef<{ pack: string; key: string; mode: RechargeDisplayMode } | null>(null);
+  const requestsByPackRef = useRef(new Map<string, { pack: string; key: string; mode: RechargeDisplayMode }>());
+  const epochRef = useRef(0), inFlightRef = useRef(false), paidRef = useRef(false), lastRefreshRef = useRef(0), pollStartedRef = useRef(0);
+  const callbacks = useRef({ onPaid, onSessionExpired });
+  callbacks.current = { onPaid, onSessionExpired };
+  const c = zh ? {
+    title: "充值 Token", close: "关闭", loading: "正在读取订单…", creating: "正在创建支付订单…",
+    amount: "支付金额", number: "订单号", scan: "请按二维码显示的渠道扫码支付", mobile: "打开支付页面",
+    pending: "等待支付确认，到账以订单状态为准。", paid: "支付成功", paidHint: "Token 已到账。",
+    failed: "订单未完成", expired: "订单已过期", unknown: "创建结果尚未确认。请用原请求恢复订单，勿重复付款。",
+    unavailable: "支付信息暂不可用，请稍后查看当前订单。", recover: "使用原请求恢复订单",
+    check: "我已支付 / 查询状态", checking: "查询中…", later: "查询过于频繁，请稍后再试。",
+    advisory: "支付渠道查询仅供参考，仍需等待到账确认。", network: "暂时无法确认订单状态，请稍后重试。",
+    noOrder: "无法读取此订单，请从订单列表重试。", timeout: "已暂停自动查询，可手动查询当前订单。", done: "完成",
+    closed: "充值暂不可用，请返回账户页稍后再试。", rate: "当前订单较多，请稍后再试。", badPack: "此套餐已不可用，请返回账户页查看最新套餐。",
+    rejected: "无法创建此订单，请返回账户页重试。", back: "返回账户", unchanged: "订单尚未确认到账。若已支付，请稍后再次查询。",
+    review: "退款处理中，请联系客服核对余额。",
   } : {
-    close: "Close", loading: "Creating your payment QR code…", pay: "Scan with WeChat or Alipay",
-    order: "Order", pending: "Waiting for payment confirmation. Credits arrive automatically.", openPay: "Open the payment page on your phone",
-    paid: "Payment complete", paidHint: "Credits have been added. You can keep creating.", failed: "Payment failed",
-    expired: "Order expired", error: "Could not create the payment order.", network: "Network issue. Payment status could not be confirmed.",
-    retry: "Retry", checkAgain: "Check payment status again", done: "Done", amount: "Amount payable",
-    count: "image credits", login: "Sign in before topping up.",
+    title: "Recharge Token", close: "Close", loading: "Loading order…", creating: "Creating payment order…",
+    amount: "Amount", number: "Order", scan: "Scan with the payment channel shown in the QR code", mobile: "Open payment page",
+    pending: "Waiting for confirmed payment. Tokens arrive when the order is paid.", paid: "Payment complete", paidHint: "Tokens have been credited.",
+    failed: "Order not completed", expired: "Order expired", unknown: "Creation outcome is uncertain. Recover with the same request before paying again.",
+    unavailable: "Payment details are unavailable. Check this order later.", recover: "Recover this request",
+    check: "I've paid / Check status", checking: "Checking…", later: "Please wait before checking again.",
+    advisory: "Provider query is advisory. Wait for confirmed credit.", network: "Could not confirm this order yet. Try again later.",
+    noOrder: "Could not read this order. Try again from the order list.", timeout: "Automatic checks paused. You can still check manually.", done: "Done",
+    closed: "Recharge is unavailable. Return to your account and try later.", rate: "Too many active orders. Please try later.", badPack: "This package is unavailable. Return to your account for current packages.",
+    rejected: "Could not create this order. Return to your account and try again.", back: "Return to account", unchanged: "Payment is not confirmed yet. If you paid, check again later.",
+    review: "Refund under review. Contact support to confirm your balance.",
   };
-  const meta = pack ? PACKS[pack] : null;
-  const reset = () => { paidNotified.current = false; setPhase("creating"); setError(null); setOrderNo(null); setPayUrl(null); setAmount(null); setCredits(null); setPollError(false); };
-  useLayoutEffect(() => {
-    sessionRef.current += 1;
-    openRef.current = open && pack !== null;
-    activeOrderRef.current = null;
-    return () => {
-      sessionRef.current += 1;
-      openRef.current = false;
-      activeOrderRef.current = null;
-    };
-  }, [open, pack]);
-  const current = useCallback((session: number, id?: string) =>
-    openRef.current && sessionRef.current === session && (!id || activeOrderRef.current === id), []);
-  const close = () => {
-    sessionRef.current += 1;
-    openRef.current = false;
-    activeOrderRef.current = null;
-    onClose();
-  };
-  const retry = () => {
-    if (retryLockRef.current) return;
-    retryLockRef.current = true;
-    sessionRef.current += 1;
-    activeOrderRef.current = null;
-    setAttempt(value => value + 1);
-  };
+  const accept = useCallback((next: RechargeOrderView) => {
+    setOrder(next); setPhase("order"); setMessage("");
+    if (next.status !== "pending") requestsByPackRef.current.delete(next.pack);
+    if (next.status === "paid" && !paidRef.current) { paidRef.current = true; callbacks.current.onPaid?.(); }
+  }, []);
 
   useEffect(() => {
-    if (!open || !pack) { reset(); return; }
-    const session = ++sessionRef.current;
-    retryLockRef.current = false;
-    reset();
-    const create = async () => {
-      if (!current(session)) return;
+    if (!open) return;
+    const epoch = ++epochRef.current, controller = new AbortController();
+    setOrder(null); setMessage(""); setPhase("loading"); setChecking(false); setPollStopped(false);
+    paidRef.current = false; inFlightRef.current = false; lastRefreshRef.current = 0; pollStartedRef.current = 0;
+    async function run() {
+      if (existingOrderNo) {
+        requestRef.current = null;
+        try {
+          const response = await fetch(`/api/recharge/${encodeURIComponent(existingOrderNo)}`, { cache: "no-store", signal: controller.signal });
+          if (epoch !== epochRef.current) return;
+          if (response.status === 401) { callbacks.current.onSessionExpired?.(); return; }
+          const data = await response.json().catch(() => ({})) as OrderResponse;
+          if (!response.ok || data.order?.order_no !== existingOrderNo) throw new Error("load");
+          accept(data.order);
+        } catch { if (epoch === epochRef.current) { setPhase("error"); setMessage(c.noOrder); } }
+        return;
+      }
+      if (!pack) return;
+      if (!requestRef.current || requestRef.current.pack !== pack.key) {
+        requestRef.current = requestsByPackRef.current.get(pack.key) || {
+          pack: pack.key, key: crypto.randomUUID(),
+          mode: window.matchMedia?.("(max-width: 639px)").matches || window.innerWidth <= 639 ? "mobile" : "desktop",
+        };
+        requestsByPackRef.current.set(pack.key, requestRef.current);
+      }
+      const req = requestRef.current;
       try {
-        const response = await fetch("/api/recharge/create", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ pack }) });
-        const data = await response.json().catch(() => ({})) as CreateResp;
-        if (!current(session)) return;
-        if (!response.ok || !data.ok || !data.order_no || !data.pay_url) {
-          setError(response.status === 401 ? copy.login : (data.message || data.error || copy.error));
+        const response = await fetch("/api/recharge/create", {
+          method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ pack: req.pack, idempotency_key: req.key, display_mode: req.mode }), signal: controller.signal,
+        });
+        if (epoch !== epochRef.current) return;
+        if (response.status === 401) { callbacks.current.onSessionExpired?.(); return; }
+        const data = await response.json().catch(() => ({})) as OrderResponse;
+        if (response.ok && data.order?.order_no && data.order.display_mode === req.mode) { accept(data.order); return; }
+        const knownError = response.status === 429 || response.status === 400 || response.status === 403 ||
+          (response.status === 503 && data.error === "recharge_unavailable") || response.status === 409;
+        if (knownError) {
+          requestsByPackRef.current.delete(req.pack); requestRef.current = null;
           setPhase("error");
+          setMessage(response.status === 429 ? c.rate : data.error === "recharge_unavailable" ? c.closed :
+            data.error === "bad_pack" ? c.badPack : c.rejected);
           return;
         }
-        activeOrderRef.current = data.order_no;
-        setOrderNo(data.order_no); setPayUrl(data.pay_url);
-        setAmount(data.amount || null); setCredits(typeof data.credits === "number" ? data.credits : null);
-        setPhase("pending");
-      } catch {
-        if (current(session)) { setError(copy.network); setPhase("error"); }
-      }
-    };
-    // Deferring the request prevents Strict Mode's disposable effect pass from creating an order.
-    queueMicrotask(() => void create());
-    return () => {
-      sessionRef.current += 1;
-      activeOrderRef.current = null;
-    };
-  // Recreating an order is intentional only when the pack or retry attempt changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, pack, attempt]);
-
-  const checkStatus = useCallback(async (id: string, session: number) => {
-    if (!current(session, id)) return;
-    try {
-      const response = await fetch(`/api/recharge/${id}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json() as StatusResp;
-      if (!current(session, id) || (data.order_no && data.order_no !== id)) return;
-      setPollError(false);
-      if (data.status === "paid") {
-        activeOrderRef.current = null;
-        setPhase("paid");
-        if (!paidNotified.current) { paidNotified.current = true; paidRef.current?.(); }
-      } else if (data.status === "failed") {
-        activeOrderRef.current = null;
-        setPhase("failed");
-      } else if (data.status === "expired") {
-        activeOrderRef.current = null;
-        setPhase("expired");
-      }
-    } catch {
-      if (current(session, id)) setPollError(true);
+      } catch { /* Network failure may have created an order. */ }
+      if (epoch === epochRef.current) { setPhase("uncertain"); setMessage(c.unknown); }
     }
-  }, [current]);
-  useEffect(() => {
-    if (!open || phase !== "pending" || !orderNo) return;
-    const session = sessionRef.current;
-    const id = window.setInterval(() => void checkStatus(orderNo, session), 2500);
-    return () => window.clearInterval(id);
-  }, [open, phase, orderNo, checkStatus]);
+    // Skip Strict Mode's disposable effect pass.
+    queueMicrotask(() => { if (epoch === epochRef.current) void run(); });
+    return () => { epochRef.current++; controller.abort(); };
+  // Retry reuses the original key and frozen display mode.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pack?.key, existingOrderNo, attempt, accept]);
 
-  if (!meta) return <Dialog open={false} onClose={close} titleId="recharge-dialog-title">{null}</Dialog>;
-  const shownAmount = amount && Number.isFinite(Number(amount)) ? `¥${Number(amount).toFixed(2)}` : `¥${meta.yuan.toFixed(2)}`;
+  const check = useCallback(async (refresh: boolean) => {
+    if (!order || order.status === "paid" || inFlightRef.current) return;
+    const providerRefresh = refresh && order.status === "pending";
+    if (providerRefresh && Date.now() - lastRefreshRef.current < REFRESH_MS) { setMessage(c.later); return; }
+    if (providerRefresh) lastRefreshRef.current = Date.now();
+    const epoch = epochRef.current;
+    inFlightRef.current = true; setChecking(true);
+    try {
+      const response = await fetch(`/api/recharge/${encodeURIComponent(order.order_no)}${providerRefresh ? "/refresh" : ""}`, {
+        method: providerRefresh ? "POST" : "GET", cache: "no-store", credentials: "same-origin",
+      });
+      if (epoch !== epochRef.current) return;
+      if (response.status === 401) { callbacks.current.onSessionExpired?.(); return; }
+      const data = await response.json().catch(() => ({})) as OrderResponse;
+      if (!response.ok || data.order?.order_no !== order.order_no) throw new Error("status");
+      accept(data.order);
+      if (providerRefresh && data.order.status === "pending") setMessage(data.query_state === "rate_limited" ? c.later : data.query_state === "unavailable" ? c.network : c.advisory);
+      else if (refresh && data.order.status !== "paid") setMessage(c.unchanged);
+    } catch { if (epoch === epochRef.current) setMessage(c.network); }
+    finally { if (epoch === epochRef.current) { inFlightRef.current = false; setChecking(false); } }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order, accept, lang]);
+  useEffect(() => {
+    if (!open || order?.status !== "pending") return;
+    if (!pollStartedRef.current) pollStartedRef.current = Date.now();
+    const timer = window.setInterval(() => {
+      if (Date.now() - pollStartedRef.current >= LIMIT_MS) { window.clearInterval(timer); setPollStopped(true); return; }
+      void check(false);
+    }, POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [open, order?.order_no, order?.status, check]);
+  const close = () => { epochRef.current++; requestRef.current = null; onClose(); };
+  const showPayment = order?.status === "pending" && order.creation_state === "ready" && !order.requires_review;
   return <Dialog open={open} onClose={close} titleId="recharge-dialog-title">
     <div className="flex items-start justify-between gap-3">
-      <div><h2 id="recharge-dialog-title" className="text-xl font-semibold">{lang === "zh" ? meta.zh : meta.en}</h2><p className="mt-2 text-sm text-[var(--color-muted)]">{copy.amount} · <strong className="text-[var(--color-text)]">{shownAmount}</strong> · {credits ?? meta.credits} {copy.count}</p></div>
-      <button type="button" className="icon-button" onClick={close} aria-label={copy.close}><X size={21} /></button>
+      <div><h2 id="recharge-dialog-title" className="text-xl font-semibold">{pack?.title || c.title}</h2>
+        {(order || pack) && <p className="mt-2 text-sm text-[var(--color-muted)]">{c.amount} · <strong className="text-[var(--color-text)]">¥{order?.amount ?? pack?.amount}</strong> · {order?.credits ?? pack?.credits} Token</p>}</div>
+      <button type="button" className="icon-button" onClick={close} aria-label={c.close}>×</button>
     </div>
-    <div className="mt-6 grid min-h-[250px] place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-5 text-center">
-      {phase === "creating" && <p role="status" className="text-sm text-[var(--color-muted)]">{copy.loading}</p>}
-      {phase === "pending" && payUrl && <div className="flex flex-col items-center gap-3">
-        <div className="rounded-lg bg-white p-3"><QRCodeSVG value={payUrl} size={190} level="M" /></div>
-        <p className="text-sm font-medium">{copy.pay}</p>
-        <p className="text-xs text-[var(--color-muted)]">{copy.pending}</p>
-        <p className="break-all text-xs text-[var(--color-muted)]">{copy.order}: {orderNo}</p>
+    <div className="mt-6 grid min-h-[220px] place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-5 text-center">
+      {phase === "loading" && <p role="status">{pack ? c.creating : c.loading}</p>}
+      {(phase === "uncertain" || phase === "error") && <div role="alert"><p>{message}</p>{phase === "uncertain" ? <button type="button" className="btn btn-outline mt-4" onClick={() => setAttempt(n => n + 1)}>{c.recover}</button> : <button type="button" className="btn btn-outline mt-4" onClick={close}>{c.back}</button>}</div>}
+      {order?.requires_review && <p role="status" className="text-sm">{c.review}</p>}
+      {order?.status === "paid" && !order.requires_review && <div role="status"><p className="text-xl font-semibold">{c.paid} · +{order.credits} Token</p><p className="mt-2 text-sm text-[var(--color-muted)]">{c.paidHint}</p></div>}
+      {order && !order.requires_review && (order.status === "failed" || order.status === "expired") && <p role="status">{order.status === "failed" ? c.failed : c.expired}</p>}
+      {order?.status === "pending" && !order.requires_review && <div className="flex flex-col items-center gap-3">
+        {showPayment && order.display_mode === "desktop" && order.qr_code_url && <img src={order.qr_code_url} width={190} height={190} alt={c.scan} referrerPolicy="no-referrer" className="rounded-lg bg-white p-3" />}
+        {showPayment && order.display_mode === "mobile" && order.pay_url && <a href={order.pay_url} target="_blank" rel="noreferrer" className="btn btn-primary">{c.mobile}</a>}
+        <p className="text-sm">{showPayment ? c.pending : order.creation_state === "unknown" ? c.unknown : c.unavailable}</p>
+        {order.creation_state === "unknown" && !existingOrderNo && <button type="button" className="btn btn-outline" onClick={() => setAttempt(n => n + 1)}>{c.recover}</button>}
       </div>}
-      {phase === "paid" && <div><CheckCircle size={48} className="mx-auto text-[var(--color-accent)]" /><p className="mt-3 font-semibold">{copy.paid} · +{credits ?? meta.credits}</p><p className="mt-2 text-sm text-[var(--color-muted)]">{copy.paidHint}</p></div>}
-      {(phase === "failed" || phase === "expired" || phase === "error") && <div role="alert"><p className="text-sm text-[var(--color-danger)]">{phase === "failed" ? copy.failed : phase === "expired" ? copy.expired : (error || copy.error)}</p><button type="button" className="btn btn-outline mt-4" onClick={retry}>{copy.retry}</button></div>}
     </div>
-    {phase === "pending" && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
-      <a href={payUrl || "#"} target="_blank" rel="noreferrer" className="font-medium text-[var(--color-accent)] underline">{copy.openPay}</a>
-      {pollError && <div className="w-full" role="alert"><p className="text-[var(--color-danger)]">{copy.network}</p><button type="button" className="btn btn-outline mt-2" onClick={() => orderNo && void checkStatus(orderNo, sessionRef.current)}>{copy.checkAgain}</button></div>}
-    </div>}
-    {phase === "paid" && <button type="button" className="btn btn-primary mt-5 w-full" onClick={close}>{copy.done}</button>}
+    {order && <p className="mt-3 break-all text-xs text-[var(--color-muted)]">{c.number}: {order.order_no}</p>}
+    {order && order.status !== "paid" && <div className="mt-4"><button type="button" className="btn btn-outline" disabled={checking} onClick={() => void check(true)}>{checking ? c.checking : c.check}</button>{pollStopped && <p className="mt-2 text-xs text-[var(--color-muted)]">{c.timeout}</p>}</div>}
+    {message && phase === "order" && <p role="status" className="mt-3 text-sm text-[var(--color-muted)]">{message}</p>}
+    {order?.status === "paid" && <button type="button" className="btn btn-primary mt-5 w-full" onClick={close}>{c.done}</button>}
   </Dialog>;
 }

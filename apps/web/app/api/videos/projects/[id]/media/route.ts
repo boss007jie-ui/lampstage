@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { requireVideoUser, videoRoute, VideoHttpError } from "@/lib/video/http";
 import { ownedVideoJob } from "@/lib/video/projects";
 import { videoData } from "@/lib/video/types";
+import { effectiveSixReferences } from "@/lib/video/six-reference-plan";
 import { localMediaResponse, privateMediaUrl } from "@/lib/video/storage";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,16 +27,25 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   else if (kind === "reference") {
     const raw = request.nextUrl.searchParams.get("segment");
     const index = Number(raw);
-    if (raw === null || !Number.isInteger(index) || index < 0 || index >= 3) throw new VideoHttpError(400, "参考图索引无效。");
+    if (raw === null || !Number.isInteger(index) || index < 0 || index >= (data.referenceImages?.length ?? 0)) throw new VideoHttpError(400, "参考图索引无效。");
     key = data.referenceImages?.[index]?.key;
     mime = "image/png";
   }
-  else if (["opening", "ending", "candidate"].includes(kind || "")) {
+  else if (["opening", "ending", "candidate", "tail", "segment_reference"].includes(kind || "")) {
     const indexString = request.nextUrl.searchParams.get("segment");
     const index = Number(indexString);
     if (indexString === null || !Number.isInteger(index) || index < 0) throw new VideoHttpError(400, "片段索引无效。");
     const segment = data.segments.find(s => s.index === index);
     key = kind === "opening" ? segment?.openingKey : kind === "ending" ? segment?.endingKey : segment?.candidateKey;
+    if (kind === "tail") key = segment?.tailKey;
+    if (kind === "segment_reference") {
+      const picture = request.nextUrl.searchParams.get("picture");
+      const p = Number(picture);
+      if (picture === null || !Number.isInteger(p) || p < 0 || p > 5) throw new VideoHttpError(400, "参考图索引无效。");
+      const refs = segment?.startFromSegment !== undefined && data.segments[segment.startFromSegment]?.accepted
+        ? effectiveSixReferences(data, segment) : segment?.referenceImages;
+      key = refs?.[p]?.key;
+    }
     if (kind !== "candidate") mime = "image/png";
   }
   if (!key) throw new VideoHttpError(404, "视频素材尚未生成。");

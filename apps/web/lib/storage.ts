@@ -62,6 +62,7 @@ export async function putObject(
   key: string,
   data: Buffer,
   mime: string = "image/jpeg",
+  options: { signal?: AbortSignal } = {},
 ): Promise<string> {
   const ext = extFromMime(mime);
   const finalKey = key.endsWith(`.${ext}`) ? key : `${key}.${ext}`;
@@ -75,7 +76,7 @@ export async function putObject(
       // 让浏览器和 CDN 长缓存（生成图本就是不变的）
       CacheControl: "public, max-age=31536000, immutable",
     });
-    await getR2().send(cmd);
+    await getR2().send(cmd, { abortSignal: options.signal });
     const base = publicBase();
     if (base) {
       return `${base}/${finalKey}`;
@@ -87,7 +88,7 @@ export async function putObject(
   // local fs (dev)
   const fullPath = path.join(process.cwd(), "public", finalKey);
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
-  await fs.writeFile(fullPath, data);
+  await fs.writeFile(fullPath, data, { signal: options.signal });
   return `/${finalKey.replace(/\\/g, "/")}`;
 }
 
@@ -107,8 +108,9 @@ export async function putUploadedAsset(
   relKey: string,
   data: Buffer,
   mime: string,
+  options: { signal?: AbortSignal } = {},
 ): Promise<string> {
-  return putObject(`${SUBDIR_UPLOADS}/${relKey}`, data, mime);
+  return putObject(`${SUBDIR_UPLOADS}/${relKey}`, data, mime, options);
 }
 
 export async function putSuggestThumb(

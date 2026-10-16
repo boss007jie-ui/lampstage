@@ -1,74 +1,59 @@
 # Lampstage · WorkBuddy Expert API 平台
 
-> Connect WorkBuddy to reusable image, video and commerce workflows.
-> 将 WorkBuddy 接入可复用的图片、视频和电商内容工作流。
+Lampstage 为 WorkBuddy Creative Expert 提供可复用的素材、图片、视频和电商内容工作流。网站提供注册登录、个人 API Key、账号用量与开发者接入；Expert 负责理解素材、组织任务和审阅结果；后端 API 与持久化 worker 执行任务。
 
-[lampstage.com](https://lampstage.com) — account registration, per-user API keys and a versioned API entry point for the WorkBuddy Creative Expert.
+- 网站：[lampstage.com](https://lampstage.com)
+- 开发者接入：[/developers](https://lampstage.com/developers)
+- 个人密钥：[/account](https://lampstage.com/account)
+- WorkBuddy Expert：[0.10.1 安装包](workbuddy-expert/releases/lampstage-creative-expert-0.10.1.zip)、[SHA-256](workbuddy-expert/releases/lampstage-creative-expert-0.10.1.sha256)、[源码](workbuddy-expert/lampstage-creative-expert)
 
-2026-10-11：网站入口已收敛为 WorkBuddy Expert/API 产品页、账号注册、个人 API 密钥和开发者接入说明。用户可在 `/account` 创建个人 API Key，再由 Creative Expert 通过 Bearer 鉴权调用 `/api/v1` 的素材、图片任务、视频项目和任务查询接口。旧的网页生成工作台已从公开入口移除；后端 API 保留以供 Expert 使用。
+## 本次源码同步
 
-WorkBuddy Expert 的视频流程包含参考视频分段、首尾帧确认、预算确认和 Hypit/RunningHub H3 渲染；生产任务仍需有效的 PostgreSQL、migrations、对象存储和独立 worker。查看[本地使用说明](本地使用说明.md)与[视频实施说明](docs/implementation/2026-10-07-video-beta.md)。
+包含多参考图图片任务、固定版本人物库、视频模板与交付、任务关闭和草稿生命周期、账号与充值完整性、会话同步，以及视频起态、实际候选时长和审阅错误诊断修复。Expert 0.10.1 补齐停顿与全局、分段及结束状态的冲突核对。
 
-开发者入口：[`/developers`](https://lampstage.com/developers)，密钥管理：[`/account`](https://lampstage.com/account)。API 发现接口为 `/api/v1`、`/api/v1/health` 和 `/api/v1/capabilities`。可导入的 WorkBuddy Creative Expert 位于 `workbuddy-expert/lampstage-commerce-creator`：它组合产品理解、电商关键词优化、图片生成、Hypit/RunningHub H3 视频复刻和任务查询，并随包提供 MCP 桥接脚本。
+这是源码发布记录。视频质量修复已通过本地回归，生产部署与真实成片验收按实际环境分别确认。开发中的独立 Agent 内核留在开发工作区。
 
-## 技术栈
+## 技术栈与目录
 
-- **Frontend + Backend**: Next.js 14 (App Router) + TypeScript + Tailwind CSS
-- **Database**: Prisma + PostgreSQL (Supabase free tier)
-- **AI image generation**: server-side OpenLux models (`nano banana 2.1` / `image 2.5`), selected by runtime configuration
-- **Object storage**: Aliyun OSS / Cloudflare R2
+- Next.js 14、React、TypeScript、Tailwind CSS。
+- Prisma / PostgreSQL；任务数据与视频 worker 使用持久化存储。
+- 服务端图片供应商适配器、RunningHub 视频路径及独立媒体处理。
+- 腾讯云 Docker Compose / Caddy 部署模板，存储通过环境配置接入。
 
-## 本地启动
+```text
+apps/web/              网站、API、自有业务逻辑、迁移与测试
+infra/tencent/         无密钥的部署模板
+scripts/               本地控制及相关测试
+workbuddy-expert/      Expert 源码、当前发行包与离线校验器
+.github/workflows/     GitHub CI
+```
 
-Windows 本机：双击根目录 **启动本地网站.cmd**，它会启动独立数据库、网站与视频 worker；登录资料见 `apps/web/.local-runtime/本地登录与配置.txt`。停止时使用 **停止本地网站.cmd**。完整操作与剩余配置见[本地使用说明](本地使用说明.md)。
+## 开发与检查
 
-原有云数据库的开发方式仍可使用（需自行确认其连接配置有效）：
+需要 Node.js 22 和 PostgreSQL。媒体处理需要可用的 FFmpeg。仅在自己控制的开发环境配置数据库和供应商凭据。
 
 ```bash
 cd apps/web
+npm ci
 cp ../../.env.example .env.local
-# 填好 .env.local 里的密钥
-npm install
+# 在本地配置字段中填写所需配置，然后生成 Prisma client。
+npm run db:generate
 npm run dev
 ```
 
-打开 http://localhost:3000
+运行相关检查：
 
-## 仓库结构
-
-```
-lamp-saas-mvp/
-├── apps/web/             # Next.js 应用（前端 + 后端 API）
-│   ├── app/              # 页面 + Route Handlers
-│   ├── components/       # 复用组件（auth, i18n, ...）
-│   ├── lib/              # brand / auth / db / providers
-│   ├── prisma/           # schema + seed
-│   ├── public/scene-examples/ # 本轮新生成的首页场景示例（非客户结果）
-│   └── public/showcase/  # 历史展示素材，来源核实见素材清单
-├── docs/superpowers/     # PRD + 计划
-├── sketches/             # HTML 视觉草图（首页 002 + 工作台 001）
-├── scripts/              # 一次性运维脚本
-├── workbuddy-expert/     # WorkBuddy Expert + MCP / Connector 配置
-├── docs/platformization/ # 平台化、API 与 Expert 交付边界
-└── .github/workflows/    # CI
+```bash
+npm run typecheck
+npm run lint
+npm run video:test
+npm run build
 ```
 
-## 双语 i18n
+数据库与媒体集成测试使用各自显式开关及隔离资源；默认跳过的项目不代表集成验收已通过。不要将测试指向生产数据库或在验证中自动发起付费生成。
 
-- 全站文案集中在 `apps/web/lib/brand.ts`
-- 客户端通过 `useLang()` 读 / 切，cookie 持久化
-- 新访客默认中文；尊重已有语言 cookie，右上角可切换中英文
+Windows 本地启动见[本地使用说明](本地使用说明.md)。生产模板见 [infra/tencent](infra/tencent/README.md)。原生 Expert 连接器中的凭据通过宿主配置界面输入，密钥、运行配置、用户素材、数据库备份和运维日志不随本仓库分发。
 
-## 文档
+## 第三方组件
 
-- 参考视频＋商品图接入评估与阶段计划：`docs/research/2026-10-07-hypit-video-integration-assessment.md`（本地代码已接入；一次 H3 01 真实成片已验收，实际账单和生产 worker 仍待补）
-- 国内商家需求调研：`docs/research/2026-10-07-domestic-lamp-merchant-demand.md`
-- 最新跨境商品场景图定位修正：`docs/research/2026-10-07-crossborder-positioning-correction.md`（旧国内交付方案仅作历史假设）
-- 当前页面审查：`docs/design-audit/2026-10-07/README.md`
-- 全站改版规格及视觉候选：`docs/superpowers/specs/2026-10-07-lampstage-merchant-redesign-design.md`、`docs/design-concepts/2026-10-07/README.md`（旧版已归档）
-- 最新场景优先视觉候选：`docs/design-concepts/2026-10-07-scene-first/README.md`（用户已选择新版 2，全站本地实现与 UI 验收完成）
-- 改版实现与验收：`docs/implementation/2026-10-07-scene-gallery-redesign.md`、`design-qa.md`；公开页面已发布，真实登录、生成、扣费与支付闭环仍待有效生产数据库和线上验收
-- 当前项目情况与推进计划：`docs/superpowers/plans/2026-10-06-lampstage-project-roadmap.md`
-- 项目卡片与当前任务：`PROJECT_CARD.md`、`TASKS.md`
-- 产品 PRD：`docs/superpowers/specs/2026-06-09-lamp-saas-mvp-design.md`
-- Phase 1 开发计划：`docs/superpowers/plans/2026-06-09-lamp-saas-mvp-phase1.md`
+第三方组件的使用方式与限制见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。Hypit 运行时需单独安装，并受其自定义许可约束；其中包含多租户和商业再分发限制。源代码可取得或本地可运行，都不能替代所需授权。仓库保留现有兼容适配器与上游许可文本，不打包第三方 `node_modules`。

@@ -1,3 +1,4 @@
+import { generationMode } from "@/lib/video/reference-inputs";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireVideoUser, requireVideoWorker, videoRoute, VideoHttpError } from "@/lib/video/http";
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const data = videoData(job.data);
   if (!data.segments.some(s => s.submissionIntentAt || s.buildId)) throw new VideoHttpError(409, "没有视频提交记录，请由管理员检查参考图任务。");
   // Recovery only queries existing video receipts; it never invokes image generation.
-  await requireVideoWorker(true, false);
+  await requireVideoWorker(true, false, generationMode(data));
   const update = await prisma.videoJob.updateMany({ where: { id: job.id, status: "attention", revision: job.revision, user_id: user.id },
     data: { status: "queued", phase: "reconcile", stage: "等待核查原任务，不重复提交", error: null, lease_owner: null, lease_until: null, revision: { increment: 1 } } });
   if (update.count !== 1) throw new VideoHttpError(409, "项目状态已更新。");

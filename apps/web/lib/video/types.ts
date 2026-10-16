@@ -1,10 +1,12 @@
+import type { CandidateTiming } from "./candidate-quality";
+
 /** Public contracts contain media URLs only; storage keys and provider receipts stay server-side. */
-export type VideoStatus = "draft" | "queued" | "preparing" | "review" | "generating" | "assembling" | "completed" | "failed" | "attention";
-export type VideoPhase = "prepare" | "prepare_references" | "render" | "reconcile";
+export type VideoStatus = "draft" | "queued" | "preparing" | "review" | "generating" | "assembling" | "completed" | "failed" | "attention" | "cancelled";
+export type VideoPhase = "prepare" | "prepare_references" | "prepare_sixref" | "render" | "reconcile" | "assemble";
 /** Older workers reject this new phase instead of treating direct preparation as paid image work. */
-export const isVideoPreparation = (phase: string): boolean => phase === "prepare" || phase === "prepare_references";
-export type VideoGenerationMode = "legacy_frames" | "direct_references";
-export type VideoReferenceRole = "product" | "character" | "scene" | "product_detail";
+export const isVideoPreparation = (phase: string): boolean => phase === "prepare" || phase === "prepare_references" || phase === "prepare_sixref";
+export type VideoGenerationMode = "legacy_frames" | "direct_references" | "six_references";
+export type VideoReferenceRole = "product" | "character" | "scene" | "product_detail" | "start_state" | "end_state";
 export interface VideoReferenceImage {
   assetId: string;
   role: VideoReferenceRole;
@@ -17,8 +19,25 @@ export interface VideoReferenceImage {
 export interface VideoSegment {
   index: number;
   start: number;
-  duration: 4 | 5;
+  duration: 4 | 5 | 6 | 8;
   trimStart: number;
+  /** Six-reference semantic window, independent of the upstream requested duration. */
+  sourceWindowDuration?: number;
+  instructions?: string;
+  beforeState?: string;
+  afterState?: string;
+  referenceImages?: VideoReferenceImage[];
+  startFromSegment?: number;
+  attempt?: number;
+  candidateSha256?: string;
+  candidateMedia?: { duration: number; width: number; height: number; fps?: number; frameCount?: number };
+  /** Explicitly reviewed leading repetition to remove; never applied automatically. */
+  candidateTrimStart?: number;
+  tailKey?: string;
+  tailSha256?: string;
+  accepted?: boolean;
+  terminalFailure?: boolean;
+  history?: { attempt: number; buildId?: string; providerTaskId?: string; candidateKey?: string; candidateSha256?: string; reason: string }[];
   clipKey?: string;
   openingKey?: string;
   endingKey?: string;
@@ -31,13 +50,19 @@ export interface VideoSegment {
 
 export interface VideoJobData {
   version: 1;
+  /** Soft cancellation retains inputs and records its original timestamp. */
+  cancellation?: { at: string; reason: "user_cancelled" | "draft_expired" | "user_closed"; previous_status?: string; previous_revision?: number };
   /** Missing on existing jobs means legacy_frames; never reinterpret old consent. */
   generationMode?: VideoGenerationMode;
   referenceImages?: VideoReferenceImage[];
+  /** Versioned immutable provider selection; existing jobs retain their original route. */
+  workflowProfile?: "sixref-v1";
   sourceDuration?: number;
   sourceHasAudio?: boolean;
   segments: VideoSegment[];
   outputKey?: string;
+  outputSha256?: string;
+  outputMedia?: { duration: number; width: number; height: number; fps?: number; frameCount?: number };
   imageCalls: number;
   /**
    * 未定价模式（explicit）：单段报价未配置时 estimatedCoins/perSegmentCoins 为 null，
@@ -75,7 +100,12 @@ export interface VideoJobView {
    */
   progress_updated_at: string | null;
   stage_code: string | null;
-  segments: { index: number; start: number; duration: number; opening_url: string | null; ending_url: string | null; candidate_url: string | null }[];
+  segments: { index: number; start: number; duration: number; opening_url: string | null; ending_url: string | null; candidate_url: string | null;
+    source_duration?: number; instructions?: string; before_state?: string; after_state?: string; start_from_segment?: number;
+    candidate_sha256?: string; tail_url?: string | null; tail_sha256?: string; accepted?: boolean; attempt?: number;
+    candidate_media?: VideoSegment["candidateMedia"]; candidate_timing?: CandidateTiming; reference_assets?: { picture: number; asset_id: string; role: VideoReferenceRole; label: string; url: string | null; sha256: string | null }[] }[];
+  candidate_review_token?: string | null;
+  ready_segment_indices?: number[];
   output_url: string | null;
   download_url: string | null;
   estimate: { segments: number; image_calls: number; video_coins: number | null };
@@ -120,7 +150,7 @@ export function videoData(value: unknown): VideoJobData {
 }
 
 /** Configured conservative quote, not an upstream spending cap. Never invent an exchange rate. */
-export function segmentCoinQuote(): number | null {
-  const value = Number(process.env.VIDEO_H3_SEGMENT_QUOTE_COINS);
+export function segmentCoinQuote(mode?: VideoGenerationMode): number | null {
+  const value = Number(mode === "six_references" ? process.env.VIDEO_SIXREF_SEGMENT_QUOTE_COINS : process.env.VIDEO_H3_SEGMENT_QUOTE_COINS);
   return Number.isInteger(value) && value > 0 && value <= 100000 ? value : null;
 }

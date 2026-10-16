@@ -14,7 +14,7 @@
     "local:stop": "tsx scripts/local-control.ts stop",
     "local:test": "tsx scripts/tests/local-smoke.ts",
     "video:runtime": "tsx ../../scripts/configure-video-runtime.ts",
-    "video:test": "tsx --test scripts/tests/video-download.test.ts scripts/tests/video-controls.test.ts scripts/tests/video-worker-loop.test.ts scripts/tests/video-upstream.test.ts scripts/tests/video-boundaries.test.ts scripts/tests/video-pipeline.test.ts scripts/tests/video-reference-inputs.test.ts scripts/tests/video-reference-api.test.ts scripts/tests/video-direct-prepare.test.ts ../../scripts/tests/video-runner.test.ts ../../scripts/tests/video-expert-bridge.test.mjs",
+    "video:test": "tsx --test scripts/tests/video-*.test.ts ../../scripts/tests/video-*.test.ts ../../scripts/tests/video-*.test.mjs ../../scripts/tests/configure-video-runtime.test.ts && node --test vendor/hypit/packages/hypit-provider-runninghub-sixref/provider.test.js",
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",

@@ -1,14 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MCP_TOOLS, dispatchMcp as dispatch, invokeMcpTool } from "../../lib/mcp-tools";
+import { MCP_TOOLS, dispatchMcp, invokeMcpTool } from "../../lib/mcp-tools";
 import { mcpDownloadInternals } from "../../lib/mcp-download";
 
 const request = new Request("https://lampstage.com/api/mcp", { headers: { authorization: "Bearer lmp_live_test" } });
+const dispatch = (item: Parameters<typeof dispatchMcp>[0], input: Request) => dispatchMcp(item, input, { logCall: () => {} });
 
-test("MCP exposes the nine tools and requires explicit generic image inputs", () => {
-  assert.equal(MCP_TOOLS.length, 9);
+test("MCP exposes the twenty-seven supported tools and requires explicit generic image inputs", () => {
+  assert.equal(MCP_TOOLS.length, 27);
+  const close = MCP_TOOLS.find((tool) => tool.name === "close_video_job");
+  assert.ok(close, "The supported task-close operation must remain discoverable.");
+  assert.deepEqual(close.inputSchema.required, ["job_id", "expected_revision"]);
+  assert.deepEqual(MCP_TOOLS.slice(-6).map((tool) => tool.name), ["list_characters", "get_character", "save_character", "save_character_version", "update_character", "list_character_assets"]);
   const image = MCP_TOOLS.find((tool) => tool.name === "create_image_job");
-  assert.deepEqual(image?.inputSchema.required, ["asset_id", "custom_prompt", "image_count"]);
+  assert.deepEqual(image?.inputSchema.required, ["custom_prompt", "image_count"]);
+  assert.deepEqual(image?.inputSchema.oneOf, [{ required: ["asset_id"] }, { required: ["reference_assets"] }]);
   assert.equal((image?.inputSchema.properties as Record<string, { minimum?: number; maximum?: number }>).image_count.minimum, 1);
   assert.equal((image?.inputSchema.properties as Record<string, { minimum?: number; maximum?: number }>).image_count.maximum, 4);
 });

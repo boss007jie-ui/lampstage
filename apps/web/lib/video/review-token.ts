@@ -1,3 +1,4 @@
+import { readySixSegments } from "./six-reference-plan";
 /**
  * 审阅标识（review_token）：把"用户在展示时看到的那些东西"压成一个确定性摘要。
  *
@@ -27,10 +28,11 @@ export function reviewToken(input: ReviewTokenInput): string | null {
   const { jobId, data, quote } = input;
   const mode = generationMode(data);
   if (!data.segments.length) return null;
-  const remaining = data.segments.filter(segment => !segment.candidateKey);
+  if (mode === "six_references" && data.segments.some(s => !s.candidateKey && (s.buildId || s.submissionIntentAt))) return null;
+  const remaining = mode === "six_references" ? readySixSegments(data) : data.segments.filter(segment => !segment.candidateKey);
   if (!remaining.length) return null;
   // direct 模式下参考快照必须先就绪，否则没有可绑定的"实际参考内容"。
-  if (mode === "direct_references" && !preparedReferencesReady(data)) return null;
+  if (mode !== "legacy_frames" && !preparedReferencesReady(data)) return null;
   // 已有付费意图/回执的片段不得再提交，token 也不签发（避免诱导重复提交）。
   if (remaining.some(segment => segment.submissionIntentAt || segment.buildId)) return null;
   const canonical = {
@@ -38,7 +40,7 @@ export function reviewToken(input: ReviewTokenInput): string | null {
     jobId,
     mode,
     quote,
-    references: mode === "direct_references" ? referenceDigest(data) : null,
+    references: mode !== "legacy_frames" ? referenceDigest(data) : null,
     // 待生成片段的动作窗口：任一段被生成/变化，这里就变。
     windows: remaining.map(segment => ({
       index: segment.index,

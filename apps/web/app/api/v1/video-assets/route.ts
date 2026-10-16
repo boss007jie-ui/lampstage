@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { apiJson, requireApiUser } from "@/lib/public-api";
@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
   const ext = file.type === "video/webm" ? "webm" : file.type === "video/quicktime" ? "mov" : "mp4";
   const key = `videos/${auth.auth.user.id}/api/${randomUUID()}.${ext}`;
   await privateWrite(key, bytes, file.type);
-  const asset = await prisma.videoAsset.create({ data: { user_id: auth.auth.user.id, storage_key: key, mime: file.type, size_bytes: file.size, status: "ready" } });
-  return apiJson({ id: asset.id, asset_id: asset.id, status: asset.status }, { status: 201 });
+  const asset = await prisma.videoAsset.create({ data: { user_id: auth.auth.user.id, storage_key: key, mime: file.type, size_bytes: file.size,
+    sha256: createHash("sha256").update(bytes).digest("hex"), status: "ready" } });
+  return apiJson({ id: asset.id, asset_id: asset.id, status: asset.status, sha256: asset.sha256 }, { status: 201 });
 }

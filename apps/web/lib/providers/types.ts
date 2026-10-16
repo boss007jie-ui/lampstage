@@ -26,6 +26,8 @@ export interface GenInput {
   /** Private video frames can be supplied without publishing their storage URLs. */
   referenceImageData?: { bytes: Buffer; mime: string };
   compositionReferenceData?: { bytes: Buffer; mime: string };
+  /** Ordered, pinned image bytes. When supplied, legacy composition fields must be absent. */
+  referenceImages?: Array<{ bytes: Buffer; mime: string }>;
   requestTimeoutMs?: number;
   aspectRatio: AspectRatio;
   platformStyle: PlatformStyle;
@@ -53,6 +55,23 @@ export interface GenSingleResult {
   mime?: string;
   /** 失败原因（人类可读，发给前端展示） */
   error?: string;
+  /** Only the provider's reported token counts; absent when none were reported. */
+  usage?: ProviderReportedUsage;
+  /** What is known about submission to the provider, independent of image delivery. */
+  attempt?: ProviderAttempt;
+}
+
+export interface ProviderAttempt {
+  status: "not_submitted" | "response_received" | "unknown";
+  http_status: number | null;
+}
+
+export interface ProviderReportedUsage {
+  source: "provider_reported";
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  cached_tokens: number | null;
 }
 
 export interface IGenerationProvider {

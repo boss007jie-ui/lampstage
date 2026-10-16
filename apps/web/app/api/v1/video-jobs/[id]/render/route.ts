@@ -26,13 +26,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const data = videoData(job.data);
   // 审阅标识必须先通过：它把展示时的参考快照、动作窗口、待生成片段与报价一起绑上，
   // 展示之后任何一项变化都会让这里拒收（409），避免"确认的是旧的、提交的是新的"。
-  const review = checkReviewToken(body.review_token, reviewToken({ jobId: job.id, data, quote: segmentCoinQuote() }));
+  const review = checkReviewToken(body.review_token, reviewToken({ jobId: job.id, data, quote: segmentCoinQuote(generationMode(data)) }));
   if (!review.ok) return apiJson({ error: review.reason }, { status: review.status });
   const maxCoins = typeof body.max_coins === "number" ? body.max_coins : undefined;
-  const consent = validateRenderConsent(data, maxCoins, segmentCoinQuote());
-  if (!consent.ok) return apiJson({ error: "invalid_render_consent", message: consent.reason }, { status: 400 });
+  const consent = validateRenderConsent(data, maxCoins, segmentCoinQuote(generationMode(data)));
+  if (!consent.ok) return apiJson({ error: "code" in consent ? consent.code : "invalid_render_consent", message: consent.reason }, { status: 400 });
   try {
-    await requireVideoWorker(true, generationMode(data) !== "direct_references");
+    await requireVideoWorker(true, generationMode(data) === "legacy_frames", generationMode(data));
   } catch (error) {
     return apiJson({ error: "hypit_worker_unavailable", message: error instanceof Error ? error.message : "Hypit 视频处理服务尚未启动。" }, { status: 503 });
   }

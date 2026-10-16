@@ -64,8 +64,6 @@ const D = {
   gallery_next_title: { zh: "把创作，接入你的日常。", en: "Make creativity part of your everyday." },
   gallery_next_body: { zh: "创建 API 密钥，连接 WorkBuddy，将图片、视频与商品内容能力融入你的产品与业务流程。", en: "Create an API key, connect WorkBuddy, and bring image, video and product content into your everyday workflows." },
   gallery_footer: { zh: "让想法，有一个好舞台。", en: "A good stage for every idea." },
-  gallery_motion_pause: { zh: "暂停字标动效", en: "Pause logo motion" },
-  gallery_motion_play: { zh: "开启字标动效", en: "Enable logo motion" },
   login_subtitle: {"zh": "登录后创建个人 API 密钥，连接 WorkBuddy 专家。", "en": "Sign in to create a personal API key and connect your WorkBuddy Expert."},
   footer_privacy: {"zh": "隐私政策", "en": "Privacy"},
   footer_terms: {"zh": "用户协议", "en": "Terms"},

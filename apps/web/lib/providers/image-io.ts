@@ -4,6 +4,7 @@ import path from "node:path";
 import { getObjectBytes } from "@/lib/storage";
 import type { GenInput } from "./types";
 import type { ImageReference } from "./image-requests";
+import { APP_MAX_IMAGE_REFERENCES } from "../image-models";
 
 async function readReference(url: string): Promise<ImageReference> {
   // These are bundled public assets even when uploaded customer media uses R2.
@@ -19,14 +20,33 @@ async function readReference(url: string): Promise<ImageReference> {
 
 /** Keep the full product reference, rather than shrinking its identifying details to 256 px. */
 export async function readImageReferences(input: GenInput, maxReferences: number): Promise<ImageReference[]> {
+  if (input.referenceImages !== undefined) {
+    if (input.compositionReferenceData !== undefined || input.compositionReferenceUrl !== undefined || input.referenceImageData !== undefined) {
+      throw new Error("Explicit reference images cannot be combined with legacy reference data or composition fields.");
+    }
+    if (!Array.isArray(input.referenceImages) || !input.referenceImages.length ||
+      input.referenceImages.length > APP_MAX_IMAGE_REFERENCES || input.referenceImages.length > maxReferences) {
+      throw new Error("Unsupported reference image count.");
+    }
+    // The URL remains a required legacy sentinel, but explicit bytes are the only source here.
+    return prepareReferences(input.referenceImages);
+  }
   const hasComposition = Boolean(input.compositionReferenceData || input.compositionReferenceUrl);
   if (hasComposition && maxReferences < 2) throw new Error("This image model accepts only the product reference.");
   const product = input.referenceImageData ?? await readReference(input.referenceImageUrl);
   const references = hasComposition
     ? [input.compositionReferenceData ?? await readReference(input.compositionReferenceUrl!), product]
     : [product];
+  return prepareReferences(references);
+}
+
+async function prepareReferences(references: ImageReference[]): Promise<ImageReference[]> {
   const prepared = [];
   for (const reference of references) {
+    if (!reference || !Buffer.isBuffer(reference.bytes) || !reference.bytes.length ||
+      !["image/jpeg", "image/png", "image/webp"].includes(reference.mime)) {
+      throw new Error("Invalid reference image.");
+    }
     const bytes = await sharp(reference.bytes).rotate()
       .resize(1536, 1536, { fit: "inside", withoutEnlargement: true })
       .png().toBuffer();

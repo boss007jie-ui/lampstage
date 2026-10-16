@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Eye, EyeSlash, X } from "@phosphor-icons/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { useLang } from "@/components/i18n/LangProvider";
+import { notifySessionChanged } from "./session-events";
 
 type Props = {
   open: boolean;
@@ -192,6 +193,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         setError(t("login_err_network") + String(r.status));
         return;
       }
+      notifySessionChanged();
       onSignedIn({
         userId: data.user_id,
         isNewUser: false,
@@ -288,6 +290,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         setError(t("login_err_network") + String(r.status));
         return;
       }
+      notifySessionChanged();
       onSignedIn({
         userId: data.user_id,
         isNewUser: true,
@@ -371,6 +374,7 @@ export function LoginModal({ open, onClose, onSignedIn }: Props) {
         setError(t("login_err_network") + String(r.status));
         return;
       }
+      notifySessionChanged();
       onSignedIn({
         userId: data.user_id,
         isNewUser: data.is_new_user,

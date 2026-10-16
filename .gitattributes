@@ -1,0 +1,15 @@
+* text=auto eol=lf
+# Expert 发行校验要求源码与 ZIP 逐字节一致。
+workbuddy-expert/lampstage-creative-expert/** -text
+*.cmd text eol=crlf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.mp4 binary
+*.zip binary
+*.woff binary
+*.woff2 binary
+*.ttf binary

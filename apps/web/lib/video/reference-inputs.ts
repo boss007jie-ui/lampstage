@@ -1,3 +1,5 @@
+import { extractCharacterBindings, CharacterBindingError } from "../characters/bindings";
+import { parseSixReferencePlan, sixReferencesReady, sixPlanDigest, parseSixReferences } from "./six-reference-plan";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { emptyVideoData, type VideoGenerationMode, type VideoJobData, type VideoReferenceImage } from "./types";
@@ -16,12 +18,15 @@ export class VideoReferenceInputError extends Error {}
 export function generationMode(data: VideoJobData): VideoGenerationMode {
   if (data.generationMode === undefined || data.generationMode === "legacy_frames") return "legacy_frames";
   if (data.generationMode === "direct_references") return "direct_references";
+  if (data.generationMode === "six_references") return "six_references";
   throw new VideoReferenceInputError("视频生成模式无效，请核对原任务。");
 }
 
 /** The current upstream has three connected image slots. Never invent or discard references. */
 export function parseVideoReferenceInput(body: Record<string, unknown>, productId: string): VideoJobData {
+  try { extractCharacterBindings(body); } catch (e) { if (e instanceof CharacterBindingError) throw new VideoReferenceInputError(e.code); throw e; }
   const mode = body.generation_mode ?? "legacy_frames";
+  if (mode === "six_references") return parseSixReferencePlan(body);
   if (mode !== "direct_references" && mode !== "legacy_frames") throw new VideoReferenceInputError("不支持该视频生成模式。");
   if (mode === "legacy_frames") {
     if (body.reference_assets !== undefined) throw new VideoReferenceInputError("使用人物或场景参考图时，必须明确指定 direct_references 模式。");
@@ -50,6 +55,7 @@ export function referenceImagesFor(data: VideoJobData): VideoReferenceImage[] {
 }
 
 export function preparedReferencesReady(data: VideoJobData): boolean {
+  if (generationMode(data) === "six_references") return sixReferencesReady(data);
   try {
     return data.imageCalls === 0 && referenceImagesFor(data).every(r =>
       typeof r.key === "string" && /^videos\/[a-zA-Z0-9_-]+\/references\/[0-2]\.png$/.test(r.key) &&
@@ -59,6 +65,7 @@ export function preparedReferencesReady(data: VideoJobData): boolean {
 
 /** Persist this digest in consent so changing order, identity, role or bytes invalidates approval. */
 export function referenceDigest(data: VideoJobData): string {
+  if (generationMode(data) === "six_references") return sixPlanDigest(data);
   if (!preparedReferencesReady(data)) throw new VideoReferenceInputError("参考图尚未完成准备与校验。");
   return createHash("sha256").update(JSON.stringify({ mode: generationMode(data), refs: referenceImagesFor(data).map(r =>
     ({ assetId: r.assetId, role: r.role, label: r.label, key: r.key, sha256: r.sha256 })) })).digest("hex");
@@ -68,9 +75,10 @@ export function referenceDigest(data: VideoJobData): string {
 export async function snapshotReferenceImages(refs: VideoReferenceImage[], jobId: string, io: {
   read: (assetId: string) => Promise<Buffer>;
   write: (key: string, bytes: Buffer) => Promise<void>;
-}): Promise<VideoReferenceImage[]> {
+}, segmentIndex?: number): Promise<VideoReferenceImage[]> {
   if (!idPattern.test(jobId)) throw new VideoReferenceInputError("任务标识无效。");
-  referenceImagesFor({ ...emptyVideoData(), generationMode: "direct_references", referenceImages: refs });
+  if (segmentIndex === undefined) referenceImagesFor({ ...emptyVideoData(), generationMode: "direct_references", referenceImages: refs });
+  else parseSixReferences(refs.map(r => ({ asset_id: r.assetId, role: r.role, label: r.label })));
   const normalized: Buffer[] = [];
   for (const ref of refs) {
     const bytes = await io.read(ref.assetId);
@@ -82,7 +90,7 @@ export async function snapshotReferenceImages(refs: VideoReferenceImage[], jobId
   }
   const result: VideoReferenceImage[] = [];
   for (let i = 0; i < refs.length; i++) {
-    const key = `videos/${jobId}/references/${i}.png`;
+    const key = `videos/${jobId}/${segmentIndex === undefined ? "" : `segments/${segmentIndex}/`}references/${i}.png`;
     await io.write(key, normalized[i]);
     result.push({ assetId: refs[i].assetId, role: refs[i].role, label: refs[i].label, key,
       sha256: createHash("sha256").update(normalized[i]).digest("hex") });

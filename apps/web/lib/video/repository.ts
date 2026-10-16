@@ -1,3 +1,6 @@
+import { effectiveSixReferences, readySixSegments } from "./six-reference-plan";
+import { candidateReviewToken } from "./candidate-review";
+import { assessCandidateTiming } from "./candidate-quality";
 import { Prisma, type VideoAsset, type VideoJob } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isVideoPreparation, segmentCoinQuote, videoData, type VideoJobData, type VideoJobView, type VideoStatus } from "./types";
@@ -11,44 +14,51 @@ export class LeaseLostError extends Error { constructor() { super("任务租约�
 export function jobView(job: VideoJob & { source_asset?: VideoAsset }): VideoJobView {
   const data = videoData(job.data);
   const media = (kind: string, segment?: number) => `/api/videos/projects/${encodeURIComponent(job.id)}/media?kind=${kind}${segment === undefined ? "" : `&segment=${segment}`}`;
-  const quote = segmentCoinQuote();
+  const quote = segmentCoinQuote(generationMode(data));
   return {
     id: job.id, title: job.title, status: job.status as VideoStatus, stage: job.stage,
     instructions: job.instructions, preserve_audio: job.preserve_audio,
     generation_mode: generationMode(data),
-    references_ready: generationMode(data) === "direct_references" ? preparedReferencesReady(data) : data.segments.length > 0 && data.segments.every(s => Boolean(s.openingKey && s.endingKey && s.clipKey)),
+    references_ready: generationMode(data) !== "legacy_frames" ? preparedReferencesReady(data) : data.segments.length > 0 && data.segments.every(s => Boolean(s.openingKey && s.endingKey && s.clipKey)),
     reference_assets: (data.referenceImages ?? []).map((ref, i) => ({ picture: i + 1, asset_id: ref.assetId, role: ref.role, label: ref.label,
       url: ref.key ? media("reference", i) : null, sha256: ref.sha256 ?? null })),
-    source_url: media("source"), product_url: generationMode(data) === "direct_references" && data.referenceImages?.[0]?.key ? media("reference", 0) : media("product"), source_duration: data.sourceDuration ?? null,
+    source_url: media("source"), product_url: generationMode(data) !== "legacy_frames" && data.referenceImages?.[0]?.key ? media("reference", 0) : media("product"), source_duration: data.sourceDuration ?? null,
     error: job.error, created_at: job.created_at.toISOString(), updated_at: job.updated_at.toISOString(),
     // 业务进展与数据库 updated_at 分开：后者会被 20 秒一次的租约心跳刷新，不能当业务推进的证据。
     progress_updated_at: data.progress?.lastProgressAt ?? null,
     stage_code: data.progress?.stageCode ?? null,
     // 审阅标识只在"可提交审阅"时签发；展示后的任何状态变化都会改变它。
     review_token: job.status === "review" ? reviewToken({ jobId: job.id, data, quote }) : null,
+    candidate_review_token: ["review", "attention"].includes(job.status) ? candidateReviewToken(job.id, data) : null,
+    ready_segment_indices: ["completed", "failed", "cancelled"].includes(job.status) ? [] : generationMode(data) === "six_references" ? readySixSegments(data).map(s => s.index) : data.segments.filter(s => !s.candidateKey).map(s => s.index),
     pricing_basis: quote === null ? "unpriced_technical_cap" as const : "configured_quote" as const,
     segments: data.segments.map(s => ({ index: s.index, start: s.start, duration: s.duration,
       opening_url: s.openingKey ? media("opening", s.index) : null,
       ending_url: s.endingKey ? media("ending", s.index) : null,
-      candidate_url: s.candidateKey ? media("candidate", s.index) : null })),
+      candidate_url: s.candidateKey ? media("candidate", s.index) : null,
+      source_duration: s.sourceWindowDuration, instructions: s.instructions, before_state: s.beforeState, after_state: s.afterState, start_from_segment: s.startFromSegment,
+      candidate_sha256: s.candidateSha256, candidate_media: s.candidateMedia, tail_url: s.tailKey ? media("tail", s.index) : null, tail_sha256: s.tailSha256, accepted: Boolean(s.accepted), attempt: s.attempt ?? 0,
+      ...(generationMode(data) === "six_references" && s.candidateKey ? { candidate_timing: assessCandidateTiming(data.segments, s.index) } : {}),
+      reference_assets: (s.startFromSegment !== undefined && data.segments[s.startFromSegment]?.accepted
+        ? effectiveSixReferences(data, s) : s.referenceImages ?? []).map((r, i) => ({ picture: i + 1, asset_id: r.assetId, role: r.role, label: r.label, sha256: r.sha256 ?? null, url: r.key ? `${media("segment_reference", s.index)}&picture=${i}` : null })) })),
     output_url: data.outputKey ? media("output") : null,
     download_url: data.outputKey ? `${media("output")}&download=1` : null,
-    estimate: { segments: data.segments.length, image_calls: data.imageCalls, video_coins: quote === null ? null : quote * data.segments.filter(s => !s.candidateKey).length },
+    estimate: { segments: data.segments.length, image_calls: data.imageCalls, video_coins: quote === null ? null : quote * (generationMode(data) === "six_references" ? readySixSegments(data).length : data.segments.filter(s => !s.candidateKey).length) },
   };
 }
 
 /** An expired claim is never placed back on the paid queue automatically. */
-export async function claimJob(workerId: string, db: RepositoryDb = prisma): Promise<VideoJob | null> {
+export async function claimJob(workerId: string, db: RepositoryDb = prisma, options: { recoveryOnly?: boolean } = {}): Promise<VideoJob | null> {
   const now = new Date();
   await db.videoJob.updateMany({
     where: { status: { in: ["preparing", "generating", "assembling"] }, lease_until: { lt: now } },
     data: { status: "attention", stage: "处理已中断，请核对已提交的任务", error: "工作进程租约过期；不会自动重复生成。", lease_owner: null, lease_until: null, revision: { increment: 1 } },
   });
-  const candidates = await db.videoJob.findMany({ where: { status: "queued", lease_owner: null }, orderBy: { created_at: "asc" }, take: 10 });
+  const candidates = await db.videoJob.findMany({ where: { status: "queued", lease_owner: null, ...(options.recoveryOnly ? { phase: { in: ["reconcile", "assemble"] } } : {}) }, orderBy: { created_at: "asc" }, take: 10 });
   for (const candidate of candidates) {
     const claimed = await db.videoJob.updateMany({
       where: { id: candidate.id, status: "queued", revision: candidate.revision, lease_owner: null },
-      data: { status: isVideoPreparation(candidate.phase) ? "preparing" : "generating", lease_owner: workerId,
+      data: { status: isVideoPreparation(candidate.phase) ? "preparing" : candidate.phase === "assemble" ? "assembling" : "generating", lease_owner: workerId,
         lease_until: new Date(Date.now() + LEASE_MS), revision: { increment: 1 }, error: null },
     });
     if (claimed.count === 1) return db.videoJob.findFirst({ where: { id: candidate.id, lease_owner: workerId } });

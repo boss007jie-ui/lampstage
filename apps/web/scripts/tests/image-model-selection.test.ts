@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
 import {
-  DEFAULT_IMAGE_MODEL, IMAGE_MODELS, getImageModel, isImageModelId,
+  APP_MAX_IMAGE_REFERENCES, DEFAULT_IMAGE_MODEL, IMAGE_MODELS, getImageModel, isImageModelId,
   recordedImageModel, validateImageSelection, type ImageModelId,
 } from "../../lib/image-models";
 import { extractGeminiImage } from "../../lib/providers/gemini-response";
@@ -26,9 +26,10 @@ test("public names, IDs, default, validation, and historical metadata are exact"
   assert.equal(NANO_21_ENDPOINT, "https://api.openlux.ai/v1beta/models/gemini-nano-banana-2.1:generateContent");
   assert.equal(IMAGE_25_ENDPOINT, "https://api.openlux.ai/v1/images/edits");
   assert.deepEqual(IMAGE_MODELS, [
-    { id: "nano_banana_21", name: "nano banana 2.1", apiModel: "gemini-nano-banana-2.1", maxReferences: 2 },
-    { id: "image_25", name: "image 2.5", apiModel: "gpt-image-2-c", maxReferences: 1 },
+    { id: "nano_banana_21", name: "nano banana 2.1", apiModel: "gemini-nano-banana-2.1", maxReferences: 6 },
+    { id: "image_25", name: "image 2.5", apiModel: "gpt-image-2-c", maxReferences: 6 },
   ]);
+  assert.equal(APP_MAX_IMAGE_REFERENCES, 6);
   assert.equal(DEFAULT_IMAGE_MODEL, "nano_banana_21");
   assert.equal(getImageModel("image_25").apiModel, "gpt-image-2-c");
   assert.equal(isImageModelId("gpt-image-2-c"), false);
@@ -61,10 +62,10 @@ test("Nano native JSON keeps prompt and two references in supplied order with on
   assert.equal(JSON.stringify(request).includes("response_format"), false);
   assert.equal(JSON.stringify(request).includes("gemini-3-pro-image"), false);
   assert.throws(() => buildNano21Request("x", []), /reference/);
-  assert.throws(() => buildNano21Request("x", [room, product, room]), /reference/);
+  assert.throws(() => buildNano21Request("x", Array(7).fill(room)), /reference/);
 });
 
-test("GPT multipart contains exactly model, prompt, image and rejects multiple references", async () => {
+test("GPT single-image multipart retains its existing image field", async () => {
   const form = buildImage25Request(input.prompt, [product]);
   assert.deepEqual([...form.keys()], ["model", "prompt", "image"]);
   assert.equal(form.get("model"), "gpt-image-2-c");
@@ -75,7 +76,35 @@ test("GPT multipart contains exactly model, prompt, image and rejects multiple r
   assert.equal(image.type, "image/jpeg");
   assert.deepEqual(Buffer.from(await image.arrayBuffer()), product.bytes);
   for (const forbidden of ["n", "quality", "size", "moderation", "response_format"]) assert.equal(form.has(forbidden), false);
-  assert.throws(() => buildImage25Request("x", [room, product]), /reference/);
+  assert.throws(() => buildImage25Request("x", Array(7).fill(room)), /reference/);
+});
+
+test("four distinct references retain order and bytes on both provider request wires", async () => {
+  const refs: ImageReference[] = [
+    { bytes: Buffer.from("mother"), mime: "image/png" },
+    { bytes: Buffer.from("baby"), mime: "image/jpeg" },
+    { bytes: Buffer.from("product"), mime: "image/webp" },
+    { bytes: Buffer.from("scene"), mime: "image/png" },
+  ];
+  const nano = buildNano21Request("four roles", refs);
+  assert.deepEqual(nano.contents[0].parts, [
+    { text: "four roles" },
+    ...refs.map(ref => ({ inlineData: { mimeType: ref.mime, data: ref.bytes.toString("base64") } })),
+  ]);
+  const gpt = buildImage25Request("four roles", refs);
+  assert.deepEqual([...gpt.keys()], ["model", "prompt", "image[]", "image[]", "image[]", "image[]"]);
+  assert.equal(gpt.get("model"), "gpt-image-2-c");
+  assert.equal(gpt.get("prompt"), "four roles");
+  const files = gpt.getAll("image[]");
+  assert.deepEqual(files.map(file => file instanceof File ? file.name : null),
+    ["reference-01.png", "reference-02.jpg", "reference-03.webp", "reference-04.png"]);
+  for (const [index, file] of files.entries()) {
+    assert.ok(file instanceof File);
+    assert.equal(file.type, refs[index].mime);
+    assert.deepEqual(Buffer.from(await file.arrayBuffer()), refs[index].bytes);
+  }
+  assert.equal(gpt.has("image"), false);
+  for (const forbidden of ["n", "quality", "size", "moderation", "response_format"]) assert.equal(gpt.has(forbidden), false);
 });
 
 test("response extractors skip thoughts and accept inline, URL, data URI shapes", () => {
@@ -133,7 +162,8 @@ test("both explicit models use their exact endpoint and body, regardless of lega
     for (const item of cases) {
       const h = harness(item.id, { status: 200, payload: item.payload });
       assert.equal(h.provider.name, getImageModel(item.id).name);
-      assert.deepEqual(await h.provider.generate(input), { ok: true, bytes: Buffer.from("decoded"), mime: "image/png" });
+      assert.deepEqual(await h.provider.generate(input), { ok: true, bytes: Buffer.from("decoded"), mime: "image/png",
+        attempt: { status: "response_received", http_status: 200 } });
       assert.equal(h.fetchCalls.length, 1);
       assert.equal(h.fetchCalls[0].url, item.endpoint);
       assert.deepEqual(h.readCalls, [getImageModel(item.id).maxReferences]);
@@ -229,4 +259,28 @@ test("bundled room references stay local when customer object storage uses R2", 
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
   }
+});
+
+test("explicit pinned references are preprocessed in order without reading legacy URLs", async () => {
+  const colors = ["red", "green", "blue", "yellow"];
+  const pinned = await Promise.all(colors.map(async color => ({
+    bytes: await sharp({ create: { width: 3, height: 2, channels: 3, background: color } }).jpeg().toBuffer(),
+    mime: "image/jpeg",
+  })));
+  const explicit: GenInput = { ...input, referenceImageUrl: "https://invalid.example/legacy-url-must-not-be-read", referenceImages: pinned };
+  const prepared = await readImageReferences(explicit, 6);
+  assert.equal(prepared.length, 4);
+  assert.deepEqual(prepared.map(ref => ref.mime), Array(4).fill("image/png"));
+  for (const [index, ref] of prepared.entries()) {
+    const expected = await sharp(pinned[index].bytes).rotate().resize(1536, 1536,
+      { fit: "inside", withoutEnlargement: true }).png().toBuffer();
+    assert.deepEqual(ref.bytes, expected);
+  }
+  await assert.rejects(readImageReferences({ ...explicit, referenceImages: [] }, 6), /reference image count/);
+  await assert.rejects(readImageReferences({ ...explicit, referenceImages: Array(7).fill(pinned[0]) }, 6), /reference image count/);
+  await assert.rejects(readImageReferences(explicit, 3), /reference image count/);
+  await assert.rejects(readImageReferences({ ...explicit, compositionReferenceUrl: "" }, 6), /legacy reference data or composition/);
+  await assert.rejects(readImageReferences({ ...explicit, compositionReferenceData: pinned[0] }, 6), /legacy reference data or composition/);
+  await assert.rejects(readImageReferences({ ...explicit, referenceImageData: pinned[0] }, 6), /legacy reference data or composition/);
+  await assert.rejects(readImageReferences({ ...explicit, referenceImages: [{ bytes: Buffer.from("bad"), mime: "image/png" }] }, 6));
 });

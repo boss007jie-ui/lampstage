@@ -2,7 +2,9 @@
 
 ## Product shape
 
-Lampstage is now presented as a general AI content and media platform. The web workspace is the human entry point. The developer page is the machine entry point. Existing lighting scene generation remains an adapter inside the workspace while the generic asset and job contracts are introduced.
+Current entry points were narrowed on 2026-10-11 and checked again on 2026-10-13. Lampstage (创境) is an AI content and media API platform used primarily through the WorkBuddy Creative Expert. The website provides account registration, personal API keys and integration guidance. Users initiate creative work in the Expert, which accesses Lampstage through MCP and the versioned API.
+
+The former `/workspace`, `/video-workspace` and `/cases` pages redirect to `/developers`; `/my` and `/credits` redirect to `/account`. The earlier web-workspace product description is historical. Lighting scene generation remains a compatibility path in the backend, not the definition of the current product or its intended customer categories.
 
 The first supported capability set is:
 
@@ -28,8 +30,8 @@ Provider credentials remain server-side. API keys are stored as SHA-256 digests 
 
 ## WorkBuddy Expert
 
-`workbuddy-expert/lampstage-commerce-creator` packages the customer-facing Video Replica Expert. It composes reference-video understanding, segment/reference-frame preparation, image generation, Hypit/RunningHub Minimax H3 rendering and jobs/assets Skills. The `.mcp.json` uses a server-side `LAMPSTAGE_API_KEY` placeholder; Hypit, RunningHub and image-provider credentials remain in the persistent Lampstage worker and are not shipped to WorkBuddy.
+`workbuddy-expert/lampstage-creative-expert` packages the customer-facing Lampstage Creative Expert. It composes product understanding, ecommerce keyword optimization, image generation, reference-video preparation, Hypit/RunningHub Minimax H3 rendering and jobs/assets Skills. The `.mcp.json` uses a WorkBuddy token-dialog `LAMPSTAGE_API_KEY` placeholder; Hypit, RunningHub and image-provider credentials remain in the persistent Lampstage worker and are not shipped to WorkBuddy.
 
 ## Compatibility boundary
 
-The current database and image generation pipeline still contain lighting-specific profile fields and prompt adapters. They are deliberately kept behind the existing workspace routes until a generic `AssetProfile` and provider-neutral job payload are migrated. This lets the platform entry points ship without invalidating existing lamp jobs or their review metadata.
+The current database and image generation pipeline still contain lighting-specific profile fields and prompt adapters. The public image API accepts a source asset plus `custom_prompt` without requiring a product profile, while reusing the existing generation pipeline. Legacy backend routes remain for compatibility, but their former web workspace pages are no longer the public creation entry point. A generic `AssetProfile` and provider-neutral pipeline remain migration work; successful production results across content types must be verified separately from the platform positioning.

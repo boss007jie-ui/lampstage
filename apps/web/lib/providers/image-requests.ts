@@ -25,15 +25,18 @@ export function buildNano21Request(prompt: string, references: ImageReference[])
   };
 }
 
-/** The C route accepts one product image. No n, quality, moderation, or old-model sizes. */
+/** OpenLux multi-file alias support is unverified; image[] follows the OpenAI-compatible edit convention. */
 export function buildImage25Request(prompt: string, references: ImageReference[]): FormData {
   checkReferences(references, getImageModel("image_25").maxReferences);
-  const reference = references[0];
-  const suffix = reference.mime === "image/png" ? "png" : reference.mime === "image/webp" ? "webp" : "jpg";
   const form = new FormData();
   form.append("model", getImageModel("image_25").apiModel);
   form.append("prompt", prompt);
-  form.append("image", new Blob([new Uint8Array(reference.bytes)], { type: reference.mime }), `product.${suffix}`);
+  references.forEach((reference, index) => {
+    const suffix = reference.mime === "image/png" ? "png" : reference.mime === "image/webp" ? "webp" : "jpg";
+    const filename = references.length === 1 ? `product.${suffix}` : `reference-${String(index + 1).padStart(2, "0")}.${suffix}`;
+    form.append(references.length === 1 ? "image" : "image[]",
+      new Blob([new Uint8Array(reference.bytes)], { type: reference.mime }), filename);
+  });
   return form;
 }
 

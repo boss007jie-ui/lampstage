@@ -2,23 +2,23 @@
  * 生成任务的核心业务逻辑。
  *
  * 流程（一次完整 run）：
- *   created
- *     -> [事务] 扣 4 额度 + 写 CreditTransaction(consume) + status=generating
+ *   validate all explicit reference assets and freeze their bytes
+ *     -> [事务] 扣 N 额度 + 写 CreditTransaction(consume) + status=generating
  *     -> stage_hint = "analyzing" -> "matching" -> "generating"
- *     -> 并发调 nano banana ×4
+ *     -> 并发调用已选择的模型 N 次（每次完整参考列表，输出一张）
  *     -> stage_hint = "lighting" -> "finalizing"
- *     -> 把 4 张图写到 public/generated/<job_id>/n.png
- *     -> 写 OutputImage ×4
+ *     -> 把成功图片写入存储并记录 OutputImage
  *     -> status=completed
  *
  *   失败任意一步：
  *     -> status=failed + failure_reason
- *     -> [事务] 退 4 额度 + 写 CreditTransaction(refund)
+ *     -> [事务] 退 N 额度 + 写 CreditTransaction(refund)
  *
- * 生成是 fire-and-forget：API 返回 { job_id, status: "generating" }，
- * 前端轮询 GET /api/generation/jobs/[id] 获取 stage_hint 和最终 outputs。
+ * API 同步等待整条生成管道，并返回数据库中的最终状态。
+ * N 是输出张数，1–4；与输入参考图张数互相独立。
  */
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 import {
   InsufficientCreditsError,
   consumeCredits,
@@ -27,6 +27,9 @@ import {
 import { putGeneratedImage } from "@/lib/storage";
 import { getProvider } from "@/lib/providers";
 import { getImageModel, validateImageSelection, type ImageModelId } from "@/lib/image-models";
+import { buildReferenceImagePrompt, imageOutputCount, ImageInputError, parseImageReferences, type ImageAssetReference } from "@/lib/image-reference-contract";
+import { prepareImageReferences, recheckImageReferences, type PreparedImageReferences } from "@/lib/image-references";
+import { ImageContentError } from "@/lib/assets/image-content";
 import { generateScene } from "@/lib/scene-generator";
 import { selectSceneSeed } from "@/lib/scene-seed";
 import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
@@ -37,6 +40,12 @@ import type {
   TargetAudience,
 } from "@/lib/lamp-profile";
 import type { PromptPlan } from "@/lib/prompt-planner";
+import {
+  buildBrandPromptBlock,
+  resolveBrandKit,
+  type BrandKit,
+  type BrandPromptMode,
+} from "@/lib/brand-kit";
 
 const OUTPUT_COUNT = 3; // 旧流程默认张数 / 历史兼容
 const MIN_IMAGE_COUNT = 1;
@@ -45,6 +54,20 @@ const CREDIT_PER_IMAGE = 1; // 按张扣费：选 N 张扣 N 个额度
 function clampImageCount(n: number | undefined): number {
   if (!n || !Number.isFinite(n)) return OUTPUT_COUNT;
   return Math.max(MIN_IMAGE_COUNT, Math.min(MAX_IMAGE_COUNT, Math.floor(n)));
+}
+
+/**
+ * 品牌段落的安全构造：品牌档案坏了就降级为"无品牌"，绝不让出图链路失败。
+ * 两种措辞的区别见 lib/brand-kit.ts 的 BrandPromptMode。
+ */
+function safeBrandBlock(kit: BrandKit | null, mode: BrandPromptMode): string | null {
+  if (!kit) return null;
+  try {
+    return buildBrandPromptBlock(kit, mode);
+  } catch (error) {
+    console.warn(`[generation] brand block skipped: ${String(error)}`);
+    return null;
+  }
 }
 
 const PLATFORM_STYLE_RULES: Record<PlatformStyle, string> = {
@@ -258,6 +281,7 @@ function buildRoomFirstPrompt(
   lit: boolean,
   platformStyle: PlatformStyle,
   aspect: AspectRatio,
+  brandBlock?: string | null,
 ): string {
   const material =
     profile.material_keywords.length > 0
@@ -274,7 +298,10 @@ function buildRoomFirstPrompt(
     `Match the room's perspective, daylight and shadow direction so the lamp looks truly photographed in the room. Keep the lamp ${SCALE_BY_SIZE[profile.size_class]}; it reads as one small installed fixture, secondary to the room.`,
     lightLine,
   ].join(" ");
-  return `${body}
+  // 房间参考图已锁定，品牌不能改房间本身，只能治理"新加进去的"和"重新打的光"。
+  // 冲突时以锁定房间为准（这段说明在 brandBlock 内部）。
+  const brandSection = brandBlock ? `\n\n${brandBlock}` : "";
+  return `${body}${brandSection}
 
 ${PLATFORM_STYLE_RULES[platformStyle]}
 
@@ -364,6 +391,7 @@ function buildShotPrompt(
   lit: boolean,
   platformStyle: PlatformStyle,
   aspect: AspectRatio,
+  brandBlock?: string | null,
 ): string {
   const audience = AUDIENCE_KEYWORDS[profile.target_audience];
   const scene = spaceScene(room);
@@ -427,7 +455,10 @@ function buildShotPrompt(
     "Shot with a wide lens showing the whole room, the room and its furniture filling most of the frame; the small lamp blends in as one natural piece of the décor, not an oversized centred product.",
   ].join(" ");
 
-  return `${body}
+  // 品牌档案：治理环境，不治理产品。段落内部已自检不含灯具词，
+  // 所以不会破坏"灯具词只出现一次"的约束。
+  const brandSection = brandBlock ? `\n\n${brandBlock}` : "";
+  return `${body}${brandSection}
 
 ${PLATFORM_STYLE_RULES[platformStyle]}
 
@@ -444,6 +475,7 @@ export function decideThreeShots(
   profile: LampProfileInput,
   platformStyle: PlatformStyle,
   aspect: AspectRatio,
+  brandBlock?: string | null,
 ): { prompt: string; room: string; lit: boolean; compositionReferenceUrl: string }[] {
   const rooms = getRoomsForProfile(profile);
   const litPattern =
@@ -451,7 +483,7 @@ export function decideThreeShots(
       ? [false, false, false]
       : LIT_PATTERN[profile.lamp_type];
   return rooms.map((room, i) => ({
-    prompt: buildShotPrompt(profile, room, litPattern[i], platformStyle, aspect),
+    prompt: buildShotPrompt(profile, room, litPattern[i], platformStyle, aspect, brandBlock),
     room,
     lit: litPattern[i],
     // 单图图生图不再用房间参考图，保留字段兼容上层（始终空串）
@@ -568,33 +600,63 @@ export async function createAndRunGenerationJob(args: {
   /** 顾客选择的出图数量 1-4。不传按默认 3。 */
   imageCount?: number;
   imageModel?: ImageModelId;
+  /** Complete ordered reference list. The first asset is only the legacy database anchor. */
+  referenceAssets?: ImageAssetReference[];
+  /**
+   * 品牌档案 slug（apps/web/brand-kits/<slug>.md）。
+   * 不传则回退 DEFAULT_BRAND_KIT 环境变量；都没有则完全维持原有行为。
+   * 品牌只治理环境（房间/家具/材质/配色/光线/软装/构图），不治理产品。
+   */
+  brandKitSlug?: string;
 }): Promise<
   | { ok: true; jobId: string; creditBalance: number }
   | {
       ok: false;
-      reason:
-        | "insufficient_credits"
-        | "asset_not_found"
-        | "template_not_found"
-        | "missing_prompt"
-        | "profile_not_ready"
-        | "bad_image_model"
-        | "unsupported_model_aspect";
+      reason: string;
+      status?: number;
     }
 > {
   const selection = validateImageSelection(args.imageModel, args.aspectRatio);
   if (!selection.ok) return selection;
   const imageModel = selection.imageModel;
   const model = getImageModel(imageModel);
+  let preparedReferences: PreparedImageReferences | undefined;
+  try {
+    imageOutputCount(args.imageCount, args.referenceAssets !== undefined);
+    if (args.referenceAssets !== undefined) {
+      const refs = parseImageReferences({ reference_assets: args.referenceAssets, custom_prompt: args.customPrompt,
+        image_count: args.imageCount, ...(args.sceneKind === undefined ? {} : { scene_kind: args.sceneKind }),
+        ...(args.templateId === undefined ? {} : { template_id: args.templateId }),
+        ...(args.recommendedPromptEn === undefined ? {} : { recommended_prompt_en: args.recommendedPromptEn }) })!;
+      if (refs[0].asset_id !== args.uploadedAssetId) throw new ImageInputError("ambiguous_image_references");
+      if (refs.length > model.maxReferences) throw new ImageInputError("unsupported_reference_count");
+      preparedReferences = await prepareImageReferences(args.userId, refs);
+    }
+  } catch (error) {
+    if (error instanceof ImageInputError) return { ok: false, reason: error.code, status: error.status };
+    throw error;
+  }
   const imageCount = clampImageCount(args.imageCount);
   const creditCost = imageCount * CREDIT_PER_IMAGE;
+
+  // 品牌档案：在事务外读盘（不该让文件 IO 占着数据库事务）。
+  // 只有走"档案驱动"的新流程才注入品牌；模板/推荐/自定义四路保持原样。
+  // 拿不到就降级为无品牌，不让品牌档案的问题影响出图。
+  let brandKit: BrandKit | null = null;
+  if (!args.sceneKind) {
+    const resolved = await resolveBrandKit(args.brandKitSlug ?? null);
+    if (resolved.reason !== "ok" && resolved.reason !== "no_brand_kit") {
+      console.warn(`[generation] brand kit skipped: ${resolved.reason}`);
+    }
+    brandKit = resolved.kit;
+  }
 
   // planner 已拆到 /api/generation/plan（「构思」阶段）预先跑好并存到
   // UploadedAsset.planned_shots。这里只读取，不再内联同步调 LLM —— 否则 planner
   // 的 20-34s 会和生图一起挤爆 60s 预算。读不到（未构思/planner 失败/已过期）
   // 就走本地规则 fallback（decideThreeShots）。
   let plannedPromptPlan: PromptPlan | null = null;
-  if (!args.sceneKind && process.env.PROMPT_PLANNER_ENABLED === "true") {
+  if (!preparedReferences && !args.sceneKind && process.env.PROMPT_PLANNER_ENABLED === "true") {
     const assetForPlan = await prisma.uploadedAsset.findUnique({
       where: { id: args.uploadedAssetId },
       select: { user_id: true, planned_shots: true },
@@ -609,6 +671,10 @@ export async function createAndRunGenerationJob(args: {
   let result;
   try {
     result = await prisma.$transaction(async (tx) => {
+      if (preparedReferences) {
+        await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${args.userId} FOR UPDATE`;
+        await recheckImageReferences(tx, args.userId, preparedReferences);
+      }
       const asset = await tx.uploadedAsset.findUnique({
         where: { id: args.uploadedAssetId },
       });
@@ -622,7 +688,10 @@ export async function createAndRunGenerationJob(args: {
       let compositionReferenceList: string[] | null = null; // 新流程用：每张图对应一张房间参考图
       let templateId: string | null = null;
 
-      if (!args.sceneKind) {
+      if (preparedReferences) {
+        finalPrompt = buildReferenceImagePrompt(args.customPrompt!, preparedReferences.snapshots, args.platformStyle);
+        promptList = Array.from({ length: imageCount }, () => finalPrompt);
+      } else if (!args.sceneKind) {
         // 新流程：档案驱动
         if (!asset.detected_lamp_type || !asset.size_class || !asset.color_temp || !asset.target_audience) {
           return { kind: "profile_missing" as const };
@@ -636,9 +705,14 @@ export async function createAndRunGenerationJob(args: {
           material_keywords: (asset.material_keywords ?? "").split(",").filter(Boolean),
           space_fit: (asset.space_fit ?? "").split(",").filter(Boolean),
         };
-        const fallbackShots = decideThreeShots(profile, args.platformStyle, args.aspectRatio);
+        const fallbackShots = decideThreeShots(
+          profile,
+          args.platformStyle,
+          args.aspectRatio,
+          safeBrandBlock(brandKit, "text"),
+        );
         // Single-reference editing uses a product-only prompt, never a room-first two-image prompt.
-        const plannedShots = model.maxReferences > 1 ? plannedPromptPlan?.shots : undefined;
+        const plannedShots = imageModel !== "image_25" ? plannedPromptPlan?.shots : undefined;
         // 把候选镜头铺平成统一结构（planner 4 条 / fallback 3 条）
         const candidates = plannedShots
           ? plannedShots.map((shot) => ({
@@ -658,7 +732,7 @@ export async function createAndRunGenerationJob(args: {
         // 未命中的自定义空间退回原纯文字提示词（compositionReferenceUrl 留空）。
         // C26: default to room references; fallback keeps generation alive when no seed exists.
         const enriched = await Promise.all(candidates.map(async (c) => {
-          if (model.maxReferences === 1) return { ...c, compositionReferenceUrl: "" };
+          if (imageModel === "image_25") return { ...c, compositionReferenceUrl: "" };
           let roomRef = await selectSceneSeed({
             sceneType: c.room,
             targetAudience: profile.target_audience,
@@ -680,6 +754,7 @@ export async function createAndRunGenerationJob(args: {
               c.lit,
               args.platformStyle,
               args.aspectRatio,
+              safeBrandBlock(brandKit, "room-first"),
             ),
             compositionReferenceUrl: roomRef,
           };
@@ -700,6 +775,7 @@ export async function createAndRunGenerationJob(args: {
           plannedShots && plannedPromptPlan
             ? `prompt_planner=used\nusage_role=${plannedPromptPlan.usage_role}\nreasoning=${plannedPromptPlan.reasoning}`
             : "prompt_planner=fallback_local_rules",
+          `brand_kit=${brandKit ? `${brandKit.slug}@${brandKit.version}` : "none"}`,
           ...shots.map(
             (s, i) =>
               `--- shot ${i + 1}: ${s.room} (${s.lit ? "lit" : "off"}) ---\nroom_reference=${s.compositionReferenceUrl}\nplanner_meta=${JSON.stringify(s.plannerMeta)}\n${s.prompt}`,
@@ -734,9 +810,11 @@ export async function createAndRunGenerationJob(args: {
           user_id: args.userId,
           uploaded_asset_id: asset.id,
           template_id: templateId,
-          scene_kind: args.sceneKind ?? "profile",
+          scene_kind: preparedReferences ? "custom" : args.sceneKind ?? "profile",
           prompt_text: finalPrompt,
-          metadata: { image_model: imageModel, provider_model: model.apiModel },
+          metadata: { image_model: imageModel, provider_model: model.apiModel, image_count: imageCount,
+            ...(preparedReferences ? { reference_schema_version: 1, reference_count: preparedReferences.snapshots.length,
+              reference_assets: preparedReferences.snapshots } : {}) },
           platform_style: args.platformStyle,
           aspect_ratio:
             args.aspectRatio === "1_1"
@@ -751,12 +829,16 @@ export async function createAndRunGenerationJob(args: {
       });
 
       // 在同一事务里扣额度
-      const { balanceAfter } = await consumeCredits(
+      const { balanceAfter, chargedCredits, billingMode } = await consumeCredits(
         tx,
         args.userId,
         creditCost,
         job.id,
       );
+      await tx.generationJob.update({ where: { id: job.id }, data: { metadata: {
+        ...(job.metadata as Record<string, Prisma.InputJsonValue>),
+        billing: { mode: billingMode, quoted_credits: creditCost, charged_credits: chargedCredits },
+      } } });
 
       return {
         kind: "ok" as const,
@@ -769,6 +851,7 @@ export async function createAndRunGenerationJob(args: {
       };
     });
   } catch (e) {
+    if (e instanceof ImageInputError || e instanceof ImageContentError) return { ok: false, reason: e.code, status: e.status };
     if (e instanceof InsufficientCreditsError) {
       return { ok: false, reason: "insufficient_credits" };
     }
@@ -803,6 +886,7 @@ export async function createAndRunGenerationJob(args: {
     jobId: result.job.id,
     userId: args.userId,
     referenceImageUrl: result.asset.image_url,
+    referenceImages: preparedReferences?.images,
     prompts,
     compositionReferenceUrls: result.compositionReferenceList ?? undefined,
     aspectRatio: args.aspectRatio,
@@ -833,10 +917,19 @@ async function setStage(
   });
 }
 
+async function recordImageUsage(jobId: string, usage: Prisma.InputJsonObject) {
+  // Merge only our key so reference and frozen billing metadata remain intact.
+  await prisma.$executeRaw`
+    UPDATE "GenerationJob" SET "metadata" = jsonb_set(COALESCE("metadata", '{}'::jsonb), '{usage}', ${JSON.stringify(usage)}::jsonb),
+      "updated_at" = CURRENT_TIMESTAMP WHERE "id" = ${jobId}
+  `;
+}
+
 async function runGenerationPipeline(args: {
   jobId: string;
   userId: string;
   referenceImageUrl: string;
+  referenceImages?: Array<{ bytes: Buffer; mime: string }>;
   /** 每张图独立 prompt（长度应等于 OUTPUT_COUNT）。如果传单字符串则自动复制 OUTPUT_COUNT 次。 */
   prompts: string[] | string;
   /** 每张图对应的房间/构图参考图。长度可少于 OUTPUT_COUNT，缺失则该张只用灯具图。 */
@@ -865,23 +958,42 @@ async function runGenerationPipeline(args: {
     // Every output in this job uses the customer's persisted model choice.
     await setStage(jobId, "generating");
     const provider = getProvider(args.imageModel);
+    const startedAt = Date.now();
+    const usageBase = { schema_version: 1, requested_images: prompts.length, provider: provider.name,
+      provider_model: getImageModel(args.imageModel).apiModel, actual_cost: null };
+    // Intent is durable before any call. A process interruption remains unknown,
+    // never a fabricated zero-cost or successful provider request.
+    await recordImageUsage(jobId, { ...usageBase, provider_attempts: prompts.map((_, index) => ({
+      index, status: "intent", http_status: null, image_ready: null, duration_ms: null, tokens: null,
+    })) });
+    const durations: number[] = [];
     const calls = prompts.map((prompt, idx) => {
       const compositionReferenceUrl = args.compositionReferenceUrls?.[idx];
       console.log(
         `[gen] output ${idx + 1}/${prompts.length} via ${provider.name}` +
           (compositionReferenceUrl ? ` + roomRef=${compositionReferenceUrl}` : ""),
       );
+      const callStartedAt = Date.now();
       return provider.generate({
         prompt,
         referenceImageUrl,
-        compositionReferenceUrl,
+        ...(args.referenceImages ? { referenceImages: args.referenceImages } : { compositionReferenceUrl }),
         aspectRatio,
         platformStyle: "domestic_ecommerce", // 已经拼进 prompt 里了，这里塞个占位值
         outputCount: 1,
         jobId,
-      });
+      }).finally(() => { durations[idx] = Date.now() - callStartedAt; });
     });
     const settled = await Promise.allSettled(calls);
+    await recordImageUsage(jobId, { ...usageBase, elapsed_ms: Date.now() - startedAt,
+      provider_attempts: settled.map((result, index) => ({ index,
+        status: result.status === "fulfilled" ? result.value.attempt?.status ?? "unknown" : "unknown",
+        http_status: result.status === "fulfilled" ? result.value.attempt?.http_status ?? null : null,
+        image_ready: result.status === "fulfilled" ? result.value.ok : false,
+        duration_ms: durations[index] ?? null,
+        tokens: result.status === "fulfilled" && result.value.usage ? { ...result.value.usage } : null,
+      })),
+    });
     const successes = settled
       .map((r) =>
         r.status === "fulfilled" && r.value.ok && r.value.bytes && r.value.mime

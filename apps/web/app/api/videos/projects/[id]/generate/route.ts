@@ -16,11 +16,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   if (input.confirm_references !== true || input.accept_estimate !== true) throw new VideoHttpError(400, "请确认参考图并接受本次费用预估。");
   const data = videoData(job.data);
   // 旧入口同样必须回传审阅标识：不能让"网页/旧路径"绕过展示与提交之间的版本绑定。
-  const review = checkReviewToken(input.review_token, reviewToken({ jobId: job.id, data, quote: segmentCoinQuote() }));
+  const review = checkReviewToken(input.review_token, reviewToken({ jobId: job.id, data, quote: segmentCoinQuote(generationMode(data)) }));
   if (!review.ok) throw new VideoHttpError(review.status, review.reason);
-  const consent = validateRenderConsent(data, input.max_coins, segmentCoinQuote());
+  const consent = validateRenderConsent(data, input.max_coins, segmentCoinQuote(generationMode(data)));
   if (!consent.ok) throw new VideoHttpError(400, consent.reason);
-  await requireVideoWorker(true, generationMode(data) !== "direct_references");
+  await requireVideoWorker(true, generationMode(data) === "legacy_frames", generationMode(data));
   data.renderConsent = { at: new Date().toISOString(), maxCoins: consent.maxCoins, estimatedCoins: consent.estimate, perSegmentCoins: consent.quote,
     pricingBasis: consent.pricingBasis, segmentIndices: consent.segmentIndices,
     ...(consent.referenceDigest ? { referenceDigest: consent.referenceDigest } : {}) };

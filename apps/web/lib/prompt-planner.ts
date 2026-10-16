@@ -14,6 +14,8 @@ import type {
   TargetAudience,
 } from "@/lib/lamp-profile";
 import type { AspectRatio, PlatformStyle } from "@/lib/providers/types";
+import type { BrandKit } from "@/lib/brand-kit";
+import { buildBrandPromptBlock } from "@/lib/brand-kit";
 import { logToolCall } from "@/lib/tool-log";
 import {
   THINKING_DISABLED,
@@ -131,6 +133,23 @@ Do not use:
 - statement piece
 - visually dominant lamp
 - exact scale enforcement wording
+
+BRAND DESIGN SYSTEM (optional)
+
+A task may include a BRAND DESIGN SYSTEM block describing the merchant's
+visual language: mood, materials, colour palette, light, composition and styling.
+
+When that block is present it governs the SETTING — room, architecture,
+furniture, materials, textiles, colour balance, daylight and styling — and it
+applies to every shot.
+
+It never governs the product. The product's shape, material and colour always
+come from the reference image.
+
+Treat the brand tokens as part of the room description, not as extra
+constraints: fold them into the room sentences. Do not append them as a
+separate list. Brand wording must never introduce a second mention of the
+product, and must never add centimetres, percentages or scale wording.
 
 CAMERA
 
@@ -510,6 +529,11 @@ export async function planImagePrompts(args: {
   platformStyle: PlatformStyle;
   aspectRatio: AspectRatio;
   userIntent?: string;
+  /**
+   * 品牌档案。给了就让品牌治理"环境"（房间/家具/材质/配色/光线/软装/构图），
+   * 不给则完全维持原有行为。品牌段落不含灯具词，不会触发下面的 shot 自检。
+   */
+  brand?: BrandKit | null;
 }): Promise<PromptPlan | null> {
   const startedAt = Date.now();
   const planner = getPlannerConfig();
@@ -522,6 +546,18 @@ export async function planImagePrompts(args: {
     args.profile.space_fit.length > 0
       ? args.profile.space_fit.join(", ")
       : "(none provided — fall back to the single best space judged by style)";
+
+  // 品牌档案：只影响环境描述。buildBrandPromptBlock 已自检不含灯具词，
+  // 所以这里直接拼进 userText 是安全的。构造失败时降级为"无品牌"而不是让构思失败。
+  let brandSection = "";
+  if (args.brand) {
+    try {
+      brandSection = `\n\n${buildBrandPromptBlock(args.brand, "text")}\n\nFold the brand tokens above into each shot's room description. Do not append them as a separate list.`;
+    } catch (e) {
+      console.warn(`[prompt-planner] brand block skipped: ${String(e)}`);
+    }
+  }
+
   const userText = `Product card:
 - lamp_type: ${args.profile.lamp_type}
 - size_class: ${args.profile.size_class}
@@ -542,7 +578,7 @@ Business/user intent:
 ${args.userIntent || "Generate real usage scene images for a lighting e-commerce product. The lamp must blend into the room, not become a huge centered hero object."}
 
 Platform style: ${args.platformStyle}
-Aspect ratio: ${args.aspectRatio}
+Aspect ratio: ${args.aspectRatio}${brandSection}
 
 Write 4 planned image-edit shots in the fixed order described in the system prompt. Only ONE image (the lamp product photo) is sent to the model.`;
 

@@ -19,6 +19,6 @@ export async function authRoute(action: () => Promise<Response>): Promise<Respon
       "[auth-api] operation failed",
       error instanceof Error ? error.name : "UnknownError",
     );
-    return NextResponse.json({ error: "service_unavailable" }, { status: 503 });
+    return NextResponse.json({ error: "service_unavailable" }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }
 }

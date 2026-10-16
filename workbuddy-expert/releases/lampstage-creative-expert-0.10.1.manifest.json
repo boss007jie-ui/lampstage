@@ -1,0 +1,118 @@
+{
+  "version": "0.10.1",
+  "archive": "lampstage-creative-expert-0.10.1.zip",
+  "sha256": "3622DDB41B55E44F2B26391141E29E6D726F920F2F39B598C536038F50BD85EF",
+  "entry_count": 22,
+  "entries": [
+    {
+      "path": "lampstage-creative-expert/.codebuddy-plugin/plugin.json",
+      "sha256": "afafb799839f4846f25ad4e126e6adee69818d1ed78652a584d499dc0f779b54",
+      "bytes": 2198
+    },
+    {
+      "path": "lampstage-creative-expert/.mcp.json",
+      "sha256": "cc473cd538a3736104af3fef42ffa7c7ffb0cc38f4cceba915c8db202ba1c60f",
+      "bytes": 1642
+    },
+    {
+      "path": "lampstage-creative-expert/agents/lampstage-creative-expert.md",
+      "sha256": "0a4096a742a56f83f3b5a7dfa43187aae08927041bfd32e84abd4987c285fef0",
+      "bytes": 10540
+    },
+    {
+      "path": "lampstage-creative-expert/avatars/expert.png",
+      "sha256": "40994ff546f6f9e4175c4dfc4f03b85e802f710c41a9bf0b07f6b8adfdbadb87",
+      "bytes": 14090
+    },
+    {
+      "path": "lampstage-creative-expert/avatars/expert.svg",
+      "sha256": "d3231e2eea0154e966ce096d34c99668ad1050ebd77aeb77d1e90aedf022d4cc",
+      "bytes": 468
+    },
+    {
+      "path": "lampstage-creative-expert/README.md",
+      "sha256": "de4a1a405e3682ef383cb9b8804afd25823db7975b2f85e2c7f260f22e45cccc",
+      "bytes": 9319
+    },
+    {
+      "path": "lampstage-creative-expert/references/connector-setup.md",
+      "sha256": "76d800115a67e67a8a96bfe9c3baf7f9b6ba8dd7dad21315a4ff55cdb4bfcebb",
+      "bytes": 5255
+    },
+    {
+      "path": "lampstage-creative-expert/references/mcp-contract.md",
+      "sha256": "56859f6641f40cd10b6fd36ce0835b80fa01aa2ef1488cec037e80249f9587f6",
+      "bytes": 27175
+    },
+    {
+      "path": "lampstage-creative-expert/scripts/lampstage-http.mjs",
+      "sha256": "bae635c1c1e465585825a6ec7a6642915aca3aba8525a2d55b341323b2d1b4e6",
+      "bytes": 52073
+    },
+    {
+      "path": "lampstage-creative-expert/scripts/lifecycle-errors.mjs",
+      "sha256": "50b8551ac28dfec372ce8a6f6f337ac18fd6ed44b0ace0f1be8156a929a19fd7",
+      "bytes": 10247
+    },
+    {
+      "path": "lampstage-creative-expert/skills/character-library/references/character-workflow.md",
+      "sha256": "ac9244673b02b41e800188c501041c2f906f39dd85781f5df76e3471938b0bbe",
+      "bytes": 10263
+    },
+    {
+      "path": "lampstage-creative-expert/skills/character-library/SKILL.md",
+      "sha256": "98d62aaf6dea656a16a9793b1cdb45b0714ff985f57048958b355d7915329d38",
+      "bytes": 1952
+    },
+    {
+      "path": "lampstage-creative-expert/skills/ecommerce-keyword-optimizer/SKILL.md",
+      "sha256": "854661c8fb7c696dbff0b813e6227a2c2eb831f36df9578630b7b06c2271c274",
+      "bytes": 656
+    },
+    {
+      "path": "lampstage-creative-expert/skills/image-generation/references/multi-reference-images.md",
+      "sha256": "2a824c168d6af1333a48faf31e5600e7b0210d0b1502f60acc11866e5a7ee5d3",
+      "bytes": 7636
+    },
+    {
+      "path": "lampstage-creative-expert/skills/image-generation/SKILL.md",
+      "sha256": "d22286e4ddd38465bbdf0e60b5b68bf81530c2ff3de59820eb73c19fef6a83e9",
+      "bytes": 1862
+    },
+    {
+      "path": "lampstage-creative-expert/skills/jobs-and-assets/SKILL.md",
+      "sha256": "d3f4bb117f9febee88a623ceb37f712858632291d25574f15ddfd630586adab4",
+      "bytes": 9358
+    },
+    {
+      "path": "lampstage-creative-expert/skills/product-understanding/SKILL.md",
+      "sha256": "de6e5e22c45034ff8f754b82d1bcf5f420b32ca25c790d7fea162218d6114a80",
+      "bytes": 658
+    },
+    {
+      "path": "lampstage-creative-expert/skills/video-generation/references/infant-clothing.md",
+      "sha256": "f69db9f7c3759e781909d0c63af675ef7b010acf15aa39c0d5f8a9c22a6946b2",
+      "bytes": 15234
+    },
+    {
+      "path": "lampstage-creative-expert/skills/video-generation/references/production-workflow.md",
+      "sha256": "826657ce1677c9777e307fb7bdd498743340a11870afb4d8226ba6d664fb29c9",
+      "bytes": 13834
+    },
+    {
+      "path": "lampstage-creative-expert/skills/video-generation/references/replication-review-template.md",
+      "sha256": "f1a3a0a505bf11409b957c9b24fb7246dc9fe7e9b39fcfd0ee101f30cf6e1585",
+      "bytes": 6555
+    },
+    {
+      "path": "lampstage-creative-expert/skills/video-generation/references/video-templates.md",
+      "sha256": "1227687401669670396708f517ffd7b9271bae400e9765d66812b9221a3ac0fb",
+      "bytes": 7738
+    },
+    {
+      "path": "lampstage-creative-expert/skills/video-generation/SKILL.md",
+      "sha256": "6a5036bf8b858010d656b79884dfe1986e764d7bbee15af7c944268ed521add6",
+      "bytes": 11020
+    }
+  ]
+}
